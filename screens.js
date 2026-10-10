@@ -174,7 +174,7 @@ export async function renderCharts() {
 
   const slices = cats.slice(0, 5);
   const restSum = sum(items) - slices.reduce((a, [, v]) => a + v, 0);
-  const pie = [...slices.map(([id, v], n) => [CAT[id]?.name || id, v, SHADES[n]]), ...(restSum > 0 ? [['Прочее', restSum, SHADES[5]]] : [])];
+  const pie = [...slices.map(([id, v], n) => [CAT[id]?.name || id, v, SHADES[n], id]), ...(restSum > 0 ? [['Прочее', restSum, SHADES[5], null]] : [])];
   let acc = 0;
   const stops = pie.map(([, v, c]) => {
     const from = (acc / total) * 100; acc += v;
@@ -209,7 +209,9 @@ export async function renderCharts() {
               <div class="donut-mid"><b>${moneyShort(total)} ₽</b><small>${items.length} ${plural(items.length, 'трата', 'траты', 'трат')}</small></div>
             </div>
             <div class="legend">
-              ${pie.map(([name, v, c]) => `<div><i style="background:${c}"></i><span>${esc(name)}</span><b>${Math.round((v / total) * 100)}%</b></div>`).join('')}
+              ${pie.map(([name, v, c, id]) => id
+                ? `<button data-cat="${id}"><i style="background:${c}"></i><span>${esc(name)}</span><b>${Math.round((v / total) * 100)}%</b></button>`
+                : `<div><i style="background:${c}"></i><span>${esc(name)}</span><b>${Math.round((v / total) * 100)}%</b></div>`).join('')}
             </div>
           </div>
         </div>
@@ -640,7 +642,7 @@ export async function renderImport() {
         </div>
         <div class="section-label">Операции</div>
         <div class="card">
-          ${items.slice(0, 60).map((i) => {
+          ${(imp.expanded ? items : items.slice(0, 10)).map((i) => {
             const d = new Date(i.ts);
             return `<div class="res">
               <span class="tr-ico">${CAT[i.category]?.emoji || '📦'}</span>
@@ -648,7 +650,7 @@ export async function renderImport() {
               <span class="tr-sum">${money(i.amount)}</span>
             </div>`;
           }).join('')}
-          ${items.length > 60 ? `<div class="empty sm">…и ещё ${items.length - 60}</div>` : ''}
+          ${items.length > 10 ? `<button class="more" id="more">${imp.expanded ? 'Свернуть' : `Ещё ${items.length - 10} ${plural(items.length - 10, 'операция', 'операции', 'операций')}`}<span class="chev${imp.expanded ? ' up' : ''}">${icons.down}</span></button>` : ''}
         </div>
       </div>
       <div class="bottom">
@@ -658,6 +660,7 @@ export async function renderImport() {
 
   const close = () => { state.flow = null; state.imp = null; state.tab = 'profile'; render(); };
   app.querySelector('#back').onclick = close;
+  app.querySelector('#more')?.addEventListener('click', () => { imp.expanded = !imp.expanded; haptic(); render(); });
   app.querySelectorAll('[data-sw]').forEach((el) => el.addEventListener('click', () => {
     imp[el.dataset.sw] = !imp[el.dataset.sw];
     haptic();

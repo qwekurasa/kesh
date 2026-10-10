@@ -407,7 +407,8 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 .donut-mid b { font-size: 17px; font-weight: 700; letter-spacing: -.03em; display: block; }
 .donut-mid small { color: var(--faint); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
 .legend { flex: 1; display: grid; gap: 8px; min-width: 0; }
-.legend div { display: flex; align-items: center; gap: 9px; font-size: 13.5px; }
+.legend div, .legend button { display: flex; align-items: center; gap: 9px; font-size: 13.5px; width: 100%; text-align: left; }
+.legend button:active { opacity: .6; }
 .legend i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 .legend span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .legend b { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -495,3 +496,12 @@ button.cat-row:active, button.res:active { opacity: .6; }
 .tr-ico.lg { width: 52px; height: 52px; border-radius: 17px; font-size: 25px; }
 .month-total.sm { font-size: 30px; margin-top: 0; }
 .btn.ghost.danger { color: var(--danger); }
+
+.more {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 12px 0 4px; margin-top: 4px; border-top: 1px solid rgba(255, 255, 255, .05);
+  color: var(--muted); font-size: 14px; font-weight: 500;
+}
+.more .chev { transition: transform .2s; }
+.more .chev.up { transform: rotate(180deg); }
+.more:active { opacity: .6; }
