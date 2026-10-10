@@ -23,6 +23,7 @@ export const state = {
   month: startOfMonth(),
   collapsed: new Set(),
   period: 'month',
+  query: '', filter: null,
 };
 
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
@@ -48,6 +49,7 @@ export const icons = {
   home: svg('<rect x="3" y="5" width="18" height="6" rx="2"/><rect x="3" y="15" width="18" height="4" rx="2"/>'),
   chart: svg('<path d="M5 20V10M12 20V4M19 20v-7"/>', 2),
   user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+  search: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
   face: svg('<path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M7 21H5a2 2 0 0 1-2-2v-2M17 21h2a2 2 0 0 0 2-2v-2M9 9v1M15 9v1M12 9v4h-1M9 16c1.7 1.3 4.3 1.3 6 0"/>'),
   lock: svg('<rect x="4" y="10" width="16" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
   out: svg('<path d="M15 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2"/><path d="M19 12H9m10 0-3-3m3 3-3 3"/>'),
@@ -89,6 +91,7 @@ export function tabbar() {
     ${item('home', 'Главная', icons.home)}
     ${item('charts', 'Графики', icons.chart)}
     <button class="tab add" data-tab="add" aria-label="Добавить трату">${icons.plus}</button>
+    ${item('search', 'Поиск', icons.search)}
     ${item('profile', 'Профиль', icons.user)}
   </nav>`;
 }
@@ -105,8 +108,7 @@ export function bindTabs() {
 export const avatar = () => localStorage.getItem('avatar') || '';
 export function avatarHTML(cls = '') {
   const src = avatar();
-  const login = auth.account()?.login || '?';
   return src
-    ? `<span class="ava ${cls}" style="background-image:url(${src})"></span>`
-    : `<span class="ava ${cls}">${esc(login[0]).toUpperCase()}</span>`;
+    ? `<span class="ava photo ${cls}" style="background-image:url(${src})"></span>`
+    : `<span class="ava orb ${cls}"></span>`;
 }

@@ -1,6 +1,6 @@
 import * as store from './store.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderProfile } from './screens.js';
+import { renderHome, renderCharts, renderSearch, renderProfile } from './screens.js';
 import {
   CATEGORIES, CAT, app, state, money, esc, haptic, icons,
   setRender, render, go, toast, startOfMonth,
@@ -18,6 +18,7 @@ function main() {
   if (state.flow === 'add') return renderAmount();
   if (state.flow === 'category') return renderCategory();
   if (state.tab === 'charts') return renderCharts();
+  if (state.tab === 'search') return renderSearch();
   if (state.tab === 'profile') return renderProfile();
   renderHome();
 }
@@ -43,7 +44,7 @@ function renderAuth(mode) {
   app.innerHTML = `
     <section class="screen auth">
       <div class="aurora"></div>
-      <div class="brand">NOTA</div>
+      <div class="brand"><span class="orb"></span>NOTA</div>
       <div class="auth-body">
         <h1>${head[0]}</h1>
         <p>${head[1]}</p>
@@ -107,7 +108,7 @@ function renderFaceIdOffer() {
   app.innerHTML = `
     <section class="screen auth">
       <div class="aurora"></div>
-      <div class="brand">NOTA</div>
+      <div class="brand"><span class="orb"></span>NOTA</div>
       <div class="auth-body">
         <div class="big-ico">${icons.face}</div>
         <h1>Включить Face ID?</h1>

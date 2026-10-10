@@ -197,6 +197,63 @@ export async function renderCharts() {
   };
 }
 
+/* ---------- search ---------- */
+export async function renderSearch() {
+  const all = (await store.allExpenses()).sort((a, b) => b.ts - a.ts);
+  const used = [...new Set(all.map((i) => i.category))];
+  const q = state.query.trim().toLowerCase();
+  const found = all.filter((i) =>
+    (!state.filter || i.category === state.filter)
+    && (!q || CAT[i.category]?.name.toLowerCase().includes(q) || i.note.toLowerCase().includes(q) || String(Math.round(i.amount / 100)).includes(q)));
+
+  app.innerHTML = `
+    <section class="screen tabbed">
+      <div class="glow-top"></div>
+      <header class="month-head">
+        <label class="search-bar">
+          ${icons.search}
+          <input id="q" placeholder="Поиск по тратам" value="${esc(state.query)}" autocapitalize="none" spellcheck="false">
+        </label>
+        <div class="chips">
+          <button class="chip${state.filter ? '' : ' on'}" data-c="">Все</button>
+          ${used.map((id) => `<button class="chip${state.filter === id ? ' on' : ''}" data-c="${id}">${CAT[id]?.emoji || '📦'} ${esc(CAT[id]?.name || id)}</button>`).join('')}
+        </div>
+      </header>
+      <div class="scroll">
+        <div class="section-label">${found.length ? `Найдено: ${found.length} · ${money(sum(found))}` : 'Ничего не найдено'}</div>
+        ${found.length ? `<div class="card">${found.slice(0, 200).map((i) => {
+          const d = new Date(i.ts);
+          return `<div class="res">
+            <span class="tr-ico">${CAT[i.category]?.emoji || '📦'}</span>
+            <span class="tr-name">${esc(CAT[i.category]?.name || i.category)}<small>${i.note ? `${esc(i.note)} · ` : ''}${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</small></span>
+            <span class="tr-sum">${money(i.amount)}</span>
+          </div>`;
+        }).join('')}</div>` : '<div class="empty sm">Измените запрос или категорию</div>'}
+      </div>
+      ${tabbar()}
+    </section>`;
+
+  bindTabs();
+  const input = app.querySelector('#q');
+  input.oninput = debounce(() => { state.query = input.value; render(); }, 220);
+  app.querySelector('.chips').onclick = (e) => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    state.filter = c.dataset.c || null;
+    haptic();
+    render();
+  };
+  if (document.activeElement !== input && state.query) {
+    input.focus();
+    input.setSelectionRange(state.query.length, state.query.length);
+  }
+}
+
+let timer;
+function debounce(fn, ms) {
+  return (...a) => { clearTimeout(timer); timer = setTimeout(() => fn(...a), ms); };
+}
+
 /* ---------- profile ---------- */
 export async function renderProfile() {
   const acc = auth.account();
