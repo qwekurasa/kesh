@@ -377,6 +377,7 @@ function debounce(fn, ms) {
 export async function renderProfile() {
   const acc = auth.account();
   const all = await store.allExpenses();
+  const imported = await store.importedCount();
   const faceId = await auth.faceIdAvailable();
 
   const item = (id, icon, label, extra = '') =>
@@ -405,6 +406,7 @@ export async function renderProfile() {
           ${item('export', icons.down_file, 'Экспорт копии')}
           ${item('import', icons.up_file, 'Импорт копии')}
         </div>
+        ${imported ? `<div class="card rows">${item('clear-imported', icons.trash, 'Удалить импортированные', String(imported))}</div>` : ''}
         <div class="card rows">
           ${item('logout', icons.out, 'Выйти')}
         </div>
@@ -423,6 +425,10 @@ export async function renderProfile() {
     if (a === 'statement') return pickStatement();
     if (a === 'export') return exportData();
     if (a === 'import') return importData();
+    if (a === 'clear-imported') {
+      if (!confirm(`Удалить ${imported} ${plural(imported, 'трату', 'траты', 'трат')}, добавленных из выписок? Траты, внесённые вручную, останутся.`)) return;
+      return store.removeImported().then((n) => toast(`Удалено трат: ${n}`));
+    }
     if (a === 'logout') {
       state.unlocked = false;
       localStorage.removeItem('loggedIn');
@@ -494,19 +500,19 @@ async function exportData() {
 
 /* ---------- импорт выписки ---------- */
 function pickStatement() {
-  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.pdf,.csv,application/pdf,text/csv' });
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.pdf,.csv,application/pdf,text/csv', multiple: true });
   input.onchange = async () => {
-    const file = input.files[0];
-    if (!file) return;
+    const files = [...input.files].slice(0, 5);
+    if (!files.length) return;
     state.flow = 'import';
-    state.imp = { loading: true, items: [], withTransfers: false, name: file.name };
+    state.imp = { loading: true, items: [], external: false, internal: false, name: files.map((f) => f.name).join(', '), extra: input.files.length - files.length };
     render();
     try {
       const { parseStatement } = await import('./statement.js');
-      state.imp.items = await parseStatement(file);
+      state.imp.items = await parseStatement(files);
       state.imp.loading = false;
-      if (!state.imp.items.length) state.imp.error = 'В файле не нашлось операций списания';
-    } catch (e) {
+      if (!state.imp.items.length) state.imp.error = 'В файлах не нашлось операций списания';
+    } catch {
       state.imp.loading = false;
       state.imp.error = 'Не удалось разобрать файл. Подойдёт PDF «Справка о движении средств» или CSV-выписка.';
     }
@@ -517,11 +523,13 @@ function pickStatement() {
 
 export async function renderImport() {
   const imp = state.imp;
-  const items = imp.withTransfers ? imp.items : imp.items.filter((i) => i.category !== 'transfers');
+  const items = imp.items.filter((i) => (i.kind === 'external' ? imp.external : i.kind === 'internal' ? imp.internal : true));
+  const ext = imp.items.filter((i) => i.kind === 'external');
+  const int = imp.items.filter((i) => i.kind === 'internal');
   const cats = byCategory(items);
   const from = items.length ? new Date(Math.min(...items.map((i) => i.ts))) : null;
   const to = items.length ? new Date(Math.max(...items.map((i) => i.ts))) : null;
-  const transfers = imp.items.filter((i) => i.category === 'transfers').length;
+
 
   app.innerHTML = `
     <section class="screen">
@@ -534,14 +542,15 @@ export async function renderImport() {
       ${imp.loading ? '<div class="spinner"></div><div class="empty">Читаем выписку…</div>' : imp.error ? `<div class="empty">${esc(imp.error)}</div>` : `
       <div class="imp-head">
         <h2 class="cat-title">Найдено ${items.length} ${plural(items.length, 'трата', 'траты', 'трат')}</h2>
-        <div class="month-sub">${from ? `${from.getDate()} ${MONTHS_SHORT[from.getMonth()]} — ${to.getDate()} ${MONTHS_SHORT[to.getMonth()]}` : ''}</div>
+        <div class="month-sub">${from ? `${from.getDate()} ${MONTHS_SHORT[from.getMonth()]} — ${to.getDate()} ${MONTHS_SHORT[to.getMonth()]}` : ''}${imp.extra > 0 ? ` · взяли первые 5 файлов` : ''}</div>
         <div class="imp-sum">
           <div><b>${money(sum(items))}</b><small>Сумма</small></div>
           <div><b>${cats.length}</b><small>Категорий</small></div>
         </div>
       </div>
       <div class="cats">
-        ${transfers ? `<div class="switch-row" id="tr-toggle"><span>Включить переводы людям (${transfers})</span><span class="sw${imp.withTransfers ? ' on' : ''}"></span></div>` : ''}
+        ${ext.length ? `<div class="switch-row" data-sw="external"><span>Переводы людям<small>${ext.length} · ${money(sum(ext))}</small></span><span class="sw${imp.external ? ' on' : ''}"></span></div>` : ''}
+        ${int.length ? `<div class="switch-row" data-sw="internal"><span>Между своими счетами<small>${int.length} · ${money(sum(int))}</small></span><span class="sw${imp.internal ? ' on' : ''}"></span></div>` : ''}
         <div class="section-label">Распределение</div>
         <div class="card">
           ${cats.map(([id, v]) => `<div class="cat-row">
@@ -570,11 +579,11 @@ export async function renderImport() {
 
   const close = () => { state.flow = null; state.imp = null; state.tab = 'profile'; render(); };
   app.querySelector('#back').onclick = close;
-  app.querySelector('#tr-toggle')?.addEventListener('click', () => {
-    imp.withTransfers = !imp.withTransfers;
+  app.querySelectorAll('[data-sw]').forEach((el) => el.addEventListener('click', () => {
+    imp[el.dataset.sw] = !imp[el.dataset.sw];
     haptic();
     render();
-  });
+  }));
   app.querySelector('#add')?.addEventListener('click', async () => {
     const n = await store.importExpenses(items);
     state.flow = null; state.imp = null; state.tab = 'home';

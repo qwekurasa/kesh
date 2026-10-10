@@ -69,6 +69,28 @@ export async function importExpenses(items) {
   return valid.length;
 }
 
+export const importedCount = () => tx('readonly', (s) => {
+  let n = 0;
+  s.openCursor(IDBKeyRange.bound('imp', 'imq', false, true)).onsuccess = (e) => {
+    const c = e.target.result;
+    if (c) { n++; c.continue(); }
+  };
+  return { get n() { return n; } };
+}).then((r) => r.n);
+
+export async function removeImported() {
+  const n = await tx('readwrite', (s) => {
+    let k = 0;
+    s.openCursor(IDBKeyRange.bound('imp', 'imq', false, true)).onsuccess = (e) => {
+      const c = e.target.result;
+      if (c) { c.delete(); k++; c.continue(); }
+    };
+    return { get n() { return k; } };
+  });
+  emit();
+  return n.n;
+}
+
 export async function wipe() {
   (await dbPromise)?.close();
   dbPromise = null;

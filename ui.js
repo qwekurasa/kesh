@@ -1,12 +1,14 @@
 import * as auth from './auth.js';
 
 export const CATEGORIES = [
-  ['groceries', 'Продукты', '🛒'], ['cafe', 'Кафе', '🍽️'], ['coffee', 'Кофе', '☕'], ['delivery', 'Доставка', '🥡'],
+  ['groceries', 'Продукты', '🛒'], ['cafe', 'Рестораны', '🍽️'], ['fastfood', 'Фастфуд', '🍔'], ['coffee', 'Кофе', '☕'],
+  ['delivery', 'Доставка', '🥡'],
   ['transport', 'Транспорт', '🚇'], ['taxi', 'Такси', '🚕'], ['car', 'Авто', '⛽'], ['home', 'Дом и ЖКХ', '🏠'],
   ['mobile', 'Связь', '📱'], ['subs', 'Подписки', '🔁'], ['clothes', 'Одежда', '👕'], ['health', 'Здоровье', '💊'],
   ['beauty', 'Красота', '💅'], ['sport', 'Спорт', '🏋️'], ['fun', 'Развлечения', '🎬'], ['travel', 'Путешествия', '✈️'],
   ['education', 'Обучение', '📚'], ['gifts', 'Подарки', '🎁'], ['pets', 'Питомцы', '🐾'], ['kids', 'Дети', '🧸'],
-  ['tech', 'Техника', '💻'], ['household', 'Хозтовары', '🧴'], ['transfers', 'Переводы', '💸'], ['other', 'Другое', '📦'],
+  ['tech', 'Техника', '💻'], ['household', 'Хозтовары', '🧴'], ['transfers', 'Переводы', '💸'],
+  ['finance', 'Финансы', '🏦'], ['cash', 'Наличные', '💵'], ['other', 'Другое', '📦'],
 ];
 export const CAT = Object.fromEntries(CATEGORIES.map(([id, name, emoji]) => [id, { id, name, emoji }]));
 

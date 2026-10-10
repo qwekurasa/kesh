@@ -1,56 +1,72 @@
 // Разбор банковской выписки (Т-Банк: PDF «Справка о движении средств» и CSV)
 const RULES = [
-  [/vernyj|верный|pyatero|пятероч|perekrestok|перекрест|magnit|магнит|lenta|лента|dixy|дикси|vkusvill|вкусвилл|krasnoe|красное|myasno|мясн|produkty|продукт|miratorg|ashan|auchan|okey|окей|5ka|spar|monetka|da s71|mag \d/i, 'groceries'],
-  [/cafe|кафе|kofe|coffee|кофе|stolovaya|столов|restoran|ресторан|bar |pizza|пицц|burger|бургер|sushi|суши|mangal|shaurma|шаурм|kfc|vkusno|tasty|donuts|bakery|pekarn|пекарн/i, 'cafe'],
-  [/\bvv_\d|vkusvill|вкусвилл/i, 'groceries'],
-  [/delivery club|яндекс еда|yandex.*eda|samokat|самокат|lavka|лавка|dostavka|доставка|ozon fresh/i, 'delivery'],
-  [/yandex.*go|taxi|такси|uber|citymobil|ситимобил|maksim/i, 'taxi'],
-  [/metro.*proezd|troika|тройка|подорожник|transport|транспорт|rzd|ржд|avtobus|автобус|billet|билет/i, 'transport'],
-  [/azs|заправ|lukoil|лукойл|gazprom|газпром|rosneft|роснефт|tatneft|shell|benzin|бензин|parking|парков|avtomoyka|автомойк/i, 'car'],
-  [/apteka|аптека|pharm|farma|clinic|клиник|med|мед |стоматол|stomat|invitro|gemotest|analiz/i, 'health'],
-  [/letoile|лэтуаль|rive gauche|подружка|magnit cosmetic|cosmetic|космет|barbershop|salon|салон|parikmaher|nail/i, 'beauty'],
-  [/wildberries|ozon|lamoda|zara|hm |uniqlo|sportmaster|спортмастер|odezhda|обув|shoes|detsk/i, 'clothes'],
-  [/dns|citilink|mvideo|eldorado|re:store|apple|samsung|technika|техник/i, 'tech'],
-  [/fitness|фитнес|sport|спорт|basseyn|бассейн|yoga|gym/i, 'sport'],
-  [/cinema|синема|кино|kino|teatr|театр|concert|концерт|igr|steam|playstation|xbox|bowling|park/i, 'fun'],
-  [/netflix|spotify|yandex plus|плюс|podpisk|подписк|vpn|icloud|google|youtube|kinopoisk|кинопоиск|ivi|okko/i, 'subs'],
-  [/mts|мтс|megafon|мегафон|beeline|билайн|tele2|теле2|svyaz|связь|internet|интернет|rostelecom/i, 'mobile'],
-  [/zhku|жку|oeirc|еирц|kommunal|коммунал|energosbyt|энергосб|gaz |vodokanal|kvartplata|arenda|аренд|ipoteka/i, 'home'],
-  [/zoo|зоо|vetklinik|ветклин|petshop|korm/i, 'pets'],
-  [/book|книг|chitay|читай|labirint|kurs|курс|school|школ|university|obuchen|обучен|skillbox|netology/i, 'education'],
-  [/igrushk|игрушк|detmir|детский мир|kids/i, 'kids'],
-  [/fix price|fixprice|leroy|леруа|obi|hoff|ikea|tovar|hozto|bytov/i, 'household'],
+  [/kfc|rostic|burger|бургер|mcdonald|vkusno|vkusnoitochka|вкусно и точка|dodo|додо|papa john|subway|shaurma|шаурм|teremok|теремок|hotdog|fastfood|stolovaya|столов|mangal|мангал|shashlyk|шашлык|vv_\d+_cafe/i, 'fastfood'],
+  [/cafe|кафе|restoran|ресторан|koza|natura|vkusnaia|вкусная|trattoria|pizzeria|pub |bar |tavern|sushi|суши|pizza|пицц/i, 'cafe'],
+  [/kofe|coffee|кофе|starbucks|shokoladnica|cofix|coffeeshop|tea /i, 'coffee'],
+  [/vernyj|верный|pyatero|пятероч|\booo 5e\b|perekrestok|перекрест|magnit|магнит|lenta|лента|dixy|дикси|vkusvill|vv_\d|вкусвилл|krasnoe|красное|myasno|мясн|produkty|продукт|miratorg|ashan|auchan|okey|окей|spar|monetka|da s71|\bmag \d|\b5ka\b|ekspress|экспресс|samokat|самокат|lavka|лавка|ozon fresh|bakery|pekarn|пекарн|supermarket/i, 'groceries'],
+  [/delivery club|яндекс еда|yandex.*eda|dostavka|доставка еды/i, 'delivery'],
+  [/yandex.*go|\btaxi\b|такси|uber|citymobil|ситимобил|maksim|didi/i, 'taxi'],
+  [/aehroehkspress|аэроэксп|avtobus|автобус|transp|транспорт|metro|метро|troika|тройка|подорожник|\bttt\b|rzd|ржд|tutu|билет/i, 'transport'],
+  [/azs|заправ|lukoil|лукойл|gazprom|газпром|rosneft|роснефт|tatneft|shell|benzin|бензин|parking|парков|avtomoyka|автомойк|shinomont/i, 'car'],
+  [/apteka|аптека|pharm|farma|clinic|клиник|\bmed\b|мед |стоматол|stomat|invitro|gemotest|analiz|optika/i, 'health'],
+  [/letoile|лэтуаль|rive gauche|подружка|cosmetic|космет|barbershop|salon|салон|parikmaher|nail|beauty/i, 'beauty'],
+  [/wildberries|lamoda|zara|\bhm\b|uniqlo|sportmaster|спортмастер|odezhda|одежд|обув|shoes|ostin|gloria/i, 'clothes'],
+  [/dns|citilink|mvideo|eldorado|re:store|technika|техник|elektronik/i, 'tech'],
+  [/fitness|фитнес|sport|спорт|basseyn|бассейн|yoga|\bgym\b/i, 'sport'],
+  [/cinema|синема|кино|kino|teatr|театр|concert|концерт|steam|playstation|xbox|bowling|akvapark|zoopark/i, 'fun'],
+  [/netflix|spotify|yandex plus|яндекс плюс|podpisk|подписк|\bvpn\b|icloud|youtube|kinopoisk|кинопоиск|\bivi\b|okko|premium/i, 'subs'],
+  [/megafon|мегафон|\bmts\b|мтс|beeline|билайн|tele2|теле2|rostelecom|ростелеком|svyaz|связь|internet|интернет|\bibank\.|\bmbank\./i, 'mobile'],
+  [/zhku|жку|oeirc|еирц|kommunal|коммунал|energosbyt|энергосб|vodokanal|kvartplata|arenda|аренд|ipoteka|tsg |упрaвля/i, 'home'],
+  [/\bzoo|зоо|vetklinik|ветклин|petshop|korm/i, 'pets'],
+  [/book|книг|chitay|читай|labirint|kurs|курс|school|школ|universit|obuchen|обучен|skillbox|netology/i, 'education'],
+  [/igrushk|игрушк|detmir|детский мир|\bkids\b|detsk/i, 'kids'],
+  [/fix price|fixprice|leroy|леруа|\bobi\b|hoff|ikea|hozto|bytov|santehn/i, 'household'],
   [/подарк|podarok|cvety|цветы|flower/i, 'gifts'],
-  [/aviasales|aeroflot|аэрофлот|pobeda|победа|tutu|ostrovok|booking|otel|отел|hotel|turag/i, 'travel'],
+  [/aviasales|aeroflot|аэрофлот|pobeda|победа|ostrovok|booking|otel|отел|hotel|turag|тураг/i, 'travel'],
+  [/\bozon\b|ozon\.ru/i, 'other'],
 ];
 
-const SKIP = /внутренний перевод|перевод себе|перевод с договора|пополнение|кэшбэк|кешбэк|возврат средств|банковский перевод|проценты на остаток/i;
+// Поступления и перекладывание денег между своими счетами тратой не считаются
+const INCOME = /пополнение|кэшбэк|кешбэк|возврат средств|банковский перевод|проценты на остаток|перевод себе|перевод с договора/i;
 
 export function categorize(desc) {
   const d = desc.toLowerCase();
-  if (/внешний перевод|перевод по номеру|sbp|сбп/.test(d)) return 'transfers';
-  if (/снятие наличных/.test(d)) return 'other';
+  if (/операция в других кредитных|yandexbank|c2a/.test(d)) return 'finance';
+  if (/снятие наличных|выдача наличных/.test(d)) return 'cash';
+  if (/внешний перевод|перевод по номеру|внутренний перевод/.test(d)) return 'transfers';
   for (const [re, cat] of RULES) if (re.test(d)) return cat;
   return 'other';
 }
 
 // «Оплата в VERNYJ 1513 Uzlovaya RUS» -> «VERNYJ 1513»
 export function merchant(desc) {
-  let s = desc.replace(/^оплата в\s*/i, '').replace(/^операция в других.*$/i, 'Другой банк')
-    .replace(/^оплата услуг\s*/i, 'Услуги ').replace(/\s+(RUS|MOSCOW)\b/gi, '').trim();
-  s = s.replace(/\s{2,}/g, ' ');
+  let s = desc
+    .replace(/\s*АО «ТБанк».*$/i, '')
+    .replace(/^оплата в\s*/i, '')
+    .replace(/^операция в других кредитных организациях\s*/i, '')
+    .replace(/^оплата услуг\s*/i, '')
+    .replace(/\s+(RUS|MOSCOW)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
   return s.length > 60 ? `${s.slice(0, 57)}…` : s;
 }
 
 const num = (s) => Math.round(parseFloat(s.replace(/[\s  ]/g, '').replace(',', '.')) * 100);
 const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h).toString(36); };
 
-function makeItem(dateStr, timeStr, amount, desc) {
+function makeItem(dateStr, timeStr, amount, desc, seen) {
   const [d, m, y] = dateStr.split('.').map(Number);
   const [hh = 12, mm = 0] = (timeStr || '').split(':').map(Number);
   const ts = new Date(y, m - 1, d, hh, mm).getTime();
   const note = merchant(desc);
-  return { id: `imp${hash(`${ts}|${amount}|${note}`)}`, amount: -amount, category: categorize(desc), note, ts };
+  const category = categorize(desc);
+  // одинаковые операции в одну минуту различаем порядковым номером, иначе они схлопнутся
+  const base = `${ts}|${amount}|${note}`;
+  const n = (seen.get(base) || 0) + 1;
+  seen.set(base, n);
+  const item = { id: `imp${hash(n > 1 ? `${base}#${n}` : base)}`, amount: -amount, category, note, ts };
+  if (category === 'transfers') item.kind = /внутренний перевод/i.test(desc) ? 'internal' : 'external';
+  return item;
 }
 
 /* ---------- PDF ---------- */
@@ -72,12 +88,13 @@ const TIME = /^(\d{2}:\d{2})(\s+\d{2}:\d{2})?\s*/;
 
 function parseLines(lines) {
   const out = [];
+  const seen = new Map();
   let cur = null;
   const flush = () => {
     if (!cur) return;
     const amount = num(cur.amount);
     const desc = cur.desc.replace(/\s*\b\d{4}\b\s*$/, '').replace(/\s+—\s*$/, '').trim();
-    if (amount < 0 && !SKIP.test(desc)) out.push(makeItem(cur.date, cur.time, amount, desc));
+    if (amount < 0 && !INCOME.test(desc)) out.push(makeItem(cur.date, cur.time, amount, desc, seen));
     cur = null;
   };
   for (const line of lines) {
@@ -113,7 +130,8 @@ export async function parsePdf(file) {
 
 /* ---------- CSV ---------- */
 function splitCsv(text) {
-  const delim = (text.split('\n')[0].match(/;/g) || []).length >= (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+  const first = text.split('\n')[0];
+  const delim = (first.match(/;/g) || []).length >= (first.match(/,/g) || []).length ? ';' : ',';
   const rows = [];
   let row = [], cell = '', quoted = false;
   for (let i = 0; i < text.length; i++) {
@@ -138,21 +156,26 @@ export function parseCsv(text) {
   const iDesc = col('описание', 'назначение', 'категория');
   if (iDate < 0 || iAmount < 0) throw new Error('Не найдены колонки с датой и суммой');
   const out = [];
+  const seen = new Map();
   for (const r of rows.slice(1)) {
     const dm = /(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}:\d{2}))?/.exec(r[iDate] || '');
     if (!dm) continue;
     const amount = num(r[iAmount] || '0');
     const desc = (r[iDesc] || '').trim();
-    if (!Number.isFinite(amount) || amount >= 0 || SKIP.test(desc)) continue;
-    out.push(makeItem(`${dm[1]}.${dm[2]}.${dm[3]}`, dm[4], amount, desc));
+    if (!Number.isFinite(amount) || amount >= 0 || INCOME.test(desc)) continue;
+    out.push(makeItem(`${dm[1]}.${dm[2]}.${dm[3]}`, dm[4], amount, desc, seen));
   }
   return out;
 }
 
-export async function parseStatement(file) {
-  const items = /\.csv$/i.test(file.name) ? parseCsv(await file.text()) : await parsePdf(file);
+export async function parseStatement(files) {
+  const list = [].concat(files).slice(0, 5);
+  const all = [];
+  for (const file of list) {
+    all.push(...(/\.csv$/i.test(file.name) ? parseCsv(await file.text()) : await parsePdf(file)));
+  }
   const seen = new Set();
-  return items.filter((i) => !seen.has(i.id) && seen.add(i.id)).sort((a, b) => b.ts - a.ts);
+  return all.filter((i) => !seen.has(i.id) && seen.add(i.id)).sort((a, b) => b.ts - a.ts);
 }
 
 export const _test = { parseLines };
