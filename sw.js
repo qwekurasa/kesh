@@ -1,4 +1,4 @@
-const CACHE = 'nota-v3';
+const CACHE = 'nota-v4';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './store.js', './auth.js', './ui.js', './screens.js', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -16,7 +16,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(new Request(e.request, { cache: 'no-cache' }))
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(e.request, copy));
