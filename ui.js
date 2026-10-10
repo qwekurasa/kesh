@@ -25,7 +25,7 @@ export const state = {
   month: startOfMonth(),
   collapsed: new Set(),
   period: 'month',
-  query: '', filter: null, authMode: null, imp: null,
+  query: '', filter: null, authMode: null, imp: null, edit: null, catId: null,
 };
 
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
@@ -70,6 +70,24 @@ export const render = () => renderFn();
 export function go(tab) {
   state.tab = tab;
   state.flow = null;
+  render();
+}
+
+export function openEdit(item) {
+  const rub = item.amount / 100;
+  Object.assign(state, {
+    flow: 'add',
+    edit: item,
+    amt: (Number.isInteger(rub) ? String(rub) : rub.toFixed(2)).replace('.', ','),
+    cat: item.category,
+    note: item.note || '',
+  });
+  render();
+}
+
+export function openCategory(id) {
+  state.catId = id;
+  state.flow = 'cat';
   render();
 }
 

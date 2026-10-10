@@ -2,7 +2,7 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
-  render, toast, tabbar, bindTabs, avatarHTML,
+  render, toast, tabbar, bindTabs, avatarHTML, openEdit, openCategory,
 } from './ui.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -83,7 +83,10 @@ export async function renderHome() {
       return;
     }
     const tr = e.target.closest('.tr');
-    if (tr && confirm('Удалить эту трату?')) store.removeExpense(tr.dataset.id).then(() => toast('Трата удалена'));
+    if (tr) {
+      const item = items.find((i) => i.id === tr.dataset.id);
+      if (item) { haptic(); openEdit(item); }
+    }
   });
 }
 
@@ -226,14 +229,15 @@ export async function renderCharts() {
           ${cats.map(([id, v]) => {
             const pv = prevCats[id] || 0;
             const d = pv ? Math.round(((v - pv) / pv) * 100) : null;
-            return `<div class="cat-row">
+            return `<button class="cat-row" data-cat="${id}">
               <span class="tr-ico">${CAT[id]?.emoji || '📦'}</span>
               <span class="cat-info">
                 <span class="cat-top">${esc(CAT[id]?.name || id)}<b>${money(v)}</b></span>
                 <span class="meter"><i style="width:${pct(v, total)}%"></i></span>
               </span>
               <span class="cat-pct">${d === null ? `${Math.round((v / total) * 100)}%` : `${d > 0 ? '+' : ''}${d}%`}</span>
-            </div>`;
+              <span class="chev sm">${icons.right}</span>
+            </button>`;
           }).join('')}
         </div>` : '<div class="empty">За этот период трат нет</div>'}
       </div>
@@ -241,6 +245,10 @@ export async function renderCharts() {
     </section>`;
 
   bindTabs();
+  app.querySelector('.scroll').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-cat]');
+    if (row) { haptic(); openCategory(row.dataset.cat); }
+  });
   app.querySelector('.seg').onclick = (e) => {
     const b = e.target.closest('[data-p]');
     if (!b) return;
@@ -316,6 +324,71 @@ function tips(items, cats, prevCats, total, prevTotal, r, days) {
   return out.slice(0, 5);
 }
 
+/* ---------- одна категория ---------- */
+export async function renderCategoryDetail() {
+  const id = state.catId;
+  const r = periodRange(state.period);
+  const all = await store.expensesBetween(r.from.getTime(), r.to.getTime() - 1);
+  const items = all.filter((i) => i.category === id).sort((a, b) => b.ts - a.ts);
+  const total = sum(items);
+  const periodTotal = sum(all);
+  const merchants = new Map();
+  items.forEach((i) => {
+    const k = i.note || 'Без описания';
+    merchants.set(k, (merchants.get(k) || 0) + i.amount);
+  });
+  const top = [...merchants.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  app.innerHTML = `
+    <section class="screen tabbed">
+      <div class="glow-top"></div>
+      <header class="month-head">
+        <div class="topbar">
+          <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
+          <div class="pill">${r.label}</div>
+          <div style="width:40px"></div>
+        </div>
+        <div class="cat-hero">
+          <span class="tr-ico lg">${CAT[id]?.emoji || '📦'}</span>
+          <div>
+            <div class="month-total sm">${money(total)}</div>
+            <div class="month-sub">${esc(CAT[id]?.name || id)} · ${Math.round((total / (periodTotal || 1)) * 100)}% трат периода</div>
+          </div>
+        </div>
+      </header>
+      <div class="scroll">
+        ${top.length > 1 ? `<div class="section-label">Куда уходит</div>
+        <div class="card">
+          ${top.map(([name, v]) => `<div class="cat-row">
+            <span class="cat-info"><span class="cat-top">${esc(name)}<b>${money(v)}</b></span>
+            <span class="meter"><i style="width:${pct(v, total)}%"></i></span></span>
+          </div>`).join('')}
+        </div>` : ''}
+        <div class="section-label">${items.length} ${plural(items.length, 'операция', 'операции', 'операций')}</div>
+        <div class="card">
+          ${items.map((i) => {
+            const d = new Date(i.ts);
+            return `<button class="res" data-id="${i.id}">
+              <span class="tr-ico">${CAT[i.category]?.emoji || '📦'}</span>
+              <span class="tr-name">${esc(i.note || CAT[i.category]?.name || '')}<small>${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</small></span>
+              <span class="tr-sum">${money(i.amount)}</span>
+            </button>`;
+          }).join('') || '<div class="empty sm">Трат нет</div>'}
+        </div>
+      </div>
+      ${tabbar()}
+    </section>`;
+
+  bindTabs();
+  app.querySelector('#back').onclick = () => { state.flow = null; state.catId = null; render(); };
+  app.querySelector('.scroll').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-id]');
+    if (!row) return;
+    const item = items.find((i) => i.id === row.dataset.id);
+    if (item) { haptic(); openEdit(item); }
+  });
+}
+
 /* ---------- search ---------- */
 export async function renderSearch() {
   const all = (await store.allExpenses()).sort((a, b) => b.ts - a.ts);
@@ -342,17 +415,23 @@ export async function renderSearch() {
         <div class="section-label">${found.length ? `Найдено: ${found.length} · ${money(sum(found))}` : 'Ничего не найдено'}</div>
         ${found.length ? `<div class="card">${found.slice(0, 200).map((i) => {
           const d = new Date(i.ts);
-          return `<div class="res">
+          return `<button class="res" data-id="${i.id}">
             <span class="tr-ico">${CAT[i.category]?.emoji || '📦'}</span>
             <span class="tr-name">${esc(CAT[i.category]?.name || i.category)}<small>${i.note ? `${esc(i.note)} · ` : ''}${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</small></span>
             <span class="tr-sum">${money(i.amount)}</span>
-          </div>`;
+          </button>`;
         }).join('')}</div>` : '<div class="empty sm">Измените запрос или категорию</div>'}
       </div>
       ${tabbar()}
     </section>`;
 
   bindTabs();
+  app.querySelector('.scroll').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-id]');
+    if (!row) return;
+    const item = found.find((i) => i.id === row.dataset.id);
+    if (item) { haptic(); openEdit(item); }
+  });
   const input = app.querySelector('#q');
   input.oninput = debounce(() => { state.query = input.value; render(); }, 220);
   app.querySelector('.chips').onclick = (e) => {

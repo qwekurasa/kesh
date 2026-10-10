@@ -33,6 +33,16 @@ export async function addExpense({ amount, category, note }) {
   return item;
 }
 
+export async function updateExpense(id, patch) {
+  await tx('readwrite', (s) => {
+    s.get(id).onsuccess = (e) => {
+      const item = e.target.result;
+      if (item) s.put({ ...item, ...patch, edited: 1 });
+    };
+  });
+  emit();
+}
+
 export async function removeExpense(id) {
   await tx('readwrite', (s) => s.delete(id));
   emit();
@@ -64,7 +74,13 @@ export const expensesBetween = (from, to) =>
 
 export async function importExpenses(items) {
   const valid = items.filter((i) => typeof i.id === 'string' && Number.isInteger(i.amount) && typeof i.category === 'string' && Number.isFinite(i.ts));
-  await tx('readwrite', (s) => valid.forEach((i) => s.put({ id: i.id, amount: i.amount, category: i.category, note: String(i.note || ''), ts: i.ts })));
+  await tx('readwrite', (s) => valid.forEach((i) => {
+    // трату, которую пользователь поправил руками, повторный импорт не перезаписывает
+    s.get(i.id).onsuccess = (e) => {
+      if (e.target.result?.edited) return;
+      s.put({ id: i.id, amount: i.amount, category: i.category, note: String(i.note || ''), ts: i.ts });
+    };
+  }));
   emit();
   return valid.length;
 }

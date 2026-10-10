@@ -1,6 +1,6 @@
 import * as store from './store.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderSearch, renderProfile, renderImport } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport } from './screens.js';
 import {
   CATEGORIES, CAT, app, state, money, esc, haptic, icons,
   setRender, render, go, toast, startOfMonth,
@@ -19,6 +19,7 @@ function main() {
   if (state.flow === 'add') return renderAmount();
   if (state.flow === 'category') return renderCategory();
   if (state.flow === 'import') return renderImport();
+  if (state.flow === 'cat') return renderCategoryDetail();
   if (state.tab === 'charts') return renderCharts();
   if (state.tab === 'search') return renderSearch();
   if (state.tab === 'profile') return renderProfile();
@@ -180,11 +181,14 @@ function renderFaceIdOffer() {
 /* ---------- amount ---------- */
 async function renderAmount() {
   const today = await store.todayTotal();
+  const editing = !!state.edit;
   app.innerHTML = `
     <section class="screen add-screen">
       <div class="glow-top"></div>
+      <div class="heat l"></div>
+      <div class="heat r"></div>
       <div class="topbar">
-        <div class="pill">Сегодня <b>${money(today)}</b></div>
+        <div class="pill">${editing ? 'Изменение траты' : `Сегодня <b>${money(today)}</b>`}</div>
         <button class="icon-btn" id="close" aria-label="Закрыть">${icons.back}</button>
       </div>
       <div class="amount-wrap">
@@ -195,11 +199,11 @@ async function renderAmount() {
         ${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map((k) =>
           `<button class="key" data-k="${k}" aria-label="${k === 'del' ? 'Стереть' : k}">${k === 'del' ? icons.del : k}</button>`).join('')}
       </div>
-      <button class="btn" id="next">Продолжить</button>
+      <button class="btn" id="next">${editing ? 'Далее' : 'Продолжить'}</button>
     </section>`;
 
   updateAmount();
-  app.querySelector('#close').onclick = () => go('home');
+  app.querySelector('#close').onclick = () => { state.edit = null; go(state.tab || 'home'); };
   app.querySelector('#next').onclick = goCategory;
 
   let holdTimer;
@@ -242,7 +246,9 @@ function updateAmount() {
   el.querySelector('.val').textContent = text;
   el.classList.toggle('empty', !state.amt);
   el.style.setProperty('--size', `${Math.max(44, 88 - Math.max(0, text.length - 5) * 7)}px`);
-  app.querySelector('#hint').textContent = state.amt ? '' : 'Сколько потратили?';
+  const big = Math.min(1, Math.max(0, (kopecks() - 200000) / 1800000));
+  app.querySelector('.screen').style.setProperty('--heat', big.toFixed(3));
+  app.querySelector('#hint').textContent = state.amt ? (big > .45 ? 'Крупная трата' : '') : 'Сколько потратили?';
   app.querySelector('#next').disabled = kopecks() <= 0;
 }
 
@@ -274,6 +280,7 @@ async function renderCategory() {
       <div class="bottom">
         <input class="field" id="note" placeholder="Комментарий (необязательно)" maxlength="200" value="${esc(state.note)}">
         <button class="btn" id="save" ${state.cat ? '' : 'disabled'}>Сохранить</button>
+        ${state.edit ? '<button class="btn ghost danger" id="del">Удалить трату</button>' : ''}
       </div>
     </section>`;
 
@@ -290,11 +297,29 @@ async function renderCategory() {
     app.querySelector('#save').disabled = false;
   };
   app.querySelector('#save').onclick = save;
+  app.querySelector('#del')?.addEventListener('click', async () => {
+    if (!confirm('Удалить эту трату?')) return;
+    const { id } = state.edit;
+    Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '' });
+    await store.removeExpense(id);
+    render();
+    toast('Трата удалена');
+  });
 }
 
 async function save() {
   if (!state.cat) return;
-  const item = await store.addExpense({ amount: kopecks(), category: state.cat, note: state.note.trim() });
+  const amount = kopecks();
+  const category = state.cat;
+  const note = state.note.trim();
+  if (state.edit) {
+    const { id } = state.edit;
+    Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '' });
+    await store.updateExpense(id, { amount, category, note });
+    render();
+    return toast('Изменения сохранены');
+  }
+  const item = await store.addExpense({ amount, category, note });
   Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', month: startOfMonth() });
   render();
   toast(`${CAT[item.category].emoji} ${money(item.amount)} · ${CAT[item.category].name}`, async () => {

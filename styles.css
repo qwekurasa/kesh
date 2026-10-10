@@ -446,3 +446,52 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 .sw.on::after { transform: translateX(18px); background: #141416; }
 .spinner { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--surface-3); border-top-color: var(--text); animation: spin .8s linear infinite; margin: 40px auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- аура крупной траты ---------- */
+.heat {
+  position: absolute; top: -6%; bottom: -6%; width: 46%;
+  pointer-events: none; z-index: 0;
+  opacity: var(--heat, 0);
+  transition: opacity .6s ease;
+  filter: blur(26px);
+  animation: pulse 4.6s ease-in-out infinite;
+}
+.heat.l {
+  left: -16%;
+  background:
+    radial-gradient(44% 38% at 38% 38%, rgba(255, 48, 84, .95), rgba(255, 70, 120, .5) 46%, rgba(255, 90, 150, 0) 78%),
+    radial-gradient(40% 34% at 26% 74%, rgba(255, 122, 186, .75), rgba(255, 140, 200, 0) 72%);
+}
+.heat.r {
+  right: -16%;
+  background:
+    radial-gradient(44% 38% at 62% 58%, rgba(255, 48, 84, .95), rgba(255, 70, 120, .5) 46%, rgba(255, 90, 150, 0) 78%),
+    radial-gradient(40% 34% at 74% 24%, rgba(255, 122, 186, .75), rgba(255, 140, 200, 0) 72%);
+  animation-delay: -2.3s;
+}
+@keyframes pulse {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: calc(var(--heat, 0) * .72); }
+  35% { transform: translate(2%, -3%) scale(1.09); opacity: calc(var(--heat, 0) * .95); }
+  70% { transform: translate(-1%, 2%) scale(1.04); opacity: calc(var(--heat, 0) * .85); }
+}
+@media (prefers-reduced-motion: reduce) { .heat { animation: none; } }
+.add-screen .amount { transition: color .4s ease, text-shadow .4s ease; }
+.add-screen { --heat: 0; }
+.add-screen::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  opacity: var(--heat, 0); transition: opacity .6s ease;
+  box-shadow: inset 0 0 90px 10px rgba(255, 60, 100, .34);
+  border-radius: inherit;
+}
+.add-screen .amount .val { text-shadow: 0 0 calc(var(--heat, 0) * 46px) rgba(255, 86, 120, calc(var(--heat, 0) * .65)); }
+.add-screen .amount-hint { color: color-mix(in srgb, var(--muted), #ff8097 calc(var(--heat, 0) * 100%)); }
+
+/* ---------- кликабельные строки ---------- */
+button.cat-row, button.res { width: 100%; text-align: left; }
+button.cat-row:active, button.res:active { opacity: .6; }
+.chev.sm svg { width: 15px; height: 15px; }
+.chev.sm { color: var(--faint); margin-left: 2px; }
+.cat-hero { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.tr-ico.lg { width: 52px; height: 52px; border-radius: 17px; font-size: 25px; }
+.month-total.sm { font-size: 30px; margin-top: 0; }
+.btn.ghost.danger { color: var(--danger); }
