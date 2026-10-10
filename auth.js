@@ -13,22 +13,39 @@ async function hash(password, salt) {
   return b64(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 200000 }, key, 256));
 }
 
-export async function register(login, password) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  write({ login, salt: b64(salt), hash: await hash(password, salt), credId: null });
+// Пароля при регистрации нет — он включается позже в профиле
+export function register(login) {
+  write({ login, salt: null, hash: null, credId: null });
   navigator.storage?.persist?.();
+}
+
+export const hasPassword = () => !!read()?.hash;
+
+// Приложение открыто без запроса, пока нет ни пароля, ни Face ID
+export const isOpen = () => {
+  const acc = read();
+  return !!acc && !acc.hash && !acc.credId;
+};
+
+export async function setPassword(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  write({ ...read(), salt: b64(salt), hash: await hash(password, salt) });
+}
+
+export function removePassword() {
+  write({ ...read(), salt: null, hash: null });
 }
 
 export async function checkPassword(login, password) {
   const acc = read();
-  return !!acc && acc.login.toLowerCase() === login.toLowerCase() && (await hash(password, unb64(acc.salt))) === acc.hash;
+  if (!acc?.hash) return false;
+  if (login && acc.login.toLowerCase() !== login.toLowerCase()) return false;
+  return (await hash(password, unb64(acc.salt))) === acc.hash;
 }
 
 export async function changePassword(current, next) {
-  const acc = read();
-  if (!(await checkPassword(acc.login, current))) return false;
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  write({ ...acc, salt: b64(salt), hash: await hash(next, salt) });
+  if (!(await checkPassword(null, current))) return false;
+  await setPassword(next);
   return true;
 }
 
@@ -45,7 +62,7 @@ export async function enableFaceId() {
   const cred = await navigator.credentials.create({
     publicKey: {
       challenge: crypto.getRandomValues(new Uint8Array(32)),
-      rp: { name: 'Траты' },
+      rp: { name: 'NOTA' },
       user: { id: crypto.getRandomValues(new Uint8Array(16)), name: acc.login, displayName: acc.login },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
       authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
@@ -74,8 +91,8 @@ export async function verifyFaceId() {
 }
 
 export function restore(acc) {
-  if (!acc?.login || !acc?.hash || !acc?.salt) throw new Error('bad backup');
-  write({ login: acc.login, salt: acc.salt, hash: acc.hash, credId: null });
+  if (!acc?.login) throw new Error('bad backup');
+  write({ login: acc.login, salt: acc.salt || null, hash: acc.hash || null, credId: null });
   navigator.storage?.persist?.();
 }
 

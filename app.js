@@ -1,9 +1,9 @@
 import * as store from './store.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport, renderCustomCats } from './screens.js';
 import {
   CATEGORIES, CAT, app, state, money, esc, haptic, icons,
-  setRender, render, go, toast, startOfMonth, matchCategory,
+  setRender, render, go, toast, startOfMonth, matchCategory, addCategory,
 } from './ui.js';
 
 const kopecks = () => Math.round(parseFloat(state.amt.replace(',', '.') || '0') * 100);
@@ -14,10 +14,11 @@ function main() {
   const acc = auth.account();
   if (!acc && !state.authMode) return renderWelcome();
   if (!acc) return renderAuth(state.authMode);
-  if (state.flow === 'faceid-offer') return renderFaceIdOffer();
   if (!state.unlocked) return renderAuth(acc.credId && !state.usePassword ? 'lock' : 'login');
   if (state.flow === 'add') return renderAmount();
   if (state.flow === 'category') return renderCategory();
+  if (state.flow === 'newcat') return renderNewCategory();
+  if (state.flow === 'cats') return renderCustomCats();
   if (state.flow === 'import') return renderImport();
   if (state.flow === 'cat') return renderCategoryDetail();
   if (state.tab === 'charts') return renderCharts();
@@ -34,67 +35,51 @@ function unlock() {
   render();
 }
 
-/* ---------- welcome ---------- */
+/* ---------- приветствие и онбординг ---------- */
+const AVATARS = ['🦊', '🐼', '🐸', '🦉', '🐙', '🦄', '🐧', '🦁', '🐳', '🐝', '🌵', '🍀', '⚡', '🔥', '🌙', '🪐', '🎧', '🏀'];
+
 function renderWelcome() {
   app.innerHTML = `
     <section class="screen auth welcome">
       <div class="aurora"></div>
-      <div class="brand"><span class="orb"></span>NOTA</div>
+      <div class="brand">NOTA</div>
       <div class="auth-body">
-        <h1>Учёт расходов,<br>который не отнимает время</h1>
-        <p>Одно касание, чтобы записать трату. Всё хранится только на вашем устройстве.</p>
+        <h1>Деньги под контролем</h1>
+        <p>Записывайте траты в одно касание.</p>
         <button class="btn" id="reg">Создать аккаунт <span class="arr">→</span></button>
-        <button class="btn alt" id="log">У меня уже есть аккаунт</button>
+        <button class="btn ghost" id="log">Восстановить из копии</button>
       </div>
     </section>`;
-  app.querySelector('#reg').onclick = () => { state.authMode = 'register'; render(); };
-  app.querySelector('#log').onclick = () => { state.authMode = 'login'; render(); };
+  app.querySelector('#reg').onclick = () => { state.authMode = 'register'; state.step = 0; state.draft = {}; render(); };
+  app.querySelector('#log').onclick = restoreBackup;
 }
 
-/* ---------- auth ---------- */
+/* ---------- регистрация ---------- */
 function renderAuth(mode) {
   const acc = auth.account();
-  const reg = mode === 'register';
-  const head = {
-    register: ['Создать аккаунт', 'Придумайте логин и пароль — они останутся на этом устройстве'],
-    login: [acc ? 'С возвращением' : 'Вход', acc ? 'Введите пароль, чтобы открыть свои расходы' : 'На этом устройстве ещё нет аккаунта'],
-    lock: ['С возвращением', esc(acc?.login || '')],
-  }[mode];
+  if (mode === 'register') return renderOnboarding();
 
   app.innerHTML = `
     <section class="screen auth">
       <div class="aurora"></div>
-      <div class="brand"><span class="orb"></span>NOTA</div>
+      <div class="brand">NOTA</div>
       <div class="auth-body">
-        <h1>${head[0]}</h1>
-        <p>${head[1]}</p>
-        ${mode === 'login' && !acc ? `
-          <div class="stack">
-            <div class="hint-card">Аккаунты NOTA хранятся на устройстве, а не на сервере. Создайте новый аккаунт или восстановите данные из резервной копии.</div>
-            <button class="btn" id="restore">Восстановить из копии</button>
-            <button class="btn ghost" id="to-reg">Создать аккаунт</button>
-          </div>` : mode === 'lock' ? `
+        <h1>С возвращением</h1>
+        <p>${esc(acc?.login || '')}</p>
+        ${mode === 'lock' ? `
           <div class="stack">
             <button class="btn with-icon" id="faceid">${icons.face} Войти с Face ID</button>
             <div class="error" id="err"></div>
-            <button class="btn ghost" id="usepass">Войти по паролю</button>
+            ${auth.hasPassword() ? '<button class="btn ghost" id="usepass">Войти по паролю</button>' : ''}
           </div>` : `
           <form novalidate>
-            <input class="field" name="login" placeholder="Логин" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(reg ? '' : acc.login)}">
-            <input class="field" name="password" type="password" placeholder="Пароль" autocomplete="${reg ? 'new-password' : 'current-password'}">
-            ${reg ? '<input class="field" name="password2" type="password" placeholder="Повторите пароль" autocomplete="new-password">' : ''}
+            <input class="field" name="password" type="password" placeholder="Пароль" autocomplete="current-password" autofocus>
             <div class="error" id="err"></div>
-            <button class="btn" type="submit">${reg ? 'Начать' : 'Войти'} <span class="arr">→</span></button>
+            <button class="btn" type="submit">Войти <span class="arr">→</span></button>
           </form>
-          ${reg ? '' : `<div class="switch">${acc.credId ? '<button id="back-faceid">Face ID</button> · ' : ''}<button id="reset" class="muted-link">Забыли пароль?</button></div>`}`}
+          <div class="switch">${acc.credId ? '<button id="back-faceid">Face ID</button> · ' : ''}<button id="reset" class="muted-link">Забыли пароль?</button></div>`}
       </div>
     </section>`;
-
-  if (mode === 'login' && !acc) {
-    app.querySelector('#to-reg').onclick = () => { state.authMode = 'register'; render(); };
-    app.querySelector('#restore').onclick = restoreBackup;
-    return;
-  }
 
   const err = app.querySelector('#err');
   const fail = (msg) => { err.textContent = msg; };
@@ -103,11 +88,10 @@ function renderAuth(mode) {
     app.querySelector('#faceid').onclick = async () => {
       try { (await auth.verifyFaceId()) ? unlock() : fail('Не удалось подтвердить'); } catch { fail('Face ID отменён'); }
     };
-    app.querySelector('#usepass').onclick = () => { state.usePassword = true; render(); };
+    app.querySelector('#usepass')?.addEventListener('click', () => { state.usePassword = true; render(); });
     return;
   }
 
-  const form = app.querySelector('form');
   app.querySelector('#back-faceid')?.addEventListener('click', () => { state.usePassword = false; render(); });
   app.querySelector('#reset')?.addEventListener('click', async () => {
     if (!confirm('Пароль восстановить нельзя. Сбросить аккаунт? Все траты на этом устройстве будут удалены.')) return;
@@ -115,23 +99,85 @@ function renderAuth(mode) {
     auth.reset();
     localStorage.removeItem('loggedIn');
     localStorage.removeItem('avatar');
+    localStorage.removeItem('avatarEmoji');
     render();
   });
-  form.onsubmit = async (e) => {
+  app.querySelector('form').onsubmit = async (e) => {
     e.preventDefault();
-    const { login = '', password = '', password2 } = Object.fromEntries(new FormData(form));
-    if (reg) {
-      if (!/^[\p{L}\d_.-]{2,32}$/u.test(login.trim())) return fail('Логин: 2–32 символа, буквы, цифры, _ . -');
-      if (password.length < 4) return fail('Пароль: минимум 4 символа');
-      if (password !== password2) return fail('Пароли не совпадают');
-      await auth.register(login.trim(), password);
-      state.unlocked = true;
-      localStorage.setItem('loggedIn', '1');
-      state.flow = (await auth.faceIdAvailable()) ? 'faceid-offer' : 'add';
-      return render();
-    }
-    if (await auth.checkPassword(login.trim(), password)) unlock();
-    else fail('Неверный логин или пароль');
+    const { password = '' } = Object.fromEntries(new FormData(e.target));
+    if (await auth.checkPassword(null, password)) unlock();
+    else fail('Неверный пароль');
+  };
+}
+
+function renderOnboarding() {
+  const step = state.step;
+  const name = state.draft.name || '';
+  const pick = state.draft.avatar || '';
+
+  app.innerHTML = `
+    <section class="screen auth onb">
+      <div class="aurora"></div>
+      <div class="brand">NOTA</div>
+      <div class="dots">${[0, 1].map((i) => `<i class="${i === step ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="auth-body">
+        ${step === 0 ? `
+          <div class="onb-emoji">👋</div>
+          <h1>Как вас зовут?</h1>
+          <p>Имя видно только на этом устройстве</p>
+          <input class="field big" id="name" placeholder="Например, Артём" maxlength="32" value="${esc(name)}" autocapitalize="words" spellcheck="false">
+          <div class="error" id="err"></div>
+          <button class="btn" id="next" ${name.trim().length >= 2 ? '' : 'disabled'}>Дальше <span class="arr">→</span></button>
+        ` : `
+          <div class="onb-emoji">${pick || '🎭'}</div>
+          <h1>Выберите аватар</h1>
+          <p>Потом можно поставить своё фото</p>
+          <div class="ava-grid">
+            ${AVATARS.map((e, i) => `<button class="ava-pick${pick === e ? ' on' : ''}" data-e="${e}" style="--i:${i}">${e}</button>`).join('')}
+          </div>
+          <button class="btn" id="done">${pick ? 'Поехали' : 'Пропустить'} <span class="arr">→</span></button>
+        `}
+      </div>
+    </section>`;
+
+  if (step === 0) {
+    const input = app.querySelector('#name');
+    const next = app.querySelector('#next');
+    input.oninput = () => {
+      state.draft.name = input.value;
+      next.disabled = input.value.trim().length < 2;
+    };
+    input.onkeydown = (e) => { if (e.key === 'Enter' && !next.disabled) next.click(); };
+    next.onclick = () => {
+      if (!/^[\p{L}\d _.-]{2,32}$/u.test(input.value.trim())) {
+        app.querySelector('#err').textContent = 'Имя: 2–32 символа';
+        return;
+      }
+      state.draft.name = input.value.trim();
+      state.step = 1;
+      haptic();
+      render();
+    };
+    if (name) input.focus();
+    return;
+  }
+
+  app.querySelector('.ava-grid').onclick = (e) => {
+    const b = e.target.closest('[data-e]');
+    if (!b) return;
+    haptic();
+    state.draft.avatar = b.dataset.e;
+    render();
+  };
+  app.querySelector('#done').onclick = () => {
+    auth.register(state.draft.name);
+    if (state.draft.avatar) localStorage.setItem('avatarEmoji', state.draft.avatar);
+    state.unlocked = true;
+    state.authMode = null;
+    state.flow = 'add';
+    localStorage.setItem('loggedIn', '1');
+    render();
+    toast(`Привет, ${state.draft.name}!`);
   };
 }
 
@@ -140,9 +186,10 @@ function restoreBackup() {
   input.onchange = async () => {
     try {
       const data = JSON.parse(await input.files[0].text());
-      if (!data.account) return toast('В файле нет аккаунта — создайте новый');
+      if (!data.account) return toast('В файле нет аккаунта');
       auth.restore(data.account);
-      state.unlocked = true;
+      state.unlocked = auth.isOpen();
+      state.authMode = null;
       localStorage.setItem('loggedIn', '1');
       const n = await store.importExpenses(data.expenses || []);
       state.flow = 'add';
@@ -153,29 +200,6 @@ function restoreBackup() {
     }
   };
   input.click();
-}
-
-function renderFaceIdOffer() {
-  app.innerHTML = `
-    <section class="screen auth">
-      <div class="aurora"></div>
-      <div class="brand"><span class="orb"></span>NOTA</div>
-      <div class="auth-body">
-        <div class="big-ico">${icons.face}</div>
-        <h1>Включить Face ID?</h1>
-        <p>Приложение будет открываться по лицу, а не по паролю</p>
-        <div class="stack">
-          <button class="btn" id="yes">Включить</button>
-          <div class="error" id="err"></div>
-          <button class="btn ghost" id="no">Не сейчас</button>
-        </div>
-      </div>
-    </section>`;
-  const done = () => { state.flow = 'add'; render(); };
-  app.querySelector('#no').onclick = done;
-  app.querySelector('#yes').onclick = async () => {
-    try { await auth.enableFaceId(); done(); } catch { app.querySelector('#err').textContent = 'Не удалось включить Face ID'; }
-  };
 }
 
 /* ---------- amount ---------- */
@@ -283,7 +307,7 @@ async function renderCategory() {
       <div class="cats">
         ${!q && recent.length ? `<div class="section-label">Недавние</div><div class="grid">${recent.filter((id) => CAT[id]).map((id) => tile([id, CAT[id].name, CAT[id].emoji])).join('')}</div>` : ''}
         <div class="section-label">${q ? `Найдено: ${found.length}` : 'Все категории'}</div>
-        <div class="grid">${found.map(tile).join('')}</div>
+        <div class="grid">${found.map(tile).join('')}${q ? '' : `<button class="cat new" id="newcat"><div class="ico">${icons.plus}</div><span>Своя</span></button>`}</div>
         ${q && !found.length ? '<div class="empty sm">Такой категории нет</div>' : ''}
       </div>
       <div class="bottom">
@@ -309,9 +333,10 @@ async function renderCategory() {
   const cq = app.querySelector('#cq');
   cq.oninput = () => { state.catQuery = cq.value; render(); };
   if (q) { cq.focus(); cq.setSelectionRange(q.length, q.length); }
+  app.querySelector('#newcat')?.addEventListener('click', () => { state.flow = 'newcat'; state.draft = { emoji: '🏷️', name: '' }; render(); });
   app.querySelector('.cats').onclick = (e) => {
     const btn = e.target.closest('.cat');
-    if (!btn) return;
+    if (!btn || btn.id === 'newcat') return;
     haptic();
     state.cat = btn.dataset.id;
     app.querySelectorAll('.cat').forEach((c) => c.classList.toggle('on', c.dataset.id === state.cat));
@@ -347,6 +372,59 @@ async function save() {
     await store.removeExpense(item.id);
     render();
   });
+}
+
+/* ---------- своя категория ---------- */
+const EMOJI = ['🏷️', '🍕', '🍣', '🍺', '🍷', '🎂', '🧃', '🚲', '🛴', '🚗', '✈️', '🏝️', '🏡', '🛋️', '🧹', '🔧', '💅', '💇', '🧴', '👟', '👜', '💍', '🎮', '🎲', '🎸', '🎨', '📷', '🎧', '📺', '🖥️', '⌚', '📦', '🎁', '💐', '🐶', '🐱', '🐟', '🌱', '💊', '🏥', '🦷', '🏀', '⚽', '🏊', '🧘', '📖', '✏️', '🎓', '💼', '🧾', '💳', '🏦', '🤝', '🎯', '☂️', '🔑'];
+
+function renderNewCategory() {
+  const { emoji = '🏷️', name = '' } = state.draft;
+  app.innerHTML = `
+    <section class="screen">
+      <div class="glow-top"></div>
+      <div class="topbar">
+        <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
+        <div class="pill">Новая категория</div>
+        <div style="width:40px"></div>
+      </div>
+      <div class="newcat-head">
+        <div class="ico preview">${emoji}</div>
+        <input class="field big" id="cname" placeholder="Название" maxlength="24" value="${esc(name)}" autocapitalize="words">
+      </div>
+      <div class="cats">
+        <div class="section-label">Иконка</div>
+        <div class="emoji-grid">
+          ${EMOJI.map((e, i) => `<button class="emoji-pick${e === emoji ? ' on' : ''}" data-e="${e}" style="--i:${i}">${e}</button>`).join('')}
+        </div>
+      </div>
+      <div class="bottom">
+        <button class="btn" id="create" ${name.trim().length >= 2 ? '' : 'disabled'}>Создать категорию</button>
+      </div>
+    </section>`;
+
+  const back = () => { state.flow = 'category'; render(); };
+  app.querySelector('#back').onclick = back;
+  const input = app.querySelector('#cname');
+  input.oninput = () => {
+    state.draft.name = input.value;
+    app.querySelector('#create').disabled = input.value.trim().length < 2;
+  };
+  app.querySelector('.emoji-grid').onclick = (e) => {
+    const b = e.target.closest('[data-e]');
+    if (!b) return;
+    haptic();
+    state.draft.emoji = b.dataset.e;
+    render();
+    app.querySelector('#cname').value = state.draft.name || '';
+  };
+  app.querySelector('#create').onclick = () => {
+    const id = addCategory(state.draft.name.trim(), state.draft.emoji);
+    state.cat = id;
+    state.flow = 'category';
+    haptic();
+    render();
+    toast(`Категория «${state.draft.name.trim()}» создана`);
+  };
 }
 
 /* ---------- keyboard ---------- */

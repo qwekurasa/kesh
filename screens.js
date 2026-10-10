@@ -2,7 +2,7 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
-  render, toast, tabbar, bindTabs, avatarHTML, openEdit, openCategory,
+  render, toast, tabbar, bindTabs, avatarHTML, openEdit, openCategory, countUp, customCategories, removeCategory,
 } from './ui.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -42,7 +42,7 @@ export async function renderHome() {
     const date = new Date(d.ts);
     const open = !state.collapsed.has(d.key);
     return `
-      <section class="day${open ? ' open' : ''}" data-key="${d.key}">
+      <section class="day${open ? ' open' : ''}" data-key="${d.key}" style="--i:${days.indexOf(d)}">
         <button class="day-head">
           <span class="day-date"><b>${date.getDate()}</b><small>${WEEKDAYS[date.getDay()]}</small></span>
           <span class="day-meta"><b>${money(sum(d.items))}</b><small>${d.items.length} ${plural(d.items.length, 'трата', 'траты', 'трат')}</small></span>
@@ -58,7 +58,9 @@ export async function renderHome() {
       <header class="month-head">
         <div class="month-nav">
           <button class="icon-btn sm" id="prev" aria-label="Предыдущий месяц">${icons.left}</button>
-          <span class="month-name">${MONTHS[state.month.getMonth()]}${state.month.getFullYear() !== new Date().getFullYear() ? ` ${state.month.getFullYear()}` : ''}</span>
+          <label class="month-name">${MONTHS[state.month.getMonth()]} ${state.month.getFullYear()}
+            <input type="month" id="mpick" value="${state.month.getFullYear()}-${String(state.month.getMonth() + 1).padStart(2, '0')}" max="${new Date().toISOString().slice(0, 7)}">
+          </label>
           <button class="icon-btn sm" id="next" aria-label="Следующий месяц" ${isCurrent ? 'disabled' : ''}>${icons.right}</button>
         </div>
         <div class="month-total">${money(total)}</div>
@@ -71,6 +73,11 @@ export async function renderHome() {
     </section>`;
 
   bindTabs();
+  app.querySelector('#mpick').onchange = (e) => {
+    const [y, m] = e.target.value.split('-').map(Number);
+    if (y) { state.month = new Date(y, m - 1, 1); render(); }
+  };
+  countUp(app.querySelector('.month-total'), total);
   app.querySelector('#prev').onclick = () => { shiftMonth(-1); };
   app.querySelector('#next').onclick = () => { shiftMonth(1); };
   app.querySelector('#list').addEventListener('click', (e) => {
@@ -175,11 +182,14 @@ export async function renderCharts() {
   const slices = cats.slice(0, 5);
   const restSum = sum(items) - slices.reduce((a, [, v]) => a + v, 0);
   const pie = [...slices.map(([id, v], n) => [CAT[id]?.name || id, v, SHADES[n], id]), ...(restSum > 0 ? [['Прочее', restSum, SHADES[5], null]] : [])];
+  const R = 52, C = 2 * Math.PI * R;
   let acc = 0;
-  const stops = pie.map(([, v, c]) => {
-    const from = (acc / total) * 100; acc += v;
-    return `${c} ${from.toFixed(2)}% ${((acc / total) * 100).toFixed(2)}%`;
-  }).join(',');
+  const arcs = pie.map(([, v, c], n) => {
+    const len = (v / total) * C;
+    const off = (acc / total) * C; acc += v;
+    return `<circle class="arc" style="--i:${n}" cx="64" cy="64" r="${R}" stroke="${c}" stroke-width="18"
+      stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"/>`;
+  }).join('');
 
   app.innerHTML = `
     <section class="screen tabbed">
@@ -195,7 +205,7 @@ export async function renderCharts() {
           <div class="bars" style="--n:${r.bars}">
             ${buckets.map((v, i) => `
               <div class="bar-col" title="${money(v)}">
-                <div class="bar" style="height:${Math.max(v ? 4 : 0, (v / peak) * 100)}%"></div>
+                <div class="bar" style="height:${Math.max(v ? 4 : 0, (v / peak) * 100)}%;--i:${i}"></div>
                 <span>${barLabel(i, r)}</span>
               </div>`).join('')}
           </div>
@@ -205,7 +215,8 @@ export async function renderCharts() {
         <div class="section-label">Структура трат</div>
         <div class="card">
           <div class="donut-wrap">
-            <div class="donut" style="background:conic-gradient(${stops})">
+            <div class="donut">
+              <svg viewBox="0 0 128 128" style="--c:${C.toFixed(2)}">${arcs}</svg>
               <div class="donut-mid"><b>${moneyShort(total)} ₽</b><small>${items.length} ${plural(items.length, 'трата', 'траты', 'трат')}</small></div>
             </div>
             <div class="legend">
@@ -223,15 +234,15 @@ export async function renderCharts() {
         </div>
 
         <div class="section-label">Что заметно</div>
-        <div class="tips">${tips(items, cats, prevCats, total, prevTotal, r, days).map((t) =>
-          `<div class="tip"><span class="tip-ico">${t[0]}</span><p>${t[1]}</p></div>`).join('')}</div>
+        <div class="tips">${tips(items, cats, prevCats, total, prevTotal, r, days).map((t, n) =>
+          `<div class="tip" style="--i:${n}"><span class="tip-ico">${t[0]}</span><p>${t[1]}</p></div>`).join('')}</div>
 
         <div class="section-label">По категориям</div>
         <div class="card">
           ${cats.map(([id, v]) => {
             const pv = prevCats[id] || 0;
             const d = pv ? Math.round(((v - pv) / pv) * 100) : null;
-            return `<button class="cat-row" data-cat="${id}">
+            return `<button class="cat-row" data-cat="${id}" style="--i:${cats.findIndex(([c]) => c === id)}">
               <span class="tr-ico">${CAT[id]?.emoji || '📦'}</span>
               <span class="cat-info">
                 <span class="cat-top">${esc(CAT[id]?.name || id)}<b>${money(v)}</b></span>
@@ -247,6 +258,7 @@ export async function renderCharts() {
     </section>`;
 
   bindTabs();
+  countUp(app.querySelector('.month-total'), total);
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const row = e.target.closest('[data-cat]');
     if (row) { haptic(); openCategory(row.dataset.cat); }
@@ -478,7 +490,9 @@ export async function renderProfile() {
       <div class="scroll">
         <div class="section-label">Аккаунт</div>
         <div class="card rows">
-          ${item('password', icons.lock, 'Сменить пароль')}
+          ${item('password', icons.lock, auth.hasPassword() ? 'Сменить пароль' : 'Поставить пароль', auth.hasPassword() ? '' : 'Выкл')}
+          ${auth.hasPassword() ? item('nopass', icons.lock, 'Убрать пароль') : ''}
+          ${item('cats', icons.tag, 'Свои категории', String(customCategories().length))}
           ${faceId ? item('faceid', icons.face, 'Face ID', acc.credId ? 'Вкл' : 'Выкл') : ''}
         </div>
         <div class="section-label">Данные</div>
@@ -502,6 +516,13 @@ export async function renderProfile() {
     const a = e.target.closest('.row')?.dataset.a;
     if (!a) return;
     if (a === 'password') return changePassword();
+    if (a === 'nopass') {
+      if (!confirm('Убрать пароль? Приложение будет открываться сразу.')) return;
+      auth.removePassword();
+      toast('Пароль убран');
+      return render();
+    }
+    if (a === 'cats') { state.flow = 'cats'; return render(); }
     if (a === 'faceid') return toggleFaceId(acc);
     if (a === 'statement') return pickStatement();
     if (a === 'export') return exportData();
@@ -543,6 +564,15 @@ function pickAvatar() {
 }
 
 async function changePassword() {
+  if (!auth.hasPassword()) {
+    const pass = prompt('Новый пароль (минимум 4 символа)');
+    if (pass === null) return;
+    if (pass.length < 4) return toast('Пароль: минимум 4 символа');
+    if (pass !== prompt('Повторите пароль')) return toast('Пароли не совпадают');
+    await auth.setPassword(pass);
+    render();
+    return toast('Пароль установлен');
+  }
   const current = prompt('Текущий пароль');
   if (current === null) return;
   const next = prompt('Новый пароль (минимум 4 символа)');
@@ -550,6 +580,36 @@ async function changePassword() {
   if (next.length < 4) return toast('Пароль: минимум 4 символа');
   if (next !== prompt('Повторите новый пароль')) return toast('Пароли не совпадают');
   toast((await auth.changePassword(current, next)) ? 'Пароль изменён' : 'Текущий пароль неверный');
+}
+
+export function renderCustomCats() {
+  const list = customCategories();
+  app.innerHTML = `
+    <section class="screen tabbed">
+      <div class="glow-top"></div>
+      <header class="month-head">
+        <div class="topbar">
+          <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
+          <div class="pill">Свои категории</div>
+          <div style="width:40px"></div>
+        </div>
+      </header>
+      <div class="scroll">
+        ${list.length ? `<div class="card rows">${list.map((c) => `
+          <div class="row"><span class="tr-ico">${c.emoji}</span><span>${esc(c.name)}</span>
+            <button class="icon-btn sm" data-del="${c.id}" aria-label="Удалить">${icons.trash}</button></div>`).join('')}</div>`
+          : '<div class="empty">Своих категорий пока нет.<br>Их можно добавить при создании траты.</div>'}
+      </div>
+      ${tabbar()}
+    </section>`;
+  bindTabs();
+  app.querySelector('#back').onclick = () => { state.flow = null; render(); };
+  app.querySelector('.scroll').addEventListener('click', (e) => {
+    const id = e.target.closest('[data-del]')?.dataset.del;
+    if (!id || !confirm('Удалить категорию? Траты в ней останутся и перейдут в «Другое».')) return;
+    removeCategory(id);
+    render();
+  });
 }
 
 async function toggleFaceId(acc) {

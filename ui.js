@@ -1,18 +1,15 @@
 import * as auth from './auth.js';
 
-export const CATEGORIES = [
+const BASE = [
   ['groceries', 'Продукты', '🛒'], ['cafe', 'Рестораны', '🍽️'], ['fastfood', 'Фастфуд', '🍔'], ['coffee', 'Кофе', '☕'],
-  ['delivery', 'Доставка', '🥡'],
-  ['transport', 'Транспорт', '🚇'], ['taxi', 'Такси', '🚕'], ['car', 'Авто', '⛽'], ['home', 'Дом и ЖКХ', '🏠'],
-  ['mobile', 'Связь', '📱'], ['subs', 'Подписки', '🔁'], ['clothes', 'Одежда', '👕'], ['health', 'Здоровье', '💊'],
-  ['beauty', 'Красота', '💅'], ['sport', 'Спорт', '🏋️'], ['fun', 'Развлечения', '🎬'], ['travel', 'Путешествия', '✈️'],
-  ['education', 'Обучение', '📚'], ['gifts', 'Подарки', '🎁'], ['pets', 'Питомцы', '🐾'], ['kids', 'Дети', '🧸'],
-  ['tech', 'Техника', '💻'], ['household', 'Хозтовары', '🧴'], ['transfers', 'Переводы', '💸'],
+  ['delivery', 'Доставка', '🥡'], ['transport', 'Транспорт', '🚇'], ['taxi', 'Такси', '🚕'], ['car', 'Авто', '⛽'],
+  ['home', 'Дом и ЖКХ', '🏠'], ['mobile', 'Связь', '📱'], ['subs', 'Подписки', '🔁'], ['clothes', 'Одежда', '👕'],
+  ['health', 'Здоровье', '💊'], ['beauty', 'Красота', '💅'], ['sport', 'Спорт', '🏋️'], ['fun', 'Развлечения', '🎬'],
+  ['travel', 'Путешествия', '✈️'], ['education', 'Обучение', '📚'], ['gifts', 'Подарки', '🎁'], ['pets', 'Питомцы', '🐾'],
+  ['kids', 'Дети', '🧸'], ['tech', 'Техника', '💻'], ['household', 'Хозтовары', '🧴'], ['transfers', 'Переводы', '💸'],
   ['finance', 'Финансы', '🏦'], ['cash', 'Наличные', '💵'], ['other', 'Другое', '📦'],
 ];
-export const CAT = Object.fromEntries(CATEGORIES.map(([id, name, emoji]) => [id, { id, name, emoji }]));
 
-// синонимы для поиска категории
 const KEYWORDS = {
   groceries: 'еда магазин супермаркет пятёрочка магнит лента',
   cafe: 'кафе ресторан обед ужин бар',
@@ -34,7 +31,7 @@ const KEYWORDS = {
   education: 'обучение курсы книги школа учёба',
   gifts: 'подарки цветы праздник',
   pets: 'питомцы кот собака корм ветеринар',
-  kids: 'дети ребёнок игрушки сад школа',
+  kids: 'дети ребёнок игрушки сад',
   tech: 'техника гаджеты электроника компьютер',
   household: 'хозтовары бытовая химия дом ремонт',
   transfers: 'перевод деньги другу',
@@ -42,6 +39,37 @@ const KEYWORDS = {
   cash: 'наличные снятие банкомат',
   other: 'другое прочее разное',
 };
+
+export const CATEGORIES = [];
+export const CAT = {};
+
+export const customCategories = () => {
+  try { return JSON.parse(localStorage.getItem('customCats')) || []; } catch { return []; }
+};
+
+export function reloadCategories() {
+  const custom = customCategories().map((c) => [c.id, c.name, c.emoji]);
+  CATEGORIES.length = 0;
+  CATEGORIES.push(...BASE.slice(0, -1), ...custom, BASE[BASE.length - 1]);
+  Object.keys(CAT).forEach((k) => delete CAT[k]);
+  CATEGORIES.forEach(([id, name, emoji]) => { CAT[id] = { id, name, emoji }; });
+}
+reloadCategories();
+
+export function addCategory(name, emoji) {
+  const list = customCategories();
+  const id = `c${Date.now().toString(36)}`;
+  list.push({ id, name, emoji });
+  localStorage.setItem('customCats', JSON.stringify(list));
+  reloadCategories();
+  return id;
+}
+
+export function removeCategory(id) {
+  localStorage.setItem('customCats', JSON.stringify(customCategories().filter((c) => c.id !== id)));
+  reloadCategories();
+}
+
 export const matchCategory = (id, name, q) =>
   name.toLowerCase().includes(q) || (KEYWORDS[id] || '').includes(q);
 
@@ -54,12 +82,12 @@ export const state = {
   flow: 'add',
   amt: '', cat: null, note: '',
   usePassword: false,
-  unlocked: !auth.account()?.credId && localStorage.getItem('loggedIn') === '1',
+  unlocked: auth.isOpen(),
   month: startOfMonth(),
   collapsed: new Set(),
   period: 'month',
   query: '', filter: null, authMode: null, imp: null, edit: null, catId: null,
-  catQuery: '', date: Date.now(), catQuery: '',
+  catQuery: '', date: Date.now(), step: 0, draft: {},
 };
 
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
@@ -93,8 +121,9 @@ export const icons = {
   up_file: svg('<path d="M12 20V9m0 0 4 4M12 9l-4 4"/><path d="M4 5h16"/>'),
   camera: svg('<path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.5"/>'),
   bank: svg('<rect x="3" y="7" width="18" height="11" rx="3"/><circle cx="12" cy="12.5" r="2.4"/>'),
-  spark: svg('<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6 7.7 7.7M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>'),
+  tag: svg('<path d="M3 11V5a2 2 0 0 1 2-2h6l10 10-8 8L3 11Z"/><circle cx="8" cy="8" r="1.4"/>'),
   trash: svg('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>'),
+  calendar: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>'),
 };
 
 let renderFn = () => {};
@@ -104,6 +133,7 @@ export const render = () => renderFn();
 export function go(tab) {
   state.tab = tab;
   state.flow = null;
+  state.catId = null;
   render();
 }
 
@@ -164,9 +194,25 @@ export function bindTabs() {
 }
 
 export const avatar = () => localStorage.getItem('avatar') || '';
+export const avatarEmoji = () => localStorage.getItem('avatarEmoji') || '';
+
 export function avatarHTML(cls = '') {
   const src = avatar();
-  return src
-    ? `<span class="ava photo ${cls}" style="background-image:url(${src})"></span>`
-    : `<span class="ava orb ${cls}"></span>`;
+  if (src) return `<span class="ava photo ${cls}" style="background-image:url(${src})"></span>`;
+  const em = avatarEmoji();
+  return em ? `<span class="ava emoji ${cls}">${em}</span>` : `<span class="ava orb ${cls}"></span>`;
+}
+
+// плавный счётчик для крупных чисел
+export function countUp(el, to) {
+  if (!el) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = money(to); return; }
+  const dur = 620;
+  const start = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - start) / dur);
+    el.textContent = money(Math.round(to * (1 - (1 - p) ** 3)));
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
