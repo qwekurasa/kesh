@@ -3,7 +3,7 @@ import * as auth from './auth.js';
 import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport, renderCustomCats } from './screens.js';
 import {
   CATEGORIES, CAT, app, state, money, esc, haptic, icons,
-  setRender, render, go, toast, startOfMonth, matchCategory, addCategory,
+  setRender, render, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle,
 } from './ui.js';
 
 const kopecks = () => Math.round(parseFloat(state.amt.replace(',', '.') || '0') * 100);
@@ -36,8 +36,6 @@ function unlock() {
 }
 
 /* ---------- приветствие и онбординг ---------- */
-const AVATARS = ['🦊', '🐼', '🐸', '🦉', '🐙', '🦄', '🐧', '🦁', '🐳', '🐝', '🌵', '🍀', '⚡', '🔥', '🌙', '🪐', '🎧', '🏀'];
-
 function renderWelcome() {
   app.innerHTML = `
     <section class="screen auth welcome">
@@ -113,7 +111,7 @@ function renderAuth(mode) {
 function renderOnboarding() {
   const step = state.step;
   const name = state.draft.name || '';
-  const pick = state.draft.avatar || '';
+  const pick = state.draft.skin ?? null;
 
   app.innerHTML = `
     <section class="screen auth onb">
@@ -122,20 +120,19 @@ function renderOnboarding() {
       <div class="dots">${[0, 1].map((i) => `<i class="${i === step ? 'on' : ''}"></i>`).join('')}</div>
       <div class="auth-body">
         ${step === 0 ? `
-          <div class="onb-emoji">👋</div>
           <h1>Как вас зовут?</h1>
           <p>Имя видно только на этом устройстве</p>
           <input class="field big" id="name" placeholder="Например, Артём" maxlength="32" value="${esc(name)}" autocapitalize="words" spellcheck="false">
           <div class="error" id="err"></div>
           <button class="btn" id="next" ${name.trim().length >= 2 ? '' : 'disabled'}>Дальше <span class="arr">→</span></button>
         ` : `
-          <div class="onb-emoji">${pick || '🎭'}</div>
+          <div class="onb-ava"><span class="ava xl" style="${skinStyle(pick ?? 0)}"></span></div>
           <h1>Выберите аватар</h1>
           <p>Потом можно поставить своё фото</p>
           <div class="ava-grid">
-            ${AVATARS.map((e, i) => `<button class="ava-pick${pick === e ? ' on' : ''}" data-e="${e}" style="--i:${i}">${e}</button>`).join('')}
+            ${SKINS.map((_, i) => `<button class="ava-pick${pick === i ? ' on' : ''}" data-e="${i}" style="--i:${i};${skinStyle(i)}"></button>`).join('')}
           </div>
-          <button class="btn" id="done">${pick ? 'Поехали' : 'Пропустить'} <span class="arr">→</span></button>
+          <button class="btn" id="done">Поехали <span class="arr">→</span></button>
         `}
       </div>
     </section>`;
@@ -166,12 +163,12 @@ function renderOnboarding() {
     const b = e.target.closest('[data-e]');
     if (!b) return;
     haptic();
-    state.draft.avatar = b.dataset.e;
+    state.draft.skin = Number(b.dataset.e);
     render();
   };
   app.querySelector('#done').onclick = () => {
     auth.register(state.draft.name);
-    if (state.draft.avatar) localStorage.setItem('avatarEmoji', state.draft.avatar);
+    localStorage.setItem('avatarSkin', String(state.draft.skin ?? 0));
     state.unlocked = true;
     state.authMode = null;
     state.flow = 'add';
@@ -287,8 +284,8 @@ async function renderCategory() {
   const recent = await store.recentCategories();
   const q = state.catQuery.trim().toLowerCase();
   const found = q ? CATEGORIES.filter(([id, name]) => matchCategory(id, name, q)) : CATEGORIES;
-  const tile = ([id, name, emoji]) =>
-    `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${emoji}</div><span>${name}</span></button>`;
+  const tile = ([id, name]) =>
+    `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${name}</span></button>`;
   const d = new Date(state.date);
   const today = new Date().toDateString() === d.toDateString();
   const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -305,7 +302,7 @@ async function renderCategory() {
       <h2 class="cat-title">На что потратили?</h2>
       <label class="search-bar sm">${icons.search}<input id="cq" placeholder="Поиск категории" value="${esc(state.catQuery)}" autocapitalize="none" spellcheck="false"></label>
       <div class="cats">
-        ${!q && recent.length ? `<div class="section-label">Недавние</div><div class="grid">${recent.filter((id) => CAT[id]).map((id) => tile([id, CAT[id].name, CAT[id].emoji])).join('')}</div>` : ''}
+        ${!q && recent.length ? `<div class="section-label">Недавние</div><div class="grid">${recent.filter((id) => CAT[id]).map((id) => tile([id, CAT[id].name])).join('')}</div>` : ''}
         <div class="section-label">${q ? `Найдено: ${found.length}` : 'Все категории'}</div>
         <div class="grid">${found.map(tile).join('')}${q ? '' : `<button class="cat new" id="newcat"><div class="ico">${icons.plus}</div><span>Своя</span></button>`}</div>
         ${q && !found.length ? '<div class="empty sm">Такой категории нет</div>' : ''}
@@ -333,7 +330,7 @@ async function renderCategory() {
   const cq = app.querySelector('#cq');
   cq.oninput = () => { state.catQuery = cq.value; render(); };
   if (q) { cq.focus(); cq.setSelectionRange(q.length, q.length); }
-  app.querySelector('#newcat')?.addEventListener('click', () => { state.flow = 'newcat'; state.draft = { emoji: '🏷️', name: '' }; render(); });
+  app.querySelector('#newcat')?.addEventListener('click', () => { state.flow = 'newcat'; state.draft = { icon: 'star', name: '' }; render(); });
   app.querySelector('.cats').onclick = (e) => {
     const btn = e.target.closest('.cat');
     if (!btn || btn.id === 'newcat') return;
@@ -368,17 +365,22 @@ async function save() {
   const item = await store.addExpense({ amount, category, note, ts: state.date });
   Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(state.date)), date: Date.now() });
   render();
-  toast(`${CAT[item.category].emoji} ${money(item.amount)} · ${CAT[item.category].name}`, async () => {
+  toast(`${money(item.amount)} · ${CAT[item.category].name}`, async () => {
     await store.removeExpense(item.id);
     render();
   });
 }
 
 /* ---------- своя категория ---------- */
-const EMOJI = ['🏷️', '🍕', '🍣', '🍺', '🍷', '🎂', '🧃', '🚲', '🛴', '🚗', '✈️', '🏝️', '🏡', '🛋️', '🧹', '🔧', '💅', '💇', '🧴', '👟', '👜', '💍', '🎮', '🎲', '🎸', '🎨', '📷', '🎧', '📺', '🖥️', '⌚', '📦', '🎁', '💐', '🐶', '🐱', '🐟', '🌱', '💊', '🏥', '🦷', '🏀', '⚽', '🏊', '🧘', '📖', '✏️', '🎓', '💼', '🧾', '💳', '🏦', '🤝', '🎯', '☂️', '🔑'];
+const PICKABLE = ['star', 'heart', 'music_notes', 'camera', 'game_controller', 'bicycle', 'wrench', 'leaf', 'sun', 'moon',
+  'key', 'bell', 'clock', 'map_pin', 'shield_check', 'wifi_high', 'bus', 'boat', 'rocket', 'palette',
+  'microphone', 'television', 'envelope', 'chat_circle', 'briefcase', 'basketball', 'graduation_cap', 'pencil',
+  'credit_card', 'wallet', 'receipt', 'handshake', 'umbrella', 'lightning', 'fire', 'planet', 'headphones',
+  'watch', 'scissors', 'dog', 'cat', 'fish', 'flower_tulip', 'first_aid_kit', 'tooth',
+  'groceries', 'cafe', 'fastfood', 'coffee', 'travel', 'home', 'health', 'sport', 'fun', 'education', 'gifts', 'tech'];
 
 function renderNewCategory() {
-  const { emoji = '🏷️', name = '' } = state.draft;
+  const { icon = 'star', name = '' } = state.draft;
   app.innerHTML = `
     <section class="screen">
       <div class="glow-top"></div>
@@ -388,13 +390,13 @@ function renderNewCategory() {
         <div style="width:40px"></div>
       </div>
       <div class="newcat-head">
-        <div class="ico preview">${emoji}</div>
+        <div class="ico preview">${rawIcon(icon)}</div>
         <input class="field big" id="cname" placeholder="Название" maxlength="24" value="${esc(name)}" autocapitalize="words">
       </div>
       <div class="cats">
         <div class="section-label">Иконка</div>
         <div class="emoji-grid">
-          ${EMOJI.map((e, i) => `<button class="emoji-pick${e === emoji ? ' on' : ''}" data-e="${e}" style="--i:${i}">${e}</button>`).join('')}
+          ${PICKABLE.map((e, i) => `<button class="emoji-pick${e === icon ? ' on' : ''}" data-e="${e}" style="--i:${i}">${rawIcon(e)}</button>`).join('')}
         </div>
       </div>
       <div class="bottom">
@@ -413,12 +415,12 @@ function renderNewCategory() {
     const b = e.target.closest('[data-e]');
     if (!b) return;
     haptic();
-    state.draft.emoji = b.dataset.e;
+    state.draft.icon = b.dataset.e;
     render();
     app.querySelector('#cname').value = state.draft.name || '';
   };
   app.querySelector('#create').onclick = () => {
-    const id = addCategory(state.draft.name.trim(), state.draft.emoji);
+    const id = addCategory(state.draft.name.trim(), state.draft.icon);
     state.cat = id;
     state.flow = 'category';
     haptic();

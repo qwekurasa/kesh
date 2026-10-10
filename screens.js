@@ -2,7 +2,7 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
-  render, toast, tabbar, bindTabs, avatarHTML, openEdit, openCategory, countUp, customCategories, removeCategory,
+  render, toast, tabbar, bindTabs, avatarHTML, openEdit, openCategory, countUp, customCategories, removeCategory, catIcon,
 } from './ui.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -33,7 +33,7 @@ export async function renderHome() {
 
   const row = (i) => `
     <div class="tr" data-id="${i.id}">
-      <span class="tr-ico">${CAT[i.category]?.emoji || '📦'}</span>
+      <span class="tr-ico">${catIcon(i.category)}</span>
       <span class="tr-name">${esc(CAT[i.category]?.name || i.category)}${i.note ? `<small>${esc(i.note)}</small>` : ''}</span>
       <span class="tr-sum">${money(i.amount)}</span>
     </div>`;
@@ -243,7 +243,7 @@ export async function renderCharts() {
             const pv = prevCats[id] || 0;
             const d = pv ? Math.round(((v - pv) / pv) * 100) : null;
             return `<button class="cat-row" data-cat="${id}" style="--i:${cats.findIndex(([c]) => c === id)}">
-              <span class="tr-ico">${CAT[id]?.emoji || '📦'}</span>
+              <span class="tr-ico">${catIcon(id)}</span>
               <span class="cat-info">
                 <span class="cat-top">${esc(CAT[id]?.name || id)}<b>${money(v)}</b></span>
                 <span class="meter"><i style="width:${pct(v, total)}%"></i></span>
@@ -363,7 +363,7 @@ export async function renderCategoryDetail() {
           <div style="width:40px"></div>
         </div>
         <div class="cat-hero">
-          <span class="tr-ico lg">${CAT[id]?.emoji || '📦'}</span>
+          <span class="tr-ico lg">${catIcon(id)}</span>
           <div>
             <div class="month-total sm">${money(total)}</div>
             <div class="month-sub">${esc(CAT[id]?.name || id)} · ${Math.round((total / (periodTotal || 1)) * 100)}% трат периода</div>
@@ -383,7 +383,7 @@ export async function renderCategoryDetail() {
           ${items.map((i) => {
             const d = new Date(i.ts);
             return `<button class="res" data-id="${i.id}">
-              <span class="tr-ico">${CAT[i.category]?.emoji || '📦'}</span>
+              <span class="tr-ico">${catIcon(i.category)}</span>
               <span class="tr-name">${esc(i.note || CAT[i.category]?.name || '')}<small>${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</small></span>
               <span class="tr-sum">${money(i.amount)}</span>
             </button>`;
@@ -422,7 +422,7 @@ export async function renderSearch() {
         </label>
         <div class="chips">
           <button class="chip${state.filter ? '' : ' on'}" data-c="">Все</button>
-          ${used.map((id) => `<button class="chip${state.filter === id ? ' on' : ''}" data-c="${id}">${CAT[id]?.emoji || '📦'} ${esc(CAT[id]?.name || id)}</button>`).join('')}
+          ${used.map((id) => `<button class="chip${state.filter === id ? ' on' : ''}" data-c="${id}">${catIcon(id)} ${esc(CAT[id]?.name || id)}</button>`).join('')}
         </div>
       </header>
       <div class="scroll">
@@ -430,7 +430,7 @@ export async function renderSearch() {
         ${found.length ? `<div class="card">${found.slice(0, 200).map((i) => {
           const d = new Date(i.ts);
           return `<button class="res" data-id="${i.id}">
-            <span class="tr-ico">${CAT[i.category]?.emoji || '📦'}</span>
+            <span class="tr-ico">${catIcon(i.category)}</span>
             <span class="tr-name">${esc(CAT[i.category]?.name || i.category)}<small>${i.note ? `${esc(i.note)} · ` : ''}${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</small></span>
             <span class="tr-sum">${money(i.amount)}</span>
           </button>`;
@@ -596,7 +596,7 @@ export function renderCustomCats() {
       </header>
       <div class="scroll">
         ${list.length ? `<div class="card rows">${list.map((c) => `
-          <div class="row"><span class="tr-ico">${c.emoji}</span><span>${esc(c.name)}</span>
+          <div class="row"><span class="tr-ico">${catIcon(c.id)}</span><span>${esc(c.name)}</span>
             <button class="icon-btn sm" data-del="${c.id}" aria-label="Удалить">${icons.trash}</button></div>`).join('')}</div>`
           : '<div class="empty">Своих категорий пока нет.<br>Их можно добавить при создании траты.</div>'}
       </div>
@@ -695,7 +695,7 @@ export async function renderImport() {
         <div class="section-label">Распределение</div>
         <div class="card">
           ${cats.map(([id, v]) => `<div class="cat-row">
-            <span class="tr-ico">${CAT[id]?.emoji || '📦'}</span>
+            <span class="tr-ico">${catIcon(id)}</span>
             <span class="cat-info"><span class="cat-top">${esc(CAT[id]?.name || id)}<b>${money(v)}</b></span>
             <span class="meter"><i style="width:${pct(v, sum(items))}%"></i></span></span>
           </div>`).join('')}
@@ -705,7 +705,7 @@ export async function renderImport() {
           ${(imp.expanded ? items : items.slice(0, 10)).map((i) => {
             const d = new Date(i.ts);
             return `<div class="res">
-              <span class="tr-ico">${CAT[i.category]?.emoji || '📦'}</span>
+              <span class="tr-ico">${catIcon(i.category)}</span>
               <span class="tr-name">${esc(i.note || CAT[i.category]?.name || '')}<small>${CAT[i.category]?.name} · ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</small></span>
               <span class="tr-sum">${money(i.amount)}</span>
             </div>`;

@@ -557,8 +557,6 @@ button.cat-row { animation: rise .4s ease-out backwards; animation-delay: calc(v
 
 /* ---------- онбординг ---------- */
 .onb .auth-body { gap: 12px; }
-.onb-emoji { font-size: 52px; line-height: 1; margin-bottom: 6px; animation: wave 2.6s ease-in-out infinite; transform-origin: 70% 80%; }
-@keyframes wave { 0%, 60%, 100% { transform: rotate(0) scale(1); } 15% { transform: rotate(14deg) scale(1.08); } 30% { transform: rotate(-8deg) scale(1.04); } 45% { transform: rotate(10deg) scale(1.06); } }
 .dots { position: absolute; top: calc(var(--safe-top) + 48px); left: 0; right: 0; display: flex; justify-content: center; gap: 6px; z-index: 2; }
 .dots i { width: 16px; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .22); transition: background .25s, width .25s; }
 .dots i.on { width: 26px; background: #ededf0; }
@@ -603,3 +601,26 @@ button.cat-row { animation: rise .4s ease-out backwards; animation-delay: calc(v
 .cat.on .ico { box-shadow: 0 8px 22px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .6); }
 .ava.emoji { display: grid; place-items: center; font-size: 22px; background: var(--surface-2); }
 .ava.emoji.lg { font-size: 44px; }
+
+
+/* ---------- иконки категорий ---------- */
+.ci { width: 60%; height: 60%; color: var(--text); display: block; }
+.tr-ico .ci { width: 19px; height: 19px; color: var(--muted); }
+.tr-ico.lg .ci { width: 27px; height: 27px; color: var(--text); }
+.cat .ico .ci { width: 24px; height: 24px; color: #cfcfd8; }
+.cat.on .ico .ci { color: #17171b; }
+.chip .ci { width: 15px; height: 15px; vertical-align: -3px; margin-right: 4px; color: inherit; }
+.newcat-head .ico .ci { width: 29px; height: 29px; }
+.row .tr-ico .ci { width: 18px; height: 18px; }
+.em { font-size: 19px; line-height: 1; }
+
+.emoji-grid { grid-template-columns: repeat(6, 1fr); gap: 7px; }
+.emoji-pick .ci { width: 21px; height: 21px; color: #c9c9d3; }
+.emoji-pick.on .ci { color: #17171b; }
+
+/* ---------- аватары ---------- */
+.ava-grid { grid-template-columns: repeat(6, 1fr); }
+.ava-pick { border: 2px solid transparent; border-radius: 50%; aspect-ratio: 1; background-clip: padding-box; }
+.ava-pick.on { border-color: #ededf0; transform: scale(1.1); background-clip: padding-box; }
+.ava.xl { width: 92px; height: 92px; border-radius: 50%; display: block; box-shadow: 0 14px 34px rgba(0, 0, 0, .55); }
+.onb-ava { display: flex; justify-content: center; margin-bottom: 4px; }
