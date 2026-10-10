@@ -23,7 +23,7 @@ export const state = {
   month: startOfMonth(),
   collapsed: new Set(),
   period: 'month',
-  query: '', filter: null,
+  query: '', filter: null, authMode: null, imp: null,
 };
 
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
@@ -56,6 +56,8 @@ export const icons = {
   down_file: svg('<path d="M12 4v11m0 0 4-4m-4 4-4-4"/><path d="M4 19h16"/>'),
   up_file: svg('<path d="M12 20V9m0 0 4 4M12 9l-4 4"/><path d="M4 5h16"/>'),
   camera: svg('<path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.5"/>'),
+  bank: svg('<rect x="3" y="7" width="18" height="11" rx="3"/><circle cx="12" cy="12.5" r="2.4"/>'),
+  spark: svg('<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6 7.7 7.7M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>'),
   trash: svg('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>'),
 };
 

@@ -73,6 +73,12 @@ export async function verifyFaceId() {
   return (new Uint8Array(res.response.authenticatorData)[32] & 0x04) !== 0;
 }
 
+export function restore(acc) {
+  if (!acc?.login || !acc?.hash || !acc?.salt) throw new Error('bad backup');
+  write({ login: acc.login, salt: acc.salt, hash: acc.hash, credId: null });
+  navigator.storage?.persist?.();
+}
+
 export function reset() {
   localStorage.removeItem(KEY);
 }

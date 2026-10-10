@@ -1,6 +1,6 @@
 import * as store from './store.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderSearch, renderProfile } from './screens.js';
+import { renderHome, renderCharts, renderSearch, renderProfile, renderImport } from './screens.js';
 import {
   CATEGORIES, CAT, app, state, money, esc, haptic, icons,
   setRender, render, go, toast, startOfMonth,
@@ -12,11 +12,13 @@ setRender(main);
 
 function main() {
   const acc = auth.account();
-  if (!acc) return renderAuth('register');
+  if (!acc && !state.authMode) return renderWelcome();
+  if (!acc) return renderAuth(state.authMode);
   if (state.flow === 'faceid-offer') return renderFaceIdOffer();
   if (!state.unlocked) return renderAuth(acc.credId && !state.usePassword ? 'lock' : 'login');
   if (state.flow === 'add') return renderAmount();
   if (state.flow === 'category') return renderCategory();
+  if (state.flow === 'import') return renderImport();
   if (state.tab === 'charts') return renderCharts();
   if (state.tab === 'search') return renderSearch();
   if (state.tab === 'profile') return renderProfile();
@@ -31,13 +33,30 @@ function unlock() {
   render();
 }
 
+/* ---------- welcome ---------- */
+function renderWelcome() {
+  app.innerHTML = `
+    <section class="screen auth welcome">
+      <div class="aurora"></div>
+      <div class="brand"><span class="orb"></span>NOTA</div>
+      <div class="auth-body">
+        <h1>Учёт расходов,<br>который не отнимает время</h1>
+        <p>Одно касание, чтобы записать трату. Всё хранится только на вашем устройстве.</p>
+        <button class="btn" id="reg">Создать аккаунт <span class="arr">→</span></button>
+        <button class="btn alt" id="log">У меня уже есть аккаунт</button>
+      </div>
+    </section>`;
+  app.querySelector('#reg').onclick = () => { state.authMode = 'register'; render(); };
+  app.querySelector('#log').onclick = () => { state.authMode = 'login'; render(); };
+}
+
 /* ---------- auth ---------- */
 function renderAuth(mode) {
   const acc = auth.account();
   const reg = mode === 'register';
   const head = {
-    register: ['Учёт расходов,<br>который не отнимает время', 'Одно касание, чтобы записать трату. Всё хранится только на вашем устройстве.'],
-    login: ['С возвращением', 'Введите пароль, чтобы открыть свои расходы'],
+    register: ['Создать аккаунт', 'Придумайте логин и пароль — они останутся на этом устройстве'],
+    login: [acc ? 'С возвращением' : 'Вход', acc ? 'Введите пароль, чтобы открыть свои расходы' : 'На этом устройстве ещё нет аккаунта'],
     lock: ['С возвращением', esc(acc?.login || '')],
   }[mode];
 
@@ -48,7 +67,12 @@ function renderAuth(mode) {
       <div class="auth-body">
         <h1>${head[0]}</h1>
         <p>${head[1]}</p>
-        ${mode === 'lock' ? `
+        ${mode === 'login' && !acc ? `
+          <div class="stack">
+            <div class="hint-card">Аккаунты NOTA хранятся на устройстве, а не на сервере. Создайте новый аккаунт или восстановите данные из резервной копии.</div>
+            <button class="btn" id="restore">Восстановить из копии</button>
+            <button class="btn ghost" id="to-reg">Создать аккаунт</button>
+          </div>` : mode === 'lock' ? `
           <div class="stack">
             <button class="btn with-icon" id="faceid">${icons.face} Войти с Face ID</button>
             <div class="error" id="err"></div>
@@ -64,6 +88,12 @@ function renderAuth(mode) {
           ${reg ? '' : `<div class="switch">${acc.credId ? '<button id="back-faceid">Face ID</button> · ' : ''}<button id="reset" class="muted-link">Забыли пароль?</button></div>`}`}
       </div>
     </section>`;
+
+  if (mode === 'login' && !acc) {
+    app.querySelector('#to-reg').onclick = () => { state.authMode = 'register'; render(); };
+    app.querySelector('#restore').onclick = restoreBackup;
+    return;
+  }
 
   const err = app.querySelector('#err');
   const fail = (msg) => { err.textContent = msg; };
@@ -102,6 +132,26 @@ function renderAuth(mode) {
     if (await auth.checkPassword(login.trim(), password)) unlock();
     else fail('Неверный логин или пароль');
   };
+}
+
+function restoreBackup() {
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' });
+  input.onchange = async () => {
+    try {
+      const data = JSON.parse(await input.files[0].text());
+      if (!data.account) return toast('В файле нет аккаунта — создайте новый');
+      auth.restore(data.account);
+      state.unlocked = true;
+      localStorage.setItem('loggedIn', '1');
+      const n = await store.importExpenses(data.expenses || []);
+      state.flow = 'add';
+      render();
+      toast(`Восстановлено трат: ${n}`);
+    } catch {
+      toast('Не удалось прочитать файл');
+    }
+  };
+  input.click();
 }
 
 function renderFaceIdOffer() {
