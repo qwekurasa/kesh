@@ -24,6 +24,18 @@ export async function checkPassword(login, password) {
   return !!acc && acc.login.toLowerCase() === login.toLowerCase() && (await hash(password, unb64(acc.salt))) === acc.hash;
 }
 
+export async function changePassword(current, next) {
+  const acc = read();
+  if (!(await checkPassword(acc.login, current))) return false;
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  write({ ...acc, salt: b64(salt), hash: await hash(next, salt) });
+  return true;
+}
+
+export function rename(login) {
+  write({ ...read(), login });
+}
+
 export async function faceIdAvailable() {
   try { return !!(await window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable()); } catch { return false; }
 }

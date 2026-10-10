@@ -1,12 +1,12 @@
 {
-  "name": "Трекер трат",
-  "short_name": "Траты",
+  "name": "NOTA — трекер трат",
+  "short_name": "NOTA",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0d0d0d",
-  "theme_color": "#0d0d0d",
+  "background_color": "#0b0b0d",
+  "theme_color": "#0b0b0d",
   "icons": [
     { "src": "./icon-180.png", "sizes": "180x180", "type": "image/png" },
     { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },

@@ -59,6 +59,9 @@ export async function recentCategories(limit = 4) {
 
 export const allExpenses = () => tx('readonly', (s) => s.getAll());
 
+export const expensesBetween = (from, to) =>
+  tx('readonly', (s) => s.index('ts').getAll(IDBKeyRange.bound(from, to)));
+
 export async function importExpenses(items) {
   const valid = items.filter((i) => typeof i.id === 'string' && Number.isInteger(i.amount) && typeof i.category === 'string' && Number.isFinite(i.ts));
   await tx('readwrite', (s) => valid.forEach((i) => s.put({ id: i.id, amount: i.amount, category: i.category, note: String(i.note || ''), ts: i.ts })));
