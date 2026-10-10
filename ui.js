@@ -12,6 +12,39 @@ export const CATEGORIES = [
 ];
 export const CAT = Object.fromEntries(CATEGORIES.map(([id, name, emoji]) => [id, { id, name, emoji }]));
 
+// синонимы для поиска категории
+const KEYWORDS = {
+  groceries: 'еда магазин супермаркет пятёрочка магнит лента',
+  cafe: 'кафе ресторан обед ужин бар',
+  fastfood: 'фастфуд бургер шаурма пицца столовая',
+  coffee: 'кофе капучино латте',
+  delivery: 'доставка еда самокат',
+  transport: 'метро автобус электричка проезд билет',
+  taxi: 'такси поездка',
+  car: 'бензин заправка парковка машина',
+  home: 'жкх квартира аренда коммуналка свет вода',
+  mobile: 'связь интернет телефон мобильный оператор',
+  subs: 'подписка сервис',
+  clothes: 'одежда обувь вещи',
+  health: 'аптека лекарства врач больница анализы здоровье',
+  beauty: 'красота салон парикмахер маникюр косметика',
+  sport: 'спорт зал фитнес бассейн',
+  fun: 'развлечения кино театр концерт игры отдых',
+  travel: 'путешествия отпуск отель билеты самолёт',
+  education: 'обучение курсы книги школа учёба',
+  gifts: 'подарки цветы праздник',
+  pets: 'питомцы кот собака корм ветеринар',
+  kids: 'дети ребёнок игрушки сад школа',
+  tech: 'техника гаджеты электроника компьютер',
+  household: 'хозтовары бытовая химия дом ремонт',
+  transfers: 'перевод деньги другу',
+  finance: 'финансы банк счёт вклад',
+  cash: 'наличные снятие банкомат',
+  other: 'другое прочее разное',
+};
+export const matchCategory = (id, name, q) =>
+  name.toLowerCase().includes(q) || (KEYWORDS[id] || '').includes(q);
+
 export const app = document.getElementById('app');
 
 export const startOfMonth = (d = new Date()) => new Date(d.getFullYear(), d.getMonth(), 1);
@@ -26,6 +59,7 @@ export const state = {
   collapsed: new Set(),
   period: 'month',
   query: '', filter: null, authMode: null, imp: null, edit: null, catId: null,
+  catQuery: '', date: Date.now(), catQuery: '',
 };
 
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
@@ -81,6 +115,8 @@ export function openEdit(item) {
     amt: (Number.isInteger(rub) ? String(rub) : rub.toFixed(2)).replace('.', ','),
     cat: item.category,
     note: item.note || '',
+    catQuery: '',
+    date: item.ts,
   });
   render();
 }
@@ -92,7 +128,7 @@ export function openCategory(id) {
 }
 
 export function openAdd() {
-  Object.assign(state, { flow: 'add', amt: '', cat: null, note: '' });
+  Object.assign(state, { flow: 'add', edit: null, amt: '', cat: null, note: '', catQuery: '', date: Date.now() });
   render();
 }
 

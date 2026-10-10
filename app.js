@@ -3,7 +3,7 @@ import * as auth from './auth.js';
 import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport } from './screens.js';
 import {
   CATEGORIES, CAT, app, state, money, esc, haptic, icons,
-  setRender, render, go, toast, startOfMonth,
+  setRender, render, go, toast, startOfMonth, matchCategory,
 } from './ui.js';
 
 const kopecks = () => Math.round(parseFloat(state.amt.replace(',', '.') || '0') * 100);
@@ -261,21 +261,30 @@ function goCategory() {
 /* ---------- category ---------- */
 async function renderCategory() {
   const recent = await store.recentCategories();
+  const q = state.catQuery.trim().toLowerCase();
+  const found = q ? CATEGORIES.filter(([id, name]) => matchCategory(id, name, q)) : CATEGORIES;
   const tile = ([id, name, emoji]) =>
     `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${emoji}</div><span>${name}</span></button>`;
+  const d = new Date(state.date);
+  const today = new Date().toDateString() === d.toDateString();
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   app.innerHTML = `
     <section class="screen">
       <div class="glow-top"></div>
       <div class="topbar">
         <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
         <button class="amount-chip" id="edit">${money(kopecks())} ${icons.edit}</button>
-        <div style="width:40px"></div>
+        <label class="amount-chip date-chip">${today ? 'Сегодня' : `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`}
+          <input type="date" id="date" value="${iso}" max="${new Date().toISOString().slice(0, 10)}">
+        </label>
       </div>
       <h2 class="cat-title">На что потратили?</h2>
+      <label class="search-bar sm">${icons.search}<input id="cq" placeholder="Поиск категории" value="${esc(state.catQuery)}" autocapitalize="none" spellcheck="false"></label>
       <div class="cats">
-        ${recent.length ? `<div class="section-label">Недавние</div><div class="grid">${recent.filter((id) => CAT[id]).map((id) => tile([id, CAT[id].name, CAT[id].emoji])).join('')}</div>` : ''}
-        <div class="section-label">Все категории</div>
-        <div class="grid">${CATEGORIES.map(tile).join('')}</div>
+        ${!q && recent.length ? `<div class="section-label">Недавние</div><div class="grid">${recent.filter((id) => CAT[id]).map((id) => tile([id, CAT[id].name, CAT[id].emoji])).join('')}</div>` : ''}
+        <div class="section-label">${q ? `Найдено: ${found.length}` : 'Все категории'}</div>
+        <div class="grid">${found.map(tile).join('')}</div>
+        ${q && !found.length ? '<div class="empty sm">Такой категории нет</div>' : ''}
       </div>
       <div class="bottom">
         <input class="field" id="note" placeholder="Комментарий (необязательно)" maxlength="200" value="${esc(state.note)}">
@@ -284,10 +293,22 @@ async function renderCategory() {
       </div>
     </section>`;
 
-  const back = () => { state.flow = 'add'; render(); };
+  const back = () => { state.flow = 'add'; state.catQuery = ''; render(); };
   app.querySelector('#back').onclick = back;
   app.querySelector('#edit').onclick = back;
   app.querySelector('#note').oninput = (e) => { state.note = e.target.value; };
+  app.querySelector('#date').onchange = (e) => {
+    const [y, m, dd] = e.target.value.split('-').map(Number);
+    if (!y) return;
+    const now = new Date();
+    const picked = new Date(y, m - 1, dd);
+    const isToday = picked.toDateString() === now.toDateString();
+    state.date = isToday ? Date.now() : new Date(y, m - 1, dd, 12, 0).getTime();
+    render();
+  };
+  const cq = app.querySelector('#cq');
+  cq.oninput = () => { state.catQuery = cq.value; render(); };
+  if (q) { cq.focus(); cq.setSelectionRange(q.length, q.length); }
   app.querySelector('.cats').onclick = (e) => {
     const btn = e.target.closest('.cat');
     if (!btn) return;
@@ -314,13 +335,13 @@ async function save() {
   const note = state.note.trim();
   if (state.edit) {
     const { id } = state.edit;
-    Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '' });
-    await store.updateExpense(id, { amount, category, note });
+    Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '', catQuery: '' });
+    await store.updateExpense(id, { amount, category, note, ts: state.date });
     render();
     return toast('Изменения сохранены');
   }
-  const item = await store.addExpense({ amount, category, note });
-  Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', month: startOfMonth() });
+  const item = await store.addExpense({ amount, category, note, ts: state.date });
+  Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(state.date)), date: Date.now() });
   render();
   toast(`${CAT[item.category].emoji} ${money(item.amount)} · ${CAT[item.category].name}`, async () => {
     await store.removeExpense(item.id);

@@ -26,8 +26,8 @@ async function tx(mode, fn) {
   });
 }
 
-export async function addExpense({ amount, category, note }) {
-  const item = { id: uuid(), amount, category, note: note || '', ts: Date.now() };
+export async function addExpense({ amount, category, note, ts }) {
+  const item = { id: uuid(), amount, category, note: note || '', ts: ts || Date.now() };
   await tx('readwrite', (s) => s.put(item));
   emit();
   return item;
