@@ -1,23 +1,30 @@
-// Котик: сидит на верхнем крае кнопок и перепрыгивает между ними по баллистике.
+// Котик: сидит на видимых поверхностях (кнопки, иконки, карточки) и перепрыгивает между ними по баллистике.
 // Нажатие — сворачивается в клубок, повторное нажатие — просыпается.
 import { haptic } from './ui.js';
 
 const G = 2600; // ускорение свободного падения, px/s²
 const S = 36; // размер котика, px
-const FUR = '#ece9f1', SHADE = '#cfcbd8', PINK = '#f4a9bb', INK = '#1b1a20';
+export const COATS = {
+  white: { name: 'Белый', fur: '#f1eff5', shade: '#d3cfdb', paw: '#ffffff', eye: '#1b1a20', line: '#9c97a8' },
+  grey: { name: 'Серый', fur: '#a3a2ae', shade: '#80808c', paw: '#cfced8', eye: '#1b1a20', line: '#5f5e69' },
+  black: { name: 'Чёрный', fur: '#3a3942', shade: '#26252c', paw: '#4a4953', eye: '#e3ee72', line: '#77768a' },
+  orange: { name: 'Рыжий', fur: '#f3a54e', shade: '#d9822e', paw: '#ffe3c2', eye: '#1b1a20', line: '#a65e1c' },
+};
+const PINK = '#f4a9bb';
+export const kittyCoat = () => (COATS[localStorage.getItem('kittyCoat')] ? localStorage.getItem('kittyCoat') : 'white');
 
-const POSES = {
+const poses = ({ fur: FUR, shade: SHADE, paw: PAW, eye: INK, line: LINE }) => ({
   sit: `<svg viewBox="0 0 48 48">
     <path class="k-tail" d="M30 44c9 1 13-5 11-12" fill="none" stroke="${SHADE}" stroke-width="4" stroke-linecap="round"/>
     <path d="M13 47c-2-10 2-18 11-18s13 8 11 18z" fill="${FUR}"/>
-    <ellipse cx="18.5" cy="46" rx="3.2" ry="2" fill="#fff"/><ellipse cx="29.5" cy="46" rx="3.2" ry="2" fill="#fff"/>
+    <ellipse cx="18.5" cy="46" rx="3.2" ry="2" fill="${PAW}"/><ellipse cx="29.5" cy="46" rx="3.2" ry="2" fill="${PAW}"/>
     <path d="M14 12 15.5 2 22.5 8z M34 12 32.5 2 25.5 8z" fill="${FUR}"/>
     <circle cx="24" cy="18" r="11" fill="${FUR}"/>
     <path d="M15.9 8.6 16.6 4.8 19.4 7.2z M32.1 8.6 31.4 4.8 28.6 7.2z" fill="${PINK}"/>
     <g class="k-eyes"><ellipse cx="19.5" cy="18" rx="1.6" ry="2.2" fill="${INK}"/><ellipse cx="28.5" cy="18" rx="1.6" ry="2.2" fill="${INK}"/></g>
     <circle cx="16.4" cy="22" r="1.7" fill="${PINK}" opacity=".45"/><circle cx="31.6" cy="22" r="1.7" fill="${PINK}" opacity=".45"/>
     <path d="M22.6 21.4h2.8L24 23z" fill="${PINK}"/>
-    <path d="M24 23c-.4 1.3-1.9 1.7-2.9 1M24 23c.4 1.3 1.9 1.7 2.9 1" stroke="#9c97a8" stroke-width=".9" fill="none" stroke-linecap="round"/>
+    <path d="M24 23c-.4 1.3-1.9 1.7-2.9 1M24 23c.4 1.3 1.9 1.7 2.9 1" stroke="${LINE}" stroke-width=".9" fill="none" stroke-linecap="round"/>
   </svg>`,
   jump: `<svg viewBox="0 0 48 48">
     <path d="M10 27c-6-1-9-6-8-11" fill="none" stroke="${SHADE}" stroke-width="4" stroke-linecap="round"/>
@@ -31,40 +38,56 @@ const POSES = {
   </svg>`,
   ball: `<svg viewBox="0 0 48 48">
     <ellipse cx="24" cy="37" rx="14" ry="10.5" fill="${FUR}"/>
-    <path d="M14 33c3-5 8-7 12-7" stroke="#dcd8e4" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M14 33c3-5 8-7 12-7" stroke="${SHADE}" stroke-width="2" fill="none" stroke-linecap="round"/>
     <path d="M12 41c4 6 18 7 25 1" fill="none" stroke="${SHADE}" stroke-width="4" stroke-linecap="round"/>
     <path d="M26 28l2-6.5 4.2 4.8z M33 29.5l3.6-5.4 1.4 6.4z" fill="${FUR}"/>
     <path d="M27.6 34q1.5 1.2 3 0M33.2 34.4q1.3 1 2.6 0" stroke="${INK}" stroke-width="1.1" fill="none" stroke-linecap="round"/>
     <text class="k-z" x="38" y="17" font-size="9" font-weight="700" fill="#9a9aa4">z</text>
   </svg>`,
-};
+});
 
 let el, flip, x = 0, y = 0, vx = 0, vy = 0, face = 1;
 let mode = 'off'; // sit | crouch | fly | fall | ball
 let perch = null, offX = 0, target = null, flyT = 0, flyDur = 0, sx = 0, sy = 0;
-let timer = 0, pose = '', cache = [], cacheAt = 0, last = 0;
+let checkAt = 0, timer = 0, pose = '', cache = [], cacheAt = 0, last = 0;
 
 export const kittyOn = () => localStorage.getItem('kitty') !== '0';
+
+export function setCoat(coat) {
+  localStorage.setItem('kittyCoat', coat);
+  if (el) { pose = ''; setPose(mode === 'ball' ? 'ball' : mode === 'fly' || mode === 'fall' ? 'jump' : 'sit'); }
+}
 
 export function setKitty(on) {
   localStorage.setItem('kitty', on ? '1' : '0');
   on ? spawn() : hide();
 }
 
-const floor = () => window.innerHeight - 2;
 const rand = (a, b) => a + Math.random() * (b - a);
+
+const SURFACES = '#app .tabbar, #app .btn, #app .icon-btn, #app .chip, #app .tab.add, #app .seg, #app .pill, #app .card, #app .day, '
+  + '#app .field, #app .amount-chip, #app .search-bar, #app .tr-ico, #app .cat .ico, #app .tab svg, #app .row > svg, .modal';
+const seen = (c) => c && c !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(c);
+
+// Поверхность: у элемента видна верхняя граница (заливка, рамка или это сама иконка)
+function visible(n) {
+  if (n instanceof SVGElement) return true;
+  const cs = getComputedStyle(n);
+  return seen(cs.backgroundColor) || cs.backgroundImage !== 'none' || (parseFloat(cs.borderTopWidth) > 0 && seen(cs.borderTopColor));
+}
 
 function platforms() {
   const out = [];
   const vh = window.innerHeight;
-  document.querySelectorAll('#app button, .modal button').forEach((b) => {
-    if (b.disabled) return;
-    const r = b.getBoundingClientRect();
-    if (r.width < 34 || r.height < 18 || r.top < 64 || r.top > vh - 6 || r.left < 0 || r.right > window.innerWidth) return;
-    // верхний край должен быть виден, а не перекрыт шапкой или краем прокрутки
+  document.querySelectorAll(SURFACES).forEach((n) => {
+    if (n.disabled || n.closest('[disabled]')) return;
+    const r = n.getBoundingClientRect();
+    if (r.width < 18 || r.height < 14 || r.top < 64 || r.top > vh - 6 || r.left < 0 || r.right > window.innerWidth) return;
+    if (!visible(n)) return;
+    // верхний край не должен быть перекрыт шапкой или срезан прокруткой
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + 2);
-    if (!hit || !b.contains(hit)) return;
-    out.push({ el: b, r });
+    if (!hit || !(hit === n || n.contains(hit) || hit === n.parentElement)) return;
+    out.push({ el: n, r });
   });
   return out;
 }
@@ -72,7 +95,8 @@ function platforms() {
 function setPose(p) {
   if (p === pose) return;
   pose = p;
-  flip.innerHTML = `<div class="k-body">${POSES[p]}</div>`;
+  flip.innerHTML = `<div class="k-body">${poses(COATS[kittyCoat()])[p]}</div>`;
+  el.dataset.coat = kittyCoat();
 }
 
 function draw() {
@@ -81,18 +105,22 @@ function draw() {
   flip.style.transform = `scaleX(${face}) rotate(${tilt}deg)`;
 }
 
+// узкую поверхность (иконку) котик занимает по центру
+const seat = (r, px) => (r.width < 40 ? r.left + r.width / 2 : Math.max(r.left + 12, Math.min(r.right - 12, px)));
+
 function land(p, now) {
-  perch = p?.el || null;
-  y = p ? p.r.top : floor();
-  if (p) x = Math.max(p.r.left + 12, Math.min(p.r.right - 12, x));
-  offX = p ? x - p.r.left : 0;
+  perch = p.el;
+  y = p.r.top;
+  x = seat(p.r, x);
+  offX = x - p.r.left;
   vx = vy = 0;
   mode = 'sit';
   setPose('sit');
   el.classList.remove('land');
   void el.offsetWidth;
   el.classList.add('land');
-  timer = now + rand(perch ? 1800 : 600, perch ? 5200 : 1400);
+  timer = now + rand(1800, 5200);
+  checkAt = now + 400;
 }
 
 function fall() {
@@ -106,7 +134,7 @@ function pickTarget() {
   const list = platforms()
     .filter((p) => p.el !== perch)
     .map((p) => {
-      const tx = rand(p.r.left + 14, p.r.right - 14);
+      const tx = p.r.width < 40 ? p.r.left + p.r.width / 2 : rand(p.r.left + 14, p.r.right - 14);
       const dx = tx - x, dy = p.r.top - y;
       return { p, tx, dx, dy, d: Math.hypot(dx, dy) };
     })
@@ -133,17 +161,22 @@ function jump(c) {
 }
 
 function follow(now) {
-  if (!perch) { y = floor(); return; }
+  if (!perch) return fall();
   if (!perch.isConnected) {
-    // экран перерисовался — ищем кнопку на том же месте
-    const hit = document.elementFromPoint(x, y + 3)?.closest('button');
-    if (hit && !hit.disabled && Math.abs(hit.getBoundingClientRect().top - y) < 6) {
-      perch = hit;
-      offX = x - hit.getBoundingClientRect().left;
-    } else return fall();
+    // экран перерисовался — ищем поверхность на том же месте
+    const p = platforms().find((q) => Math.abs(q.r.top - y) < 6 && x >= q.r.left - 2 && x <= q.r.right + 2);
+    if (!p) return fall();
+    perch = p.el;
+    offX = x - p.r.left;
   }
   const r = perch.getBoundingClientRect();
   if (!r.width || r.top < 56 || r.top > window.innerHeight) return fall();
+  if (now > checkAt) {
+    // поверхность уехала под шапку или за край прокрутки — котик падает
+    checkAt = now + 400;
+    const hit = document.elementFromPoint(r.left + Math.min(offX, r.width - 2), r.top + 2);
+    if (!hit || !(hit === perch || perch.contains(hit) || hit === perch.parentElement || hit.closest('#kitty'))) return fall();
+  }
   x = r.left + Math.min(offX, r.width - 10);
   y = r.top;
   if (perch.disabled && mode === 'sit') timer = Math.min(timer, now + 300);
@@ -179,7 +212,7 @@ function step(now) {
       if (t.el.isConnected && !t.el.disabled) {
         const r = t.el.getBoundingClientRect();
         if (r.width && Math.abs(r.top - t.r.top) < 120) {
-          x = Math.max(r.left + 12, Math.min(r.right - 12, sx + vx * flyDur));
+          x = seat(r, sx + vx * flyDur);
           land({ el: t.el, r }, now);
           return draw();
         }
@@ -205,7 +238,7 @@ function step(now) {
       return py <= r.top && y >= r.top && x > r.left + 6 && x < r.right - 6 && (p.r = r);
     });
     if (hit) land(hit, now);
-    else if (y >= floor()) land(null, now);
+    else if (y > window.innerHeight + 60) { x = rand(60, window.innerWidth - 60); y = -20; vx = 0; vy = 0; }
   }
   draw();
 }

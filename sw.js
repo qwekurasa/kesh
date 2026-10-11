@@ -1,4 +1,4 @@
-const CACHE = 'nota-v24';
+const CACHE = 'nota-v25';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './store.js', './auth.js', './ui.js', './screens.js', './statement.js', './xlsx.js', './kitty.js', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-512.png', './fonts/manrope-latin.woff2', './fonts/manrope-cyrillic.woff2'];
 
 self.addEventListener('install', (e) => {

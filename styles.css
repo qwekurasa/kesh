@@ -66,7 +66,9 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
   overflow: hidden;
   animation: in .24s ease-out;
 }
-.screen.tabbed { padding-bottom: 0; }
+.screen.tabbed { padding-bottom: calc(var(--safe-bottom) + 66px); animation: none; }
+/* экран с таббаром не сдвигается целиком — иначе таббар ездит вместе с анимацией */
+.screen.tabbed > :not(.tabbar):not(.glow-top) { animation: in .24s ease-out; }
 
 @keyframes in { from { opacity: 0; transform: translateY(6px); } }
 
@@ -102,7 +104,7 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
   background: radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--skin-b) 26%, transparent), rgba(0, 0, 0, 0) 70%);
   filter: blur(30px);
 }
-.screen > *:not(.aurora):not(.glow-top):not(.brand):not(.dots):not(.heat) { position: relative; z-index: 1; }
+.screen > *:not(.aurora):not(.glow-top):not(.brand):not(.dots):not(.heat):not(.tabbar) { position: relative; z-index: 1; }
 
 .orb {
   border-radius: 50%;
@@ -252,12 +254,15 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 /* ---------- tabbar ---------- */
 .tabbar {
   display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr; align-items: center;
-  margin: 0 -18px; padding: 8px 4px calc(var(--safe-bottom) + 8px);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  max-width: 460px; margin: 0 auto; padding: 8px 4px calc(var(--safe-bottom) + 8px);
   border-top: 1px solid var(--border);
   background: var(--bg);
   transform: translateZ(0);
 }
-@media (min-width: 700px) { .tabbar { margin: 0 -20px; border-radius: 0 0 35px 35px; } }
+@media (min-width: 700px) {
+  .tabbar { position: relative; left: auto; right: auto; bottom: auto; max-width: none; margin: 0 -20px; border-radius: 0 0 35px 35px; }
+}
 .tab {
   display: flex; flex-direction: column; align-items: center; gap: 5px;
   padding: 7px 0; border-radius: 14px; color: var(--faint);
@@ -824,3 +829,9 @@ button:focus-visible { outline: 2px solid color-mix(in srgb, var(--skin-a) 70%, 
 @keyframes k-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, .95); } }
 @keyframes k-z { 0% { opacity: 0; transform: translate(0, 3px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translate(4px, -7px); } }
 @media (prefers-reduced-motion: reduce) { .k-tail, .k-eyes, .k-z { animation: none; } }
+.coats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 2px 8px 10px; }
+.coat { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; border-radius: 14px; color: var(--muted); font-size: 12px; }
+.coat i { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--fur), var(--shade)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); }
+.coat.on { background: var(--surface-2); color: var(--text); }
+.coat.on i { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--skin-a); }
+#kitty[data-coat="black"] { filter: drop-shadow(0 0 1px rgba(255, 255, 255, .45)) drop-shadow(0 3px 3px rgba(0, 0, 0, .5)); }

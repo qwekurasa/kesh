@@ -6,9 +6,9 @@ import {
   CATEGORIES, catColor, isIncome, sumCell, reloadCategories, addCategory,
 } from './ui.js';
 import { writeXlsx, readXlsx } from './xlsx.js';
-import { kittyOn, setKitty } from './kitty.js';
+import { kittyOn, setKitty, COATS, kittyCoat, setCoat } from './kitty.js';
 
-export const BUILD = 'v24';
+export const BUILD = 'v25';
 
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -523,7 +523,9 @@ export async function renderProfile() {
         <div class="section-label">Настройки</div>
         <div class="card rows">
           ${item('cats', icons.tag, 'Свои категории', String(customCategories().length))}
-          ${item('kitty', icons.paw, 'Котик', kittyOn() ? 'Вкл' : 'Выкл')}
+          ${item('kitty', icons.paw, 'Котик', kittyOn() ? COATS[kittyCoat()].name : 'Выкл')}
+          ${kittyOn() ? `<div class="coats">${Object.entries(COATS).map(([k, c]) =>
+            `<button class="coat${kittyCoat() === k ? ' on' : ''}" data-coat="${k}" style="--fur:${c.fur};--shade:${c.shade}"><i></i><span>${c.name}</span></button>`).join('')}</div>` : ''}
         </div>
         <div class="section-label">Данные</div>
         <div class="card rows">
@@ -552,6 +554,8 @@ export async function renderProfile() {
     render();
   };
   app.querySelector('.scroll').addEventListener('click', (e) => {
+    const coat = e.target.closest('[data-coat]')?.dataset.coat;
+    if (coat) { haptic(); setCoat(coat); return render(); }
     const a = e.target.closest('.row')?.dataset.a;
     if (!a) return;
     if (a === 'kitty') { setKitty(!kittyOn()); haptic(); return render(); }
