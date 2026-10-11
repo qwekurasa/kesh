@@ -398,6 +398,7 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 .row[data-a="logout"], .row[data-a="logout"] svg,
 .row[data-a="clear-imported"], .row[data-a="clear-imported"] svg { color: var(--danger); }
 .version { text-align: center; color: var(--faint); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 24px 0 8px; }
+.version.diag { padding: 0 0 20px; text-transform: none; letter-spacing: 0; font-size: 10.5px; opacity: .8; }
 
 /* ---------- toast ---------- */
 .toast {

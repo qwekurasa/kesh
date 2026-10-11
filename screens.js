@@ -5,7 +5,22 @@ import {
   render, toast, tabbar, bindTabs, avatarHTML, openEdit, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
 } from './ui.js';
 
-export const BUILD = 'v18';
+export const BUILD = 'v19';
+
+// Диагностика раскладки: видно, насколько вьюпорт меньше экрана
+function diagnostics() {
+  const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  const vv = window.visualViewport;
+  const lost = Math.round(screen.height * devicePixelRatio / devicePixelRatio - window.innerHeight);
+  return [
+    `окно ${window.innerWidth}×${window.innerHeight}`,
+    `экран ${screen.width}×${screen.height}`,
+    vv ? `видимая ${Math.round(vv.width)}×${Math.round(vv.height)}` : '',
+    `не занято ${lost}`,
+    standalone ? 'standalone' : 'браузер',
+    `safe ${getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom').trim() || '0px'}`,
+  ].filter(Boolean).join(' · ');
+}
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
@@ -554,6 +569,7 @@ export async function renderProfile() {
           ${auth.hasPassword() ? item('logout', icons.out, 'Выйти') : item('wipe', icons.trash, 'Сбросить аккаунт')}
         </div>
         <div class="version">NOTA ${BUILD} · данные хранятся на этом устройстве</div>
+        <div class="version diag">${diagnostics()}</div>
       </div>
       ${tabbar()}
     </section>`;
