@@ -56,7 +56,20 @@ export function merchant(desc) {
 }
 
 const num = (s) => Math.round(parseFloat(s.replace(/[\s  ]/g, '').replace(',', '.')) * 100);
+// Старый 32-битный хеш оставлен только чтобы узнавать уже импортированные операции
 const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h).toString(36); };
+// 53-битный хеш (cyrb53): на тысячах операций совпадения практически исключены
+const hash53 = (s) => {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+};
 
 function makeItem(dateStr, timeStr, amount, desc, seen) {
   const [d, m, y] = dateStr.split('.').map(Number);
@@ -68,7 +81,8 @@ function makeItem(dateStr, timeStr, amount, desc, seen) {
   const base = `${ts}|${amount}|${note}`;
   const n = (seen.get(base) || 0) + 1;
   seen.set(base, n);
-  const item = { id: `imp${hash(n > 1 ? `${base}#${n}` : base)}`, amount: -amount, category, note, ts };
+  const key = n > 1 ? `${base}#${n}` : base;
+  const item = { id: `imp2-${hash53(key)}`, legacyId: `imp${hash(key)}`, amount: -amount, category, note, ts };
   if (category === 'transfers') item.kind = /внутренний перевод/i.test(desc) ? 'internal' : 'external';
   return item;
 }

@@ -9,7 +9,7 @@ import { writeXlsx, readXlsx } from './xlsx.js';
 import { kittyOn, setKitty, COATS, kittyCoat, setCoat } from './kitty.js';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 
-export const BUILD = 'v26';
+export const BUILD = 'v27';
 
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -56,7 +56,7 @@ export async function renderHome() {
       <section class="day${open ? ' open' : ''}" data-key="${d.key}" style="--i:${days.indexOf(d)}">
         <button class="day-head">
           <span class="day-date"><b>${date.getDate()}</b><small>${WEEKDAYS[date.getDay()]}</small></span>
-          <span class="day-meta"><b>${money(sum(spent(d.items)))}</b><small>${d.items.length} ${plural(d.items.length, 'операция', 'операции', 'операций')}</small></span>
+          <span class="day-meta"><b>${money(sum(spent(d.items)))}</b><small>${d.items.length} ${plural(d.items.length, 'операция', 'операции', 'операций')}${d.items.some(isIncome) ? ` · <span class="plus">+${money(sum(d.items.filter(isIncome)))}</span>` : ''}</small></span>
           <span class="chev">${icons.down}</span>
         </button>
         <div class="day-items">${d.items.map(row).join('')}</div>
@@ -186,10 +186,18 @@ export async function renderCharts() {
   const r = periodRange(state.period);
   const elapsed = Math.min(Date.now(), +r.to) - +r.from;
   const prev = prevRange(r, elapsed);
-  const [items, prevItems] = (await Promise.all([
+  const [now, before] = await Promise.all([
     store.expensesBetween(r.from.getTime(), r.to.getTime() - 1),
     store.expensesBetween(prev.from.getTime(), prev.to.getTime() - 1),
-  ])).map(spent);
+  ]);
+  // Расходы или поступления — одна и та же аналитика по выбранному типу
+  const inc = state.statKind === 'in';
+  const pick = inc ? (a) => a.filter(isIncome) : spent;
+  const items = pick(now);
+  const prevItems = pick(before);
+  const outSum = sum(spent(now));
+  const inSum = sum(now.filter(isIncome));
+  const diff = inSum - outSum;
   const total = sum(items);
   const prevTotal = sum(prevItems);
 
@@ -220,13 +228,23 @@ export async function renderCharts() {
       <header class="month-head">
         <div class="seg">${PERIODS.map(([id, name]) =>
           `<button class="${state.period === id ? 'on' : ''}" data-p="${id}">${name}</button>`).join('')}</div>
-        <div class="month-total">${money(total)}</div>
-        <div class="month-sub">${r.label} · ${money(Math.round(total / days))} в день ${deltaChip(total, prevTotal)}</div>
+        <div class="month-total${inc ? ' plus' : ''}">${money(total)}</div>
+        <div class="month-sub">${inc
+          ? `${r.label} · ${items.length} ${plural(items.length, 'поступление', 'поступления', 'поступлений')}`
+          : `${r.label} · ${money(Math.round(total / days))} в день ${deltaChip(total, prevTotal)}`}</div>
       </header>
       <div class="scroll">
+        <div class="flow-card">
+          <button class="flow${inc ? '' : ' on'}" data-k="out"><small>Расходы</small><b>${money(outSum)}</b></button>
+          <button class="flow${inc ? ' on' : ''}" data-k="in"><small>Поступления</small><b class="plus">+${money(inSum)}</b></button>
+          ${inSum || outSum ? `<div class="flow-diff">
+            <span class="flow-bar"><i style="width:${pct(outSum, Math.max(outSum, inSum))}%"></i><i class="in" style="width:${pct(inSum, Math.max(outSum, inSum))}%"></i></span>
+            <span>Разница за период</span><b class="${diff >= 0 ? 'plus' : 'minus'}">${diff >= 0 ? '+' : '−'}${money(Math.abs(diff))}</b>
+          </div>` : ''}
+        </div>
         <div class="card chart">
           <div class="bar-tip" id="tip"></div>
-          <div class="bars" style="--n:${r.bars}">
+          <div class="bars${inc ? ' income' : ''}" style="--n:${r.bars}">
             ${buckets.map((v, i) => `
               <div class="bar-col" title="${money(v)}">
                 <div class="bar" style="height:${Math.max(v ? 4 : 0, (v / peak) * 100)}%;--i:${i}"></div>
@@ -236,12 +254,12 @@ export async function renderCharts() {
         </div>
 
         ${total ? `
-        <div class="section-label">Структура трат</div>
+        <div class="section-label">${inc ? 'Откуда поступления' : 'Структура трат'}</div>
         <div class="card">
           <div class="donut-wrap">
             <div class="donut">
               <svg viewBox="0 0 128 128" style="--c:${C.toFixed(2)}">${arcs}</svg>
-              <div class="donut-mid"><b>${moneyShort(total)} ₽</b><small>${items.length} ${plural(items.length, 'трата', 'траты', 'трат')}</small></div>
+              <div class="donut-mid"><b>${moneyShort(total)} ₽</b><small>${items.length} ${inc ? plural(items.length, 'поступление', 'поступления', 'поступлений') : plural(items.length, 'трата', 'траты', 'трат')}</small></div>
             </div>
             <div class="legend">
               ${pie.map(([name, v, c, id]) => id
@@ -251,9 +269,9 @@ export async function renderCharts() {
           </div>
         </div>
 
-        <div class="section-label">Что заметно</div>
+        ${inc ? '' : `<div class="section-label">Что заметно</div>
         <div class="tips">${tips(items, cats, prevCats, total, prevTotal, r, days).map((t, n) =>
-          `<div class="tip" style="--i:${n}"><span class="tip-ico">${t[0]}</span><p>${t[1]}</p></div>`).join('')}</div>
+          `<div class="tip" style="--i:${n}"><span class="tip-ico">${t[0]}</span><p>${t[1]}</p></div>`).join('')}</div>`}
 
         <div class="section-label">По категориям</div>
         <div class="card">
@@ -270,7 +288,7 @@ export async function renderCharts() {
               <span class="chev sm">${icons.right}</span>
             </button>`;
           }).join('')}
-        </div>` : '<div class="empty">За этот период трат нет</div>'}
+        </div>` : `<div class="empty">${inc ? 'За этот период поступлений нет' : 'За этот период трат нет'}</div>`}
       </div>
       ${tabbar()}
     </section>`;
@@ -282,6 +300,13 @@ export async function renderCharts() {
     const row = e.target.closest('[data-cat]');
     if (row) { haptic(); openCategory(row.dataset.cat); }
   });
+  app.querySelector('.flow-card').onclick = (e) => {
+    const b = e.target.closest('[data-k]');
+    if (!b || b.dataset.k === (state.statKind || 'out')) return;
+    haptic();
+    state.statKind = b.dataset.k;
+    render();
+  };
   app.querySelector('.seg').onclick = (e) => {
     const b = e.target.closest('[data-p]');
     if (!b) return;
@@ -823,8 +848,24 @@ export async function renderImport() {
   const cats = byCategory(items);
   const from = items.length ? new Date(Math.min(...items.map((i) => i.ts))) : null;
   const to = items.length ? new Date(Math.max(...items.map((i) => i.ts))) : null;
-  const known = await store.existingIds(items.map((i) => i.id));
-  const fresh = items.length - items.filter((i) => known.has(i.id)).length;
+  // уже импортированные (в том числе со старыми ID) и похожие на внесённые вручную: та же сумма в тот же день
+  const known = await store.existingIds(items.flatMap((i) => [i.id, i.legacyId]));
+  const isKnown = (i) => known.has(i.id) || known.has(i.legacyId);
+  const pool = new Map();
+  if (items.length) {
+    (await store.expensesBetween(+from - 864e5, +to + 864e5))
+      .filter((x) => !x.id.startsWith('imp') && !isIncome(x))
+      .forEach((x) => { const k = `${dayKey(x.ts)}|${x.amount}`; pool.set(k, (pool.get(k) || 0) + 1); });
+  }
+  const twins = new Set();
+  items.filter((i) => !isKnown(i)).forEach((i) => {
+    const k = `${dayKey(i.ts)}|${i.amount}`;
+    if (pool.get(k) > 0) { twins.add(i.id); pool.set(k, pool.get(k) - 1); }
+  });
+  imp.add = items
+    .filter((i) => imp.manual || !twins.has(i.id))
+    .map(({ legacyId, kind, ...i }) => (known.has(legacyId) ? { ...i, id: legacyId } : i));
+  const fresh = imp.add.filter((i) => !known.has(i.id)).length;
 
 
   if (!live()) return;
@@ -847,6 +888,7 @@ export async function renderImport() {
       </div>
       <div class="cats">
         ${ext.length ? `<div class="switch-row" data-sw="external"><span>Переводы людям<small>${ext.length} · ${money(sum(ext))}</small></span><span class="sw${imp.external ? ' on' : ''}"></span></div>` : ''}
+        ${twins.size ? `<div class="switch-row" data-sw="manual"><span>Похожи на внесённые вручную<small>${twins.size} · та же сумма в тот же день — по умолчанию не добавляются</small></span><span class="sw${imp.manual ? ' on' : ''}"></span></div>` : ''}
         ${int.length ? `<div class="switch-row" data-sw="internal"><span>Между своими счетами<small>${int.length} · ${money(sum(int))}</small></span><span class="sw${imp.internal ? ' on' : ''}"></span></div>` : ''}
         <div class="section-label">Распределение</div>
         <div class="card">
@@ -870,7 +912,7 @@ export async function renderImport() {
         </div>
       </div>
       <div class="bottom">
-        ${known.size ? `<div class="imp-note">Уже в приложении: ${items.length - fresh} — повторно не добавятся</div>` : ''}
+        ${known.size ? `<div class="imp-note">Уже в приложении: ${items.filter(isKnown).length} — повторно не добавятся</div>` : ''}
         <button class="btn" id="add" ${fresh ? '' : 'disabled'}>${fresh ? `Добавить ${fresh} ${plural(fresh, 'новую', 'новые', 'новых')}` : 'Новых операций нет'}</button>
       </div>`}
     </section>`;
@@ -884,7 +926,7 @@ export async function renderImport() {
     render();
   }));
   app.querySelector('#add')?.addEventListener('click', async () => {
-    const res = await store.importExpenses(items);
+    const res = await store.importExpenses(imp.add);
     state.flow = null; state.imp = null; state.tab = 'home';
     render();
     toast(importSummary(res));
