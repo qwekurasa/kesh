@@ -51,7 +51,11 @@ let mode = 'off'; // sit | crouch | fly | fall | ball
 let perch = null, offX = 0, target = null, flyT = 0, flyDur = 0, sx = 0, sy = 0;
 let checkAt = 0, timer = 0, pose = '', cache = [], cacheAt = 0, last = 0;
 
-export const kittyOn = () => localStorage.getItem('kitty') !== '0';
+// По умолчанию включён, но не при системной настройке «уменьшить движение» — тогда только по явному выбору
+export const kittyOn = () => {
+  const v = localStorage.getItem('kitty');
+  return v === null ? !matchMedia('(prefers-reduced-motion: reduce)').matches : v !== '0';
+};
 
 export function setCoat(coat) {
   localStorage.setItem('kittyCoat', coat);

@@ -355,7 +355,7 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 /* ---------- search ---------- */
 .search-bar { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); margin: 4px 0 2px; }
 .search-bar svg { width: 18px; height: 18px; color: var(--faint); flex: none; }
-.search-bar input { flex: 1; border: 0; background: none; outline: none; font-size: 15px; }
+.search-bar input { flex: 1; border: 0; background: none; outline: none; font-size: 16px; }
 .search-bar input::placeholder { color: var(--faint); }
 .search-bar.sm { height: 44px; margin: 0 0 8px; }
 .more {
@@ -835,3 +835,8 @@ button:focus-visible { outline: 2px solid color-mix(in srgb, var(--skin-a) 70%, 
 .coat.on { background: var(--surface-2); color: var(--text); }
 .coat.on i { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--skin-a); }
 #kitty[data-coat="black"] { filter: drop-shadow(0 0 1px rgba(255, 255, 255, .45)) drop-shadow(0 3px 3px rgba(0, 0, 0, .5)); }
+
+/* масштаб страницы разрешён; двойное касание по кнопкам не увеличивает экран */
+html { touch-action: manipulation; }
+.imp-note { font-size: 12.5px; color: var(--muted); text-align: center; }
+.dep-note { margin-top: 12px; padding: 0 12px; line-height: 1.4; }

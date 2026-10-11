@@ -52,6 +52,27 @@ function zip(files) {
   return new Blob([...parts, ...dir, end]);
 }
 
+const LIMIT = 60 * 1024 * 1024;
+
+// Распаковка с остановкой, если данных больше заявленного (или больше лимита)
+async function inflate(raw, declared) {
+  const max = Math.min(LIMIT, declared + 1024);
+  const reader = new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+  const parts = [];
+  let len = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    len += value.length;
+    if (len > max) { reader.cancel(); throw new Error('archive too large'); }
+    parts.push(value);
+  }
+  const out = new Uint8Array(len);
+  let o = 0;
+  parts.forEach((b) => { out.set(b, o); o += b.length; });
+  return out;
+}
+
 async function unzip(buf) {
   const v = new DataView(buf);
   let e = buf.byteLength - 22;
@@ -59,16 +80,25 @@ async function unzip(buf) {
   if (e < 0) throw new Error('not a zip');
   const out = {};
   let p = v.getUint32(e + 16, true);
-  for (let i = v.getUint16(e + 10, true); i > 0; i--) {
+  const count = v.getUint16(e + 10, true);
+  if (count > 500) throw new Error('too many entries');
+  let total = 0;
+  for (let i = count; i > 0; i--) {
     const method = v.getUint16(p + 10, true);
     const size = v.getUint32(p + 20, true);
+    // защита от «zip-бомбы»: суммарный распакованный объём не больше 60 МБ
+    total += v.getUint32(p + 24, true);
+    if (total > LIMIT || p + 46 > buf.byteLength) throw new Error('archive too large');
     const nlen = v.getUint16(p + 28, true);
     const local = v.getUint32(p + 42, true);
     const name = dec.decode(new Uint8Array(buf, p + 46, nlen));
     const start = local + 30 + v.getUint16(local + 26, true) + v.getUint16(local + 28, true);
+    if (start + size > buf.byteLength) throw new Error('broken zip');
     const raw = new Uint8Array(buf, start, size);
-    out[name] = method === 0 ? raw
-      : new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    // распаковываем только нужные XML-файлы
+    if (/^(xl\/|_rels\/|\[Content_Types\])/.test(name) && /\.(xml|rels)$/.test(name)) {
+      out[name] = method === 0 ? raw : await inflate(raw, v.getUint32(p + 24, true));
+    }
     p += 46 + nlen + v.getUint16(p + 30, true) + v.getUint16(p + 32, true);
   }
   return out;

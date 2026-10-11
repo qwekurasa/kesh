@@ -2,16 +2,18 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
-  render, go, toast, tabbar, bindTabs, avatarHTML, openEdit, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
-  CATEGORIES, catColor, isIncome, sumCell, reloadCategories, addCategory,
+  render, go, toast, dialog, tabbar, bindTabs, avatarHTML, openEdit, openRepeat, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
+  CATEGORIES, catColor, isIncome, sumCell, reloadCategories, addCategory, ticket,
 } from './ui.js';
 import { writeXlsx, readXlsx } from './xlsx.js';
 import { kittyOn, setKitty, COATS, kittyCoat, setCoat } from './kitty.js';
+import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 
-export const BUILD = 'v25';
+export const BUILD = 'v26';
 
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const MONTHS_LOW = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
 const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
@@ -31,6 +33,7 @@ function groupByDay(items) {
 
 /* ---------- home ---------- */
 export async function renderHome() {
+  const live = ticket();
   const from = state.month.getTime();
   const next = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1);
   const items = await store.expensesBetween(from, next.getTime() - 1);
@@ -60,6 +63,7 @@ export async function renderHome() {
       </section>`;
   };
 
+  if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
       <div class="glow-top"></div>
@@ -73,7 +77,7 @@ export async function renderHome() {
           <button class="home-ava" id="me" aria-label="Профиль">${avatarHTML()}</button>
         </div>
         <div class="month-total">${money(total)}</div>
-        <div class="month-sub">${items.length ? `${days.length} ${plural(days.length, 'день', 'дня', 'дней')} с операциями` : 'Трат пока нет'}${income ? ` · <span class="plus">+${money(income)}</span>` : ''}</div>
+        <div class="month-sub">${items.length ? `Расходы за ${MONTHS_LOW[state.month.getMonth()]}` : 'Трат пока нет'}${income ? ` · <span class="plus">+${money(income)}</span>` : ''}</div>
       </header>
       <div class="scroll" id="list">
         ${days.length ? days.map(day).join('') : `<div class="empty">Нажмите <b>＋</b>, чтобы добавить первую трату</div>`}
@@ -88,6 +92,7 @@ export async function renderHome() {
   };
   countUp(app.querySelector('.month-total'), total);
   app.querySelector('#me').onclick = () => { haptic(); go('profile'); };
+  restoreScroll(app.querySelector('#list'));
   app.querySelector('#prev').onclick = () => { shiftMonth(-1); };
   app.querySelector('#next').onclick = () => { shiftMonth(1); };
   app.querySelector('#list').addEventListener('click', (e) => {
@@ -102,9 +107,15 @@ export async function renderHome() {
     const tr = e.target.closest('.tr');
     if (tr) {
       const item = items.find((i) => i.id === tr.dataset.id);
-      if (item) { haptic(); openInfo(item); }
+      if (item) { haptic(); state.keepScroll = app.querySelector('#list').scrollTop; openInfo(item); }
     }
   });
+}
+
+// После возврата из карточки операции список остаётся на том же месте
+function restoreScroll(el) {
+  if (el && state.keepScroll) el.scrollTop = state.keepScroll;
+  state.keepScroll = 0;
 }
 
 function shiftMonth(delta) {
@@ -171,6 +182,7 @@ function barLabel(i, r) {
 }
 
 export async function renderCharts() {
+  const live = ticket();
   const r = periodRange(state.period);
   const elapsed = Math.min(Date.now(), +r.to) - +r.from;
   const prev = prevRange(r, elapsed);
@@ -201,6 +213,7 @@ export async function renderCharts() {
       stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"/>`;
   }).join('');
 
+  if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
       <div class="glow-top"></div>
@@ -388,6 +401,7 @@ function tips(items, cats, prevCats, total, prevTotal, r, days) {
 
 /* ---------- одна категория ---------- */
 export async function renderCategoryDetail() {
+  const live = ticket();
   const id = state.catId;
   const r = periodRange(state.period);
   const all = await store.expensesBetween(r.from.getTime(), r.to.getTime() - 1);
@@ -401,6 +415,7 @@ export async function renderCategoryDetail() {
   });
   const top = [...merchants.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
 
+  if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
       <div class="glow-top"></div>
@@ -443,11 +458,12 @@ export async function renderCategoryDetail() {
 
   bindTabs();
   app.querySelector('#back').onclick = () => { state.flow = null; state.catId = null; render(); };
+  restoreScroll(app.querySelector('.scroll'));
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const row = e.target.closest('[data-id]');
     if (!row) return;
     const item = items.find((i) => i.id === row.dataset.id);
-    if (item) { haptic(); openInfo(item); }
+    if (item) { haptic(); state.keepScroll = app.querySelector('.scroll').scrollTop; openInfo(item); }
   });
 }
 
@@ -481,13 +497,17 @@ export function renderInfo() {
         </div>
       </div>
       <div class="bottom">
-        <button class="btn" id="edit">Изменить</button>
+        <div class="dep-actions">
+          <button class="btn alt" id="repeat">Повторить</button>
+          <button class="btn alt" id="edit">Изменить</button>
+        </div>
         <button class="btn ghost danger" id="del">Удалить операцию</button>
       </div>
     </section>`;
 
   app.querySelector('#back').onclick = close;
   app.querySelector('#edit').onclick = () => openEdit(i);
+  app.querySelector('#repeat').onclick = () => { haptic(); openRepeat(i); };
   app.querySelector('#del').onclick = async () => {
     if (!(await ask('Удалить операцию?', `${money(i.amount)} · ${CAT[i.category]?.name || ''}`))) return;
     state.info = null;
@@ -499,6 +519,7 @@ export function renderInfo() {
 
 /* ---------- profile ---------- */
 export async function renderProfile() {
+  const live = ticket();
   const acc = auth.account();
   const all = await store.allExpenses();
   const imported = await store.importedCount();
@@ -506,6 +527,7 @@ export async function renderProfile() {
   const item = (id, icon, label, extra = '') =>
     `<button class="row" data-a="${id}">${icon}<span>${label}</span><span class="row-extra">${extra}</span></button>`;
 
+  if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
       <div class="glow-top"></div>
@@ -530,12 +552,13 @@ export async function renderProfile() {
         <div class="section-label">Данные</div>
         <div class="card rows">
           ${item('statement', icons.bank, 'Импорт выписки банка', 'PDF, CSV')}
-          ${item('export', icons.down_file, 'Экспорт в Excel')}
-          ${item('import', icons.up_file, 'Импорт копии', 'XLSX')}
+          ${item('backup', icons.down_file, 'Резервная копия', lastBackupLabel())}
+          ${item('import', icons.up_file, 'Восстановить из копии', 'JSON, XLSX')}
+          ${item('export', icons.chart, 'Отчёт в Excel')}
         </div>
         ${imported ? `<div class="card rows">${item('clear-imported', icons.trash, 'Удалить импортированные', String(imported))}</div>` : ''}
         <div class="card rows">
-          ${item('wipe', icons.trash, 'Сбросить аккаунт')}
+          ${item('wipe', icons.trash, 'Сбросить все данные')}
         </div>
         <div class="version">NOTA ${BUILD} · данные хранятся на этом устройстве</div>
       </div>
@@ -562,21 +585,13 @@ export async function renderProfile() {
     if (a === 'cats') { state.flow = 'cats'; return render(); }
     if (a === 'statement') return pickStatement();
     if (a === 'export') return exportData();
+    if (a === 'backup') return downloadBackup().then(render);
     if (a === 'import') return importData();
     if (a === 'clear-imported') {
       return ask(`Удалить ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`, 'Это траты из выписок. Внесённые вручную останутся.')
-        .then(async (yes) => { if (yes) toast(`Удалено трат: ${await store.removeImported()}`); });
+        .then(async (yes) => { if (yes) { toast(`Удалено трат: ${await store.removeImported()}`); render(); } });
     }
-    if (a === 'wipe') {
-      return ask('Сбросить аккаунт?', 'Имя, настройки и все траты на этом устройстве будут удалены.', 'Сбросить').then(async (yes) => {
-        if (!yes) return;
-        await store.wipe();
-        auth.reset();
-        ['loggedIn', 'avatar', 'avatarSkin', 'customCats', 'budgets', 'deposits'].forEach((k) => localStorage.removeItem(k));
-        state.authMode = null;
-        render();
-      });
-    }
+    if (a === 'wipe') return wipeAll();
   });
 }
 
@@ -641,12 +656,72 @@ export function renderCustomCats() {
       return render();
     }
     if (!id) return;
-    ask('Удалить категорию?', 'Траты в ней останутся и перейдут в «Другое».').then((yes) => {
+    const cat = list.find((x) => x.id === id);
+    const to = cat.kind === 'in' ? 'in_other' : 'other';
+    ask(`Удалить «${cat.name}»?`, 'Операции из неё перейдут в «Другое», лимит категории будет снят.').then(async (yes) => {
       if (!yes) return;
+      const n = await store.recategorize(id, to);
+      const b = budgets();
+      if (b[id]) { delete b[id]; saveBudgets(b); }
       removeCategory(id);
       render();
+      toast(n ? `Категория удалена, ${n} ${plural(n, 'операция перенесена', 'операции перенесены', 'операций перенесено')} в «Другое»` : 'Категория удалена');
     });
   });
+}
+
+/* ---------- резервная копия ---------- */
+function lastBackupLabel() {
+  const t = Number(localStorage.getItem('lastBackup'));
+  if (!t) return 'ещё нет';
+  const d = new Date(t);
+  return new Date().toDateString() === d.toDateString() ? 'сегодня' : `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+}
+
+function saveFile(file) {
+  if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+    return navigator.share({ files: [file] }).catch(() => {});
+  }
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(file), download: file.name });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return Promise.resolve();
+}
+
+async function downloadBackup() {
+  const data = await makeBackup(BUILD);
+  const name = `nota-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  await saveFile(new File([JSON.stringify(data)], name, { type: 'application/json' }));
+  localStorage.setItem('lastBackup', String(Date.now()));
+  toast(`Копия сохранена: ${data.transactions.length} ${plural(data.transactions.length, 'операция', 'операции', 'операций')}`);
+}
+
+const importSummary = (r) => [
+  `Добавлено ${r.added}`,
+  r.updated && `обновлено ${r.updated}`,
+  r.unchanged && `уже были ${r.unchanged}`,
+  r.skipped && `ваши правки сохранены: ${r.skipped}`,
+  r.invalid && `отброшено ${r.invalid}`,
+].filter(Boolean).join(' · ');
+
+async function wipeAll() {
+  const fresh = Date.now() - Number(localStorage.getItem('lastBackup') || 0) < 10 * 6e4;
+  if (!fresh) {
+    const want = await dialog({ title: 'Сначала сохранить копию?', text: 'Данные хранятся только на этом устройстве. После сброса их не вернуть без копии.', ok: 'Скачать копию', cancel: 'Без копии' });
+    if (want === null) return;
+    if (want) await downloadBackup();
+  }
+  if (!(await ask('Сбросить все данные?', 'Имя, настройки, категории, лимиты, вклады и все операции на этом устройстве будут удалены.', 'Сбросить'))) return;
+  try {
+    await store.wipe();
+  } catch (e) {
+    return toast(e.message === 'blocked' ? 'NOTA открыта в другой вкладке — закройте её и повторите' : 'Не удалось удалить данные');
+  }
+  auth.reset();
+  ['loggedIn', 'avatar', 'avatarSkin', 'customCats', 'budgets', 'deposits', 'lastBackup', 'kitty', 'kittyCoat'].forEach((k) => localStorage.removeItem(k));
+  reloadCategories();
+  state.authMode = null;
+  render();
 }
 
 const toSerial = (ts) => (ts - new Date(ts).getTimezoneOffset() * 6e4) / 864e5 + 25569;
@@ -681,27 +756,20 @@ async function exportData() {
         ...deposits().map((d) => [d.name, rubles(d.amount), d.rate || 0, rubles(monthly(d))])] },
   ];
   const name = `nota-${now.toISOString().slice(0, 10)}.xlsx`;
-  const file = new File([writeXlsx(sheets)], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
-    return navigator.share({ files: [file] }).catch(() => {});
-  }
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(file), download: name });
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return saveFile(new File([writeXlsx(sheets)], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
 }
 
 // Восстановление из своей Excel-выгрузки: категории ищутся по названию, незнакомые создаются
-async function importXlsx(buf) {
-  const book = await readXlsx(buf);
+async function importXlsx(book) {
   const ops = (book['Операции'] || []).slice(1).filter((r) => typeof r[0] === 'number' && typeof r[4] === 'number');
   const find = (name, kind) => {
     const hit = Object.values(CAT).find((c) => c.kind === kind && c.name.toLowerCase() === String(name).trim().toLowerCase());
-    return hit ? hit.id : addCategory(String(name).trim() || 'Другое', 'star', undefined, kind);
+    return hit ? hit.id : addCategory(String(name).trim().slice(0, 40) || 'Другое', 'star', undefined, kind);
   };
   const items = ops.map((r) => {
     const kind = r[1] === 'Пополнение' ? 'in' : 'out';
     return {
-      id: String(r[5] || `x${Math.round(r[0] * 1e6).toString(36)}${Math.round(r[4] * 100)}`),
+      id: String(r[5] || `x${Math.round(r[0] * 1e6).toString(36)}-${Math.round(r[4] * 100)}`),
       ts: fromSerial(r[0]),
       category: find(r[2] || 'Другое', kind),
       note: String(r[3] ?? ''),
@@ -711,12 +779,13 @@ async function importXlsx(buf) {
   });
   if (!deposits().length) {
     const list = (book['Вклады'] || []).slice(1).filter((r) => r[0] && typeof r[1] === 'number')
-      .map((r, n) => ({ id: `d${Date.now().toString(36)}${n}`, name: String(r[0]), amount: Math.round(r[1] * 100), rate: Number(r[2]) || 0 }));
+      .filter((r) => r[1] >= 0 && r[1] <= 1e11)
+      .map((r, n) => ({ id: `d${Date.now().toString(36)}${n}`, name: String(r[0]).slice(0, 60), amount: Math.round(r[1] * 100), rate: Math.min(100, Math.max(0, Number(r[2]) || 0)) }));
     if (list.length) saveDeposits(list);
   }
   if (!Object.keys(budgets()).length) {
     const next = {};
-    (book['Бюджет'] || []).slice(1).forEach((r) => { if (r[0] && r[1] > 0) next[find(r[0], 'out')] = Math.round(r[1] * 100); });
+    (book['Бюджет'] || []).slice(1).forEach((r) => { if (r[0] && r[1] > 0 && r[1] <= 1e11) next[find(r[0], 'out')] = Math.round(r[1] * 100); });
     if (Object.keys(next).length) saveBudgets(next);
   }
   return store.importExpenses(items);
@@ -746,6 +815,7 @@ function pickStatement() {
 }
 
 export async function renderImport() {
+  const live = ticket();
   const imp = state.imp;
   const items = imp.items.filter((i) => (i.kind === 'external' ? imp.external : i.kind === 'internal' ? imp.internal : true));
   const ext = imp.items.filter((i) => i.kind === 'external');
@@ -753,8 +823,11 @@ export async function renderImport() {
   const cats = byCategory(items);
   const from = items.length ? new Date(Math.min(...items.map((i) => i.ts))) : null;
   const to = items.length ? new Date(Math.max(...items.map((i) => i.ts))) : null;
+  const known = await store.existingIds(items.map((i) => i.id));
+  const fresh = items.length - items.filter((i) => known.has(i.id)).length;
 
 
+  if (!live()) return;
   app.innerHTML = `
     <section class="screen">
       <div class="glow-top"></div>
@@ -797,7 +870,8 @@ export async function renderImport() {
         </div>
       </div>
       <div class="bottom">
-        <button class="btn" id="add" ${items.length ? '' : 'disabled'}>Добавить ${items.length} ${plural(items.length, 'трату', 'траты', 'трат')}</button>
+        ${known.size ? `<div class="imp-note">Уже в приложении: ${items.length - fresh} — повторно не добавятся</div>` : ''}
+        <button class="btn" id="add" ${fresh ? '' : 'disabled'}>${fresh ? `Добавить ${fresh} ${plural(fresh, 'новую', 'новые', 'новых')}` : 'Новых операций нет'}</button>
       </div>`}
     </section>`;
 
@@ -810,32 +884,45 @@ export async function renderImport() {
     render();
   }));
   app.querySelector('#add')?.addEventListener('click', async () => {
-    const n = await store.importExpenses(items);
+    const res = await store.importExpenses(items);
     state.flow = null; state.imp = null; state.tab = 'home';
     render();
-    toast(`Добавлено трат: ${n}`);
+    toast(importSummary(res));
   });
 }
 
+const MAX_FILE = 20 * 1024 * 1024;
+
 function importData() {
-  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.xlsx,.json' });
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,.xlsx' });
   input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > MAX_FILE) return toast('Файл больше 20 МБ');
     try {
-      const file = input.files[0];
-      let n;
-      if (/\.xlsx$/i.test(file.name)) n = await importXlsx(await file.arrayBuffer());
-      else {
-        // старые копии в JSON
-        const data = JSON.parse(await file.text());
-        if (Array.isArray(data.deposits) && !deposits().length) saveDeposits(data.deposits);
-        if (Array.isArray(data.customCats) && !customCategories().length) {
-          localStorage.setItem('customCats', JSON.stringify(data.customCats));
-          reloadCategories();
-        }
-        if (data.budgets && typeof data.budgets === 'object' && !Object.keys(budgets()).length) saveBudgets(data.budgets);
-        n = await store.importExpenses(data.expenses || data);
+      if (/\.xlsx$/i.test(file.name)) {
+        const book = await readXlsx(await file.arrayBuffer());
+        const n = Math.max(0, (book['Операции'] || []).length - 1);
+        if (!(await dialog({ title: 'Загрузить из Excel?', text: `В файле ${n} ${plural(n, 'строка', 'строки', 'строк')} операций. Текущие данные не удаляются, повторы не дублируются.`, ok: 'Загрузить' }))) return;
+        toast(importSummary(await importXlsx(book)));
+        return render();
       }
-      toast(`Импортировано операций: ${n}`);
+      const check = checkBackup(JSON.parse(await file.text()));
+      if (!check.ok) return toast(check.error);
+      const d = check.exportedAt ? new Date(check.exportedAt) : null;
+      const what = [
+        `${check.transactions.length} ${plural(check.transactions.length, 'операция', 'операции', 'операций')}`,
+        check.categories.length && `${check.categories.length} ${plural(check.categories.length, 'категория', 'категории', 'категорий')}`,
+        Object.keys(check.budgets).length && `${Object.keys(check.budgets).length} ${plural(Object.keys(check.budgets).length, 'лимит', 'лимита', 'лимитов')}`,
+        check.deposits.length && `${check.deposits.length} ${plural(check.deposits.length, 'вклад', 'вклада', 'вкладов')}`,
+      ].filter(Boolean).join(', ');
+      const text = `${d && !Number.isNaN(+d) ? `Копия от ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}: ` : 'В копии: '}${what}.`
+        + `${check.dropped ? ` Повреждённых записей: ${check.dropped} — они будут пропущены.` : ''} Текущие данные не удаляются.`;
+      if (!(await dialog({ title: 'Восстановить копию?', text, ok: 'Восстановить' }))) return;
+      const res = await restoreBackup(check);
+      applySkin();
+      render();
+      toast(importSummary(res));
     } catch {
       toast('Не удалось прочитать файл');
     }
@@ -851,6 +938,7 @@ const toKop = (v) => Math.round(parseFloat(String(v).replace(/\s/g, '').replace(
 const rub = (kop) => String(Math.round(kop / 100));
 
 export async function renderBudget() {
+  const live = ticket();
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -864,6 +952,7 @@ export async function renderBudget() {
   const left = limit - used;
   const daysLeft = Math.max(1, Math.ceil((to - now) / 864e5));
 
+  if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
       <div class="glow-top"></div>
@@ -947,6 +1036,7 @@ export function renderDeposits() {
             <span class="tr-name">${esc(d.name)}<small>${d.rate ? `${String(d.rate).replace('.', ',')}% годовых · +${money(monthly(d))}/мес` : 'Без процентов'}</small></span>
             <span class="tr-sum">${money(d.amount)}</span>
           </button>`).join('')}</div>` : ''}
+        ${income ? '<div class="imp-note dep-note">Доход — примерная оценка: сумма × ставка ÷ 12, без капитализации и налогов</div>' : ''}
         <button class="btn alt add-dep" id="add">${icons.plus} Добавить вклад</button>
       </div>
       ${tabbar()}
@@ -975,7 +1065,7 @@ export function renderDeposit() {
       </div>
       <div class="cats dep-form">
         ${d.id ? `<div class="info-hero"><div class="info-amount">${money(d.amount)}</div>
-          <div class="month-sub">${d.rate ? `≈ +${money(monthly(d))} в месяц` : 'Без процентов'}</div></div>
+          <div class="month-sub">${d.rate ? `≈ +${money(monthly(d))} в месяц, примерно` : 'Без процентов'}</div></div>
           <div class="dep-actions">
             <button class="btn alt" id="topup">${icons.plus} Пополнить</button>
             <button class="btn alt" id="take">Снять</button>

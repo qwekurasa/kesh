@@ -3,7 +3,7 @@ import * as auth from './auth.js';
 import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit } from './screens.js';
 import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
-  setRender, render, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
+  setRender, render, ticket, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
 } from './ui.js';
 import { startKitty } from './kitty.js';
 
@@ -115,8 +115,10 @@ function renderOnboarding() {
 
 /* ---------- amount ---------- */
 async function renderAmount() {
+  const live = ticket();
   const today = await store.todayTotal();
   const editing = !!state.edit;
+  if (!live()) return;
   app.innerHTML = `
     <section class="screen add-screen">
       <div class="glow-top"></div>
@@ -209,16 +211,18 @@ function goCategory() {
 
 /* ---------- category ---------- */
 async function renderCategory() {
+  const live = ticket();
   const income = state.kind === 'in';
   const list = income ? INCOME_CATEGORIES : CATEGORIES;
   const recent = (await store.recentCategories(12)).filter((id) => CAT[id] && (CAT[id].kind === 'in') === income).slice(0, 4);
   const q = state.catQuery.trim().toLowerCase();
   const found = q ? list.filter(([id, name]) => matchCategory(id, name, q)) : list;
   const tile = ([id, name]) =>
-    `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${name}</span></button>`;
+    `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${esc(name)}</span></button>`;
   const d = new Date(state.date);
   const today = new Date().toDateString() === d.toDateString();
   const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (!live()) return;
   app.innerHTML = `
     <section class="screen">
       <div class="glow-top"></div>
@@ -404,6 +408,19 @@ document.addEventListener('keydown', (e) => {
 
 store.onChange(() => { if (!state.flow) render(); });
 
+// Сбой где угодно: понятное сообщение вместо пустого экрана
+function fail(err) {
+  console.error(err);
+  const quota = err?.name === 'QuotaExceededError';
+  if (!app.querySelector('.screen')) {
+    app.innerHTML = `<section class="screen"><div class="empty">Не удалось открыть экран.<br><br>
+      <button class="btn" id="retry">Перезапустить</button></div></section>`;
+    app.querySelector('#retry').onclick = () => location.reload();
+  } else toast(quota ? 'Нет места в хранилище браузера — освободите память и повторите' : 'Что-то пошло не так, попробуйте ещё раз');
+}
+window.addEventListener('error', (e) => fail(e.error || e.message));
+window.addEventListener('unhandledrejection', (e) => fail(e.reason));
+
 // Жест «назад»: свайп от левого края вправо
 function goBack() {
   if (state.info) { state.info = null; return render(); }
@@ -437,5 +454,6 @@ document.addEventListener('touchend', (e) => {
 
 applySkin();
 startKitty();
+store.fixOrphans(new Set(Object.keys(CAT))).catch(() => {});
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 render();

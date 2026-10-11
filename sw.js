@@ -1,27 +1,41 @@
-const CACHE = 'nota-v25';
-const SHELL = ['./', './index.html', './styles.css', './app.js', './store.js', './auth.js', './ui.js', './screens.js', './statement.js', './xlsx.js', './kitty.js', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-512.png', './fonts/manrope-latin.woff2', './fonts/manrope-cyrillic.woff2'];
+const PREFIX = 'nota-';
+const CACHE = `${PREFIX}v26`;
+const SHELL = ['./', './index.html', './styles.css', './app.js', './store.js', './auth.js', './ui.js', './screens.js', './statement.js',
+  './xlsx.js', './kitty.js', './backup.js', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-512.png',
+  './fonts/manrope-latin.woff2', './fonts/manrope-cyrillic.woff2',
+  // PDF-разбор выписки должен работать и без сети
+  './vendor/pdf.min.mjs', './vendor/pdf.worker.min.mjs'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 
+// Удаляем только свои старые кэши: на github.io у других приложений тот же origin
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
-// Сначала сеть (чтобы обновления приходили сразу), без сети — кэш
+// Сеть с таймаутом (свежая версия при хорошем интернете), иначе кэш.
+// Подмена на index.html — только для переходов по страницам, не для скриптов и стилей.
 self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-  e.respondWith(
-    fetch(new Request(e.request, { cache: 'no-cache' }))
-      .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-        return res;
-      })
-      .catch(() => caches.match(e.request).then((r) => r || caches.match('./index.html'))),
-  );
+  const req = e.request;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
+  e.respondWith((async () => {
+    const cached = await caches.match(req, { ignoreSearch: url.pathname.endsWith('.png') || url.pathname.endsWith('.svg') });
+    const net = fetch(new Request(req, { cache: 'no-cache' })).then((res) => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+      return res;
+    });
+    net.catch(() => {});
+    try {
+      return await (cached ? Promise.race([net, new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 3000))]) : net);
+    } catch {
+      if (cached) return cached;
+      if (req.mode === 'navigate') return (await caches.match('./index.html')) || Response.error();
+      return Response.error();
+    }
+  })());
 });

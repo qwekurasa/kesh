@@ -149,20 +149,38 @@ export const catColor = (id) => CAT[id]?.color || '#9a9aa4';
 
 export const catIcon = (id) => {
   const c = CAT[id];
-  if (c && c.emoji) return `<span class="em">${c.emoji}</span>`;
   return `<i class="cbg" style="background:${catColor(id)}"></i>${rawIcon(c?.icon || id, catColor(id))}`;
 };
 
 export const rawIcon = (name, color) =>
   `<svg class="ci" viewBox="0 0 256 256" fill="currentColor"${color ? ` style="color:${color}"` : ''}>${CAT_ICONS[name] || CAT_ICONS.other}</svg>`;
 
+const HEX = /^#[0-9a-f]{6}$/i;
+const BUILTIN = new Set([...BASE, ...INCOME].map(([id]) => id));
+
+// Своя категория из хранилища или копии: только проверенные поля
+export function cleanCategory(c) {
+  if (!c || typeof c.id !== 'string' || !/^[\w-]{1,64}$/.test(c.id) || BUILTIN.has(c.id)) return null;
+  const name = String(c.name ?? '').trim().slice(0, 40);
+  if (!name) return null;
+  return { id: c.id, name, icon: CAT_ICONS[c.icon] ? c.icon : 'star', color: HEX.test(c.color) ? c.color : undefined, kind: c.kind === 'in' ? 'in' : 'out' };
+}
+
 export const customCategories = () => {
-  try { return JSON.parse(localStorage.getItem('customCats')) || []; } catch { return []; }
+  let list;
+  try { list = JSON.parse(localStorage.getItem('customCats')); } catch { list = null; }
+  const ids = new Set();
+  return (Array.isArray(list) ? list : []).map(cleanCategory).filter((c) => c && !ids.has(c.id) && ids.add(c.id));
+};
+
+export const saveCategories = (list) => {
+  localStorage.setItem('customCats', JSON.stringify(list));
+  reloadCategories();
 };
 
 export function reloadCategories() {
   const all = customCategories();
-  const custom = (kind) => all.filter((c) => (c.kind || 'out') === kind).map((c) => [c.id, c.name, c.icon, c.emoji, c.color]);
+  const custom = (kind) => all.filter((c) => c.kind === kind).map((c) => [c.id, c.name, c.icon, undefined, c.color]);
   CATEGORIES.length = 0;
   CATEGORIES.push(...BASE.slice(0, -1), ...custom('out'), BASE[BASE.length - 1]);
   INCOME_CATEGORIES.length = 0;
@@ -178,21 +196,18 @@ reloadCategories();
 
 export function addCategory(name, icon, color, kind = 'out') {
   const list = customCategories();
-  const id = `c${Date.now().toString(36)}`;
-  list.push({ id, name, icon, color, kind });
-  localStorage.setItem('customCats', JSON.stringify(list));
-  reloadCategories();
+  const id = `c-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
+  list.push(cleanCategory({ id, name, icon, color, kind }));
+  saveCategories(list);
   return id;
 }
 
 export function updateCategory(id, patch) {
-  localStorage.setItem('customCats', JSON.stringify(customCategories().map((c) => (c.id === id ? { ...c, ...patch } : c))));
-  reloadCategories();
+  saveCategories(customCategories().map((c) => (c.id === id ? cleanCategory({ ...c, ...patch }) : c)).filter(Boolean));
 }
 
 export function removeCategory(id) {
-  localStorage.setItem('customCats', JSON.stringify(customCategories().filter((c) => c.id !== id)));
-  reloadCategories();
+  saveCategories(customCategories().filter((c) => c.id !== id));
 }
 
 export const matchCategory = (id, name, q) =>
@@ -255,8 +270,11 @@ export const icons = {
 };
 
 let renderFn = () => {};
+let gen = 0;
 export const setRender = (fn) => { renderFn = fn; };
-export const render = () => renderFn();
+export const render = () => { gen++; return renderFn(); };
+// Асинхронный экран после await проверяет, что за это время не начался другой рендер
+export const ticket = () => { const g = gen; return () => g === gen; };
 
 export function go(tab) {
   state.tab = tab;
@@ -286,6 +304,13 @@ export function openEdit(item) {
   render();
 }
 
+// Повторить операцию: сумма, категория и комментарий те же, дата — сегодня; сохраняет сам пользователь
+export function openRepeat(item) {
+  openEdit(item);
+  Object.assign(state, { edit: null, flow: 'category', date: Date.now() });
+  render();
+}
+
 export function openCategory(id) {
   state.catId = id;
   state.flow = 'cat';
@@ -304,8 +329,8 @@ export function dialog({ title, text = '', ok = 'ОК', cancel = 'Отмена',
     wrap.className = 'modal-wrap';
     wrap.innerHTML = `
       <div class="modal-bd"></div>
-      <div class="modal">
-        <h3>${esc(title)}</h3>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+        <h3 id="mt">${esc(title)}</h3>
         ${text ? `<p>${esc(text)}</p>` : ''}
         ${input ? `<input class="field" id="mi" type="${input.type || 'text'}" inputmode="${input.mode || 'text'}"
           placeholder="${esc(input.placeholder || '')}" value="${esc(input.value || '')}" autocomplete="off" autocapitalize="none">` : ''}
@@ -316,13 +341,31 @@ export function dialog({ title, text = '', ok = 'ОК', cancel = 'Отмена',
       </div>`;
     document.body.appendChild(wrap);
     const field = wrap.querySelector('#mi');
-    const close = (val) => { wrap.remove(); resolve(val); };
+    const back = document.activeElement;
+    const close = (val) => {
+      wrap.remove();
+      document.removeEventListener('keydown', keys, true);
+      back?.focus?.();
+      resolve(val);
+    };
+    // Escape закрывает, Tab не выходит за пределы окна
+    const keys = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(null); }
+      if (e.key === 'Tab') {
+        const f = [...wrap.querySelectorAll('input, button')];
+        const i = f.indexOf(document.activeElement);
+        if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+      }
+    };
+    document.addEventListener('keydown', keys, true);
     wrap.querySelector('.modal-bd').onclick = () => close(null);
     wrap.querySelectorAll('[data-r]').forEach((b) => {
-      b.onclick = () => (b.dataset.r === '0' ? close(null) : close(input ? field.value : true));
+      // «Отмена» — false (для поля ввода null), закрытие фоном или Escape — всегда null
+      b.onclick = () => (b.dataset.r === '0' ? close(input ? null : false) : close(input ? field.value : true));
     });
     field?.addEventListener('keydown', (e) => { if (e.key === 'Enter') wrap.querySelector('[data-r="1"]').click(); });
-    setTimeout(() => field?.focus(), 60);
+    setTimeout(() => (field || wrap.querySelector('[data-r="1"]')).focus(), 60);
   });
 }
 
