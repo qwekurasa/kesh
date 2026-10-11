@@ -39,10 +39,9 @@
 
 * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
 
-html { background: var(--bg); }
+html { height: 100%; background: var(--bg); overflow: hidden; }
 body {
-  position: fixed;
-  inset: 0;
+  height: 100%;
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
@@ -73,7 +72,8 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 @keyframes in { from { opacity: 0; transform: translateY(6px); } }
 
 @media (min-width: 700px) {
-  body { position: static; overflow: visible; display: grid; place-items: center; background: #0c0c0e; background-image: radial-gradient(70% 60% at 50% 50%, #17171a 0%, #0c0c0e 70%); }
+  html { height: auto; overflow: visible; }
+  body { height: auto; overflow: visible; display: grid; place-items: center; background: #0c0c0e; background-image: radial-gradient(70% 60% at 50% 50%, #17171a 0%, #0c0c0e 70%); }
   #app { height: auto; }
   .screen {
     height: min(880px, 100dvh - 40px);
