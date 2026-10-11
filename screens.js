@@ -2,26 +2,14 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
-  render, toast, tabbar, bindTabs, avatarHTML, openEdit, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
-  CATEGORIES, catColor, isIncome, sumCell, reloadCategories,
+  render, go, toast, tabbar, bindTabs, avatarHTML, openEdit, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
+  CATEGORIES, catColor, isIncome, sumCell, reloadCategories, addCategory,
 } from './ui.js';
+import { writeXlsx, readXlsx } from './xlsx.js';
+import { kittyOn, setKitty } from './kitty.js';
 
-export const BUILD = 'v23';
+export const BUILD = 'v24';
 
-// Диагностика раскладки: видно, насколько вьюпорт меньше экрана
-function diagnostics() {
-  const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  const vv = window.visualViewport;
-  const lost = Math.round(screen.height * devicePixelRatio / devicePixelRatio - window.innerHeight);
-  return [
-    `окно ${window.innerWidth}×${window.innerHeight}`,
-    `экран ${screen.width}×${screen.height}`,
-    vv ? `видимая ${Math.round(vv.width)}×${Math.round(vv.height)}` : '',
-    `не занято ${lost}`,
-    standalone ? 'standalone' : 'браузер',
-    `safe ${getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom').trim() || '0px'}`,
-  ].filter(Boolean).join(' · ');
-}
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
@@ -82,6 +70,7 @@ export async function renderHome() {
             <input type="month" id="mpick" value="${state.month.getFullYear()}-${String(state.month.getMonth() + 1).padStart(2, '0')}" max="${new Date().toISOString().slice(0, 7)}">
           </label>
           <button class="icon-btn sm" id="next" aria-label="Следующий месяц" ${isCurrent ? 'disabled' : ''}>${icons.right}</button>
+          <button class="home-ava" id="me" aria-label="Профиль">${avatarHTML()}</button>
         </div>
         <div class="month-total">${money(total)}</div>
         <div class="month-sub">${items.length ? `${days.length} ${plural(days.length, 'день', 'дня', 'дней')} с операциями` : 'Трат пока нет'}${income ? ` · <span class="plus">+${money(income)}</span>` : ''}</div>
@@ -98,6 +87,7 @@ export async function renderHome() {
     if (y) { state.month = new Date(y, m - 1, 1); render(); }
   };
   countUp(app.querySelector('.month-total'), total);
+  app.querySelector('#me').onclick = () => { haptic(); go('profile'); };
   app.querySelector('#prev').onclick = () => { shiftMonth(-1); };
   app.querySelector('#next').onclick = () => { shiftMonth(1); };
   app.querySelector('#list').addEventListener('click', (e) => {
@@ -222,6 +212,7 @@ export async function renderCharts() {
       </header>
       <div class="scroll">
         <div class="card chart">
+          <div class="bar-tip" id="tip"></div>
           <div class="bars" style="--n:${r.bars}">
             ${buckets.map((v, i) => `
               <div class="bar-col" title="${money(v)}">
@@ -245,12 +236,6 @@ export async function renderCharts() {
                 : `<div><i style="background:${c}"></i><span>${esc(name)}</span><b>${Math.round((v / total) * 100)}%</b></div>`).join('')}
             </div>
           </div>
-        </div>
-
-        <div class="section-label">${prev.label} и сейчас${prev.clipped ? ` · за те же ${days} ${plural(days, 'день', 'дня', 'дней')}` : ''}</div>
-        <div class="card compare">
-          <div class="cmp-row"><span>${r.label}</span><div class="cmp-bar"><i style="width:${pct(total, Math.max(total, prevTotal))}%"></i></div><b>${money(total)}</b></div>
-          <div class="cmp-row prev"><span>${prev.label}</span><div class="cmp-bar"><i style="width:${pct(prevTotal, Math.max(total, prevTotal))}%"></i></div><b>${money(prevTotal)}</b></div>
         </div>
 
         <div class="section-label">Что заметно</div>
@@ -279,6 +264,7 @@ export async function renderCharts() {
 
   bindTabs();
   countUp(app.querySelector('.month-total'), total);
+  scrubBars(buckets, r);
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const row = e.target.closest('[data-cat]');
     if (row) { haptic(); openCategory(row.dataset.cat); }
@@ -293,6 +279,49 @@ export async function renderCharts() {
 }
 
 const pct = (v, max) => (max ? Math.max(2, (v / max) * 100) : 0);
+
+function barTitle(i, r) {
+  if (r.step === 'hour') return `${String(i).padStart(2, '0')}:00`;
+  if (r.step === 'month') return `${MONTHS[i]} ${r.from.getFullYear()}`;
+  const d = new Date(r.from.getFullYear(), r.from.getMonth(), r.from.getDate() + i);
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}, ${WEEKDAYS[d.getDay()]}`;
+}
+
+// Ведёшь пальцем по графику — над столбиком показывается дата и сумма
+function scrubBars(buckets, r) {
+  const bars = app.querySelector('.bars');
+  const tip = app.querySelector('#tip');
+  const cols = [...bars.children];
+  let sel = -1;
+  const show = (i) => {
+    if (i === sel) return;
+    sel = i;
+    cols.forEach((c, n) => c.classList.toggle('on', n === i));
+    tip.innerHTML = `<b>${money(buckets[i])}</b><span>${barTitle(i, r)}</span>`;
+    const card = tip.parentElement.getBoundingClientRect();
+    const bar = cols[i].querySelector('.bar').getBoundingClientRect();
+    const half = tip.offsetWidth / 2;
+    const cx = bar.left + bar.width / 2 - card.left;
+    tip.style.left = `${Math.min(card.width - half - 6, Math.max(half + 6, cx))}px`;
+    tip.style.top = `${Math.max(6, bar.top - card.top - tip.offsetHeight - 8)}px`;
+  };
+  const last = Date.now() < +r.to ? bucketOf(Date.now(), r) : cols.length - 1;
+  const at = (x) => {
+    const b = bars.getBoundingClientRect();
+    return Math.max(0, Math.min(last, Math.floor(((x - b.left) / b.width) * cols.length)));
+  };
+  bars.addEventListener('pointerdown', (e) => { bars.classList.add('picking'); haptic(); show(at(e.clientX)); });
+  bars.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse' || e.buttons) {
+      const i = at(e.clientX);
+      if (i !== sel && e.pointerType !== 'mouse') haptic();
+      bars.classList.add('picking');
+      show(i);
+    }
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => bars.addEventListener(ev, () => bars.classList.remove('picking')));
+  show(last);
+}
 
 function byCategory(items) {
   const m = new Map();
@@ -468,69 +497,6 @@ export function renderInfo() {
   };
 }
 
-/* ---------- search ---------- */
-export async function renderSearch() {
-  const all = (await store.allExpenses()).sort((a, b) => b.ts - a.ts);
-  const used = [...new Set(all.map((i) => i.category))];
-  const q = state.query.trim().toLowerCase();
-  const found = all.filter((i) =>
-    (!state.filter || i.category === state.filter)
-    && (!q || CAT[i.category]?.name.toLowerCase().includes(q) || i.note.toLowerCase().includes(q) || String(Math.round(i.amount / 100)).includes(q)));
-
-  app.innerHTML = `
-    <section class="screen tabbed">
-      <div class="glow-top"></div>
-      <header class="month-head">
-        <label class="search-bar">
-          ${icons.search}
-          <input id="q" placeholder="Поиск по операциям" value="${esc(state.query)}" autocapitalize="none" spellcheck="false">
-        </label>
-        <div class="chips">
-          <button class="chip${state.filter ? '' : ' on'}" data-c="">Все</button>
-          ${used.map((id) => `<button class="chip${state.filter === id ? ' on' : ''}" data-c="${id}">${catIcon(id)} ${esc(CAT[id]?.name || id)}</button>`).join('')}
-        </div>
-      </header>
-      <div class="scroll">
-        <div class="section-label">${found.length ? `Найдено: ${found.length} · ${money(sum(spent(found)))}` : 'Ничего не найдено'}</div>
-        ${found.length ? `<div class="card">${found.slice(0, 200).map((i) => {
-          const d = new Date(i.ts);
-          return `<button class="res" data-id="${i.id}">
-            <span class="tr-ico">${catIcon(i.category)}</span>
-            <span class="tr-name">${esc(CAT[i.category]?.name || i.category)}<small>${i.note ? `${esc(i.note)} · ` : ''}${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</small></span>
-            ${sumCell(i)}
-          </button>`;
-        }).join('')}</div>` : '<div class="empty sm">Измените запрос или категорию</div>'}
-      </div>
-      ${tabbar()}
-    </section>`;
-
-  bindTabs();
-  app.querySelector('.scroll').addEventListener('click', (e) => {
-    const row = e.target.closest('[data-id]');
-    if (!row) return;
-    const item = found.find((i) => i.id === row.dataset.id);
-    if (item) { haptic(); openInfo(item); }
-  });
-  const input = app.querySelector('#q');
-  input.oninput = debounce(() => { state.query = input.value; render(); }, 220);
-  app.querySelector('.chips').onclick = (e) => {
-    const c = e.target.closest('.chip');
-    if (!c) return;
-    state.filter = c.dataset.c || null;
-    haptic();
-    render();
-  };
-  if (document.activeElement !== input && state.query) {
-    input.focus();
-    input.setSelectionRange(state.query.length, state.query.length);
-  }
-}
-
-let timer;
-function debounce(fn, ms) {
-  return (...a) => { clearTimeout(timer); timer = setTimeout(() => fn(...a), ms); };
-}
-
 /* ---------- profile ---------- */
 export async function renderProfile() {
   const acc = auth.account();
@@ -554,24 +520,22 @@ export async function renderProfile() {
           `<button class="skin${avatarSkin() === n ? ' on' : ''}" data-skin="${n}" style="${skinStyle(n)}" aria-label="Цвет ${n + 1}"></button>`).join('')}</div>
       </header>
       <div class="scroll">
-        <div class="section-label">Аккаунт</div>
+        <div class="section-label">Настройки</div>
         <div class="card rows">
-          ${item('password', icons.lock, auth.hasPassword() ? 'Сменить пароль' : 'Поставить пароль', auth.hasPassword() ? '' : 'Выкл')}
-          ${auth.hasPassword() ? item('nopass', icons.lock, 'Убрать пароль') : ''}
           ${item('cats', icons.tag, 'Свои категории', String(customCategories().length))}
+          ${item('kitty', icons.paw, 'Котик', kittyOn() ? 'Вкл' : 'Выкл')}
         </div>
         <div class="section-label">Данные</div>
         <div class="card rows">
           ${item('statement', icons.bank, 'Импорт выписки банка', 'PDF, CSV')}
-          ${item('export', icons.down_file, 'Экспорт копии')}
-          ${item('import', icons.up_file, 'Импорт копии')}
+          ${item('export', icons.down_file, 'Экспорт в Excel')}
+          ${item('import', icons.up_file, 'Импорт копии', 'XLSX')}
         </div>
         ${imported ? `<div class="card rows">${item('clear-imported', icons.trash, 'Удалить импортированные', String(imported))}</div>` : ''}
         <div class="card rows">
-          ${auth.hasPassword() ? item('logout', icons.out, 'Выйти') : item('wipe', icons.trash, 'Сбросить аккаунт')}
+          ${item('wipe', icons.trash, 'Сбросить аккаунт')}
         </div>
         <div class="version">NOTA ${BUILD} · данные хранятся на этом устройстве</div>
-        <div class="version diag">${diagnostics()}</div>
       </div>
       ${tabbar()}
     </section>`;
@@ -590,15 +554,7 @@ export async function renderProfile() {
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const a = e.target.closest('.row')?.dataset.a;
     if (!a) return;
-    if (a === 'password') return changePassword();
-    if (a === 'nopass') {
-      return ask('Убрать пароль?', 'Приложение будет открываться сразу.', 'Убрать').then((yes) => {
-        if (!yes) return;
-        auth.removePassword();
-        toast('Пароль убран');
-        render();
-      });
-    }
+    if (a === 'kitty') { setKitty(!kittyOn()); haptic(); return render(); }
     if (a === 'cats') { state.flow = 'cats'; return render(); }
     if (a === 'statement') return pickStatement();
     if (a === 'export') return exportData();
@@ -607,18 +563,12 @@ export async function renderProfile() {
       return ask(`Удалить ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`, 'Это траты из выписок. Внесённые вручную останутся.')
         .then(async (yes) => { if (yes) toast(`Удалено трат: ${await store.removeImported()}`); });
     }
-    if (a === 'logout') {
-      state.unlocked = false;
-      localStorage.removeItem('loggedIn');
-      render();
-    }
     if (a === 'wipe') {
       return ask('Сбросить аккаунт?', 'Имя, настройки и все траты на этом устройстве будут удалены.', 'Сбросить').then(async (yes) => {
         if (!yes) return;
         await store.wipe();
         auth.reset();
         ['loggedIn', 'avatar', 'avatarSkin', 'customCats', 'budgets', 'deposits'].forEach((k) => localStorage.removeItem(k));
-        state.unlocked = false;
         state.authMode = null;
         render();
       });
@@ -651,23 +601,6 @@ async function pickAvatar() {
     }
   };
   input.click();
-}
-
-async function changePassword() {
-  if (auth.hasPassword()) {
-    const current = await askText('Текущий пароль', { type: 'password' });
-    if (current === null) return;
-    if (!(await auth.checkPassword(null, current))) return toast('Текущий пароль неверный');
-  }
-  const next = await askText('Новый пароль', { type: 'password', placeholder: 'Минимум 4 символа' });
-  if (next === null) return;
-  if (next.length < 4) return toast('Пароль: минимум 4 символа');
-  const again = await askText('Повторите пароль', { type: 'password' });
-  if (again === null) return;
-  if (next !== again) return toast('Пароли не совпадают');
-  await auth.setPassword(next);
-  render();
-  toast(auth.hasPassword() ? 'Пароль сохранён' : 'Пароль установлен');
 }
 
 export function renderCustomCats() {
@@ -712,16 +645,77 @@ export function renderCustomCats() {
   });
 }
 
+const toSerial = (ts) => (ts - new Date(ts).getTimezoneOffset() * 6e4) / 864e5 + 25569;
+const fromSerial = (n) => { const t = (n - 25569) * 864e5; return Math.round(t + new Date(t).getTimezoneOffset() * 6e4); };
+const rubles = (kop) => ({ v: kop / 100, f: 'money' });
+
 async function exportData() {
-  const expenses = await store.allExpenses();
-  const name = `nota-${new Date().toISOString().slice(0, 10)}.json`;
-  const file = new File([JSON.stringify({ app: 'nota', version: 3, account: auth.account(), expenses, customCats: customCategories(), budgets: budgets(), deposits: deposits() })], name, { type: 'application/json' });
+  const all = (await store.allExpenses()).sort((a, b) => b.ts - a.ts);
+  const kind = (i) => (isIncome(i) ? 'Пополнение' : 'Расход');
+  const byCat = new Map();
+  all.forEach((i) => {
+    const c = byCat.get(i.category) || { n: 0, sum: 0, kind: kind(i) };
+    c.n++; c.sum += i.amount;
+    byCat.set(i.category, c);
+  });
+  const now = new Date();
+  const monthFrom = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const monthSpent = Object.fromEntries(byCategory(spent(all).filter((i) => i.ts >= monthFrom)));
+  const b = budgets();
+  const sheets = [
+    { name: 'Операции', cols: [17, 13, 18, 36, 14, 10],
+      rows: [['Дата', 'Тип', 'Категория', 'Описание', 'Сумма, ₽', 'ID'],
+        ...all.map((i) => [{ v: toSerial(i.ts), f: 'date' }, kind(i), CAT[i.category]?.name || i.category, i.note, rubles(i.amount), i.id])] },
+    { name: 'Категории', cols: [22, 13, 11, 14],
+      rows: [['Категория', 'Тип', 'Операций', 'Сумма, ₽'],
+        ...[...byCat].sort((x, y) => y[1].sum - x[1].sum).map(([id, c]) => [CAT[id]?.name || id, c.kind, c.n, rubles(c.sum)])] },
+    { name: 'Бюджет', cols: [22, 16, 16, 14],
+      rows: [['Категория', 'Лимит в месяц, ₽', `Потрачено (${MONTHS[now.getMonth()].toLowerCase()}), ₽`, 'Осталось, ₽'],
+        ...Object.entries(b).filter(([id]) => CAT[id]).map(([id, v]) => [CAT[id].name, rubles(v), rubles(monthSpent[id] || 0), rubles(v - (monthSpent[id] || 0))])] },
+    { name: 'Вклады', cols: [28, 14, 11, 16],
+      rows: [['Название', 'Сумма, ₽', 'Ставка, %', 'Доход в месяц, ₽'],
+        ...deposits().map((d) => [d.name, rubles(d.amount), d.rate || 0, rubles(monthly(d))])] },
+  ];
+  const name = `nota-${now.toISOString().slice(0, 10)}.xlsx`;
+  const file = new File([writeXlsx(sheets)], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
     return navigator.share({ files: [file] }).catch(() => {});
   }
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(file), download: name });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// Восстановление из своей Excel-выгрузки: категории ищутся по названию, незнакомые создаются
+async function importXlsx(buf) {
+  const book = await readXlsx(buf);
+  const ops = (book['Операции'] || []).slice(1).filter((r) => typeof r[0] === 'number' && typeof r[4] === 'number');
+  const find = (name, kind) => {
+    const hit = Object.values(CAT).find((c) => c.kind === kind && c.name.toLowerCase() === String(name).trim().toLowerCase());
+    return hit ? hit.id : addCategory(String(name).trim() || 'Другое', 'star', undefined, kind);
+  };
+  const items = ops.map((r) => {
+    const kind = r[1] === 'Пополнение' ? 'in' : 'out';
+    return {
+      id: String(r[5] || `x${Math.round(r[0] * 1e6).toString(36)}${Math.round(r[4] * 100)}`),
+      ts: fromSerial(r[0]),
+      category: find(r[2] || 'Другое', kind),
+      note: String(r[3] ?? ''),
+      amount: Math.round(r[4] * 100),
+      ...(kind === 'in' ? { type: 'in' } : {}),
+    };
+  });
+  if (!deposits().length) {
+    const list = (book['Вклады'] || []).slice(1).filter((r) => r[0] && typeof r[1] === 'number')
+      .map((r, n) => ({ id: `d${Date.now().toString(36)}${n}`, name: String(r[0]), amount: Math.round(r[1] * 100), rate: Number(r[2]) || 0 }));
+    if (list.length) saveDeposits(list);
+  }
+  if (!Object.keys(budgets()).length) {
+    const next = {};
+    (book['Бюджет'] || []).slice(1).forEach((r) => { if (r[0] && r[1] > 0) next[find(r[0], 'out')] = Math.round(r[1] * 100); });
+    if (Object.keys(next).length) saveBudgets(next);
+  }
+  return store.importExpenses(items);
 }
 
 /* ---------- импорт выписки ---------- */
@@ -820,17 +814,24 @@ export async function renderImport() {
 }
 
 function importData() {
-  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' });
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.xlsx,.json' });
   input.onchange = async () => {
     try {
-      const data = JSON.parse(await input.files[0].text());
-      if (Array.isArray(data.deposits) && !deposits().length) saveDeposits(data.deposits);
-      if (Array.isArray(data.customCats) && !customCategories().length) {
-        localStorage.setItem('customCats', JSON.stringify(data.customCats));
-        reloadCategories();
+      const file = input.files[0];
+      let n;
+      if (/\.xlsx$/i.test(file.name)) n = await importXlsx(await file.arrayBuffer());
+      else {
+        // старые копии в JSON
+        const data = JSON.parse(await file.text());
+        if (Array.isArray(data.deposits) && !deposits().length) saveDeposits(data.deposits);
+        if (Array.isArray(data.customCats) && !customCategories().length) {
+          localStorage.setItem('customCats', JSON.stringify(data.customCats));
+          reloadCategories();
+        }
+        if (data.budgets && typeof data.budgets === 'object' && !Object.keys(budgets()).length) saveBudgets(data.budgets);
+        n = await store.importExpenses(data.expenses || data);
       }
-      if (data.budgets && typeof data.budgets === 'object' && !Object.keys(budgets()).length) saveBudgets(data.budgets);
-      toast(`Импортировано трат: ${await store.importExpenses(data.expenses || data)}`);
+      toast(`Импортировано операций: ${n}`);
     } catch {
       toast('Не удалось прочитать файл');
     }

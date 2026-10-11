@@ -1,10 +1,11 @@
 import * as store from './store.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit } from './screens.js';
 import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
   setRender, render, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
 } from './ui.js';
+import { startKitty } from './kitty.js';
 
 const kopecks = () => Math.round(parseFloat(state.amt.replace(',', '.') || '0') * 100);
 
@@ -14,10 +15,6 @@ function main() {
   const acc = auth.account();
   if (!acc && !state.authMode) return renderWelcome();
   if (!acc) return renderOnboarding();
-  if (!state.unlocked) {
-    if (!auth.hasPassword()) { state.unlocked = true; return main(); }
-    return renderAuth('login');
-  }
   if (state.info) return renderInfo();
   if (state.flow === 'add') return renderAmount();
   if (state.flow === 'category') return renderCategory();
@@ -29,17 +26,8 @@ function main() {
   if (state.tab === 'budget') return renderBudget();
   if (state.tab === 'deposits') return renderDeposits();
   if (state.tab === 'charts') return renderCharts();
-  if (state.tab === 'search') return renderSearch();
   if (state.tab === 'profile') return renderProfile();
   renderHome();
-}
-
-function unlock() {
-  state.unlocked = true;
-  state.usePassword = false;
-  state.month = startOfMonth();
-  localStorage.setItem('loggedIn', '1');
-  render();
 }
 
 /* ---------- приветствие и онбординг ---------- */
@@ -54,41 +42,6 @@ function renderWelcome() {
       </div>
     </section>`;
   app.querySelector('#reg').onclick = () => { state.authMode = 'register'; state.step = 0; state.draft = {}; render(); };
-}
-
-/* ---------- регистрация ---------- */
-function renderAuth() {
-  const acc = auth.account();
-  app.innerHTML = `
-    <section class="screen auth">
-      <div class="aurora"></div>
-      <div class="brand">NOTA</div>
-      <div class="auth-body">
-        <h1>С возвращением</h1>
-        <p>${esc(acc?.login || '')}</p>
-        <form novalidate>
-          <input class="field" name="password" type="password" placeholder="Пароль" autocomplete="current-password">
-          <div class="error" id="err"></div>
-          <button class="btn" type="submit">Войти <span class="arr">→</span></button>
-        </form>
-        <div class="switch"><button id="reset" class="muted-link">Забыли пароль?</button></div>
-      </div>
-    </section>`;
-
-  app.querySelector('#reset').onclick = async () => {
-    if (!(await ask('Сбросить аккаунт?', 'Пароль восстановить нельзя. Все траты на этом устройстве будут удалены.', 'Сбросить'))) return;
-    await store.wipe();
-    auth.reset();
-    localStorage.removeItem('loggedIn');
-    localStorage.removeItem('avatar');
-    render();
-  };
-  app.querySelector('form').onsubmit = async (e) => {
-    e.preventDefault();
-    const { password = '' } = Object.fromEntries(new FormData(e.target));
-    if (await auth.checkPassword(null, password)) unlock();
-    else app.querySelector('#err').textContent = 'Неверный пароль';
-  };
 }
 
 function renderOnboarding() {
@@ -153,34 +106,11 @@ function renderOnboarding() {
   app.querySelector('#done').onclick = () => {
     auth.register(state.draft.name);
     localStorage.setItem('avatarSkin', String(state.draft.skin ?? 0));
-    state.unlocked = true;
     state.authMode = null;
     state.flow = 'add';
-    localStorage.setItem('loggedIn', '1');
     render();
     toast(`Привет, ${state.draft.name}!`);
   };
-}
-
-function restoreBackup() {
-  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' });
-  input.onchange = async () => {
-    try {
-      const data = JSON.parse(await input.files[0].text());
-      if (!data.account) return toast('В файле нет аккаунта');
-      auth.restore(data.account);
-      state.unlocked = auth.isOpen();
-      state.authMode = null;
-      localStorage.setItem('loggedIn', '1');
-      const n = await store.importExpenses(data.expenses || []);
-      state.flow = 'add';
-      render();
-      toast(`Восстановлено трат: ${n}`);
-    } catch {
-      toast('Не удалось прочитать файл');
-    }
-  };
-  input.click();
 }
 
 /* ---------- amount ---------- */
@@ -457,7 +387,7 @@ function renderNewCategory() {
 
 /* ---------- keyboard ---------- */
 document.addEventListener('keydown', (e) => {
-  if (!state.unlocked || e.target.matches('input')) {
+  if (!auth.account() || e.target.matches('input')) {
     if (e.key === 'Enter' && e.target.id === 'note') save();
     return;
   }
@@ -506,5 +436,6 @@ document.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 applySkin();
+startKitty();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 render();

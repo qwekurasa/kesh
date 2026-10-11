@@ -1,5 +1,3 @@
-import * as auth from './auth.js';
-
 const BASE = [
   ['groceries', 'Продукты'], ['cafe', 'Рестораны'], ['fastfood', 'Фастфуд'], ['coffee', 'Кофе'],
   ['delivery', 'Доставка'], ['transport', 'Транспорт'], ['taxi', 'Такси'], ['car', 'Авто'],
@@ -208,12 +206,10 @@ export const state = {
   tab: 'home',
   flow: 'add',
   amt: '', cat: null, note: '',
-  usePassword: false,
-  unlocked: auth.isOpen(),
   month: startOfMonth(),
   collapsed: new Set(),
   period: 'month',
-  query: '', filter: null, authMode: null, imp: null, edit: null, catId: null,
+  authMode: null, imp: null, edit: null, catId: null,
   catQuery: '', date: Date.now(), step: 0, draft: {}, info: null, kind: 'out', dep: null,
 };
 
@@ -254,6 +250,7 @@ export const icons = {
   trash: svg('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>'),
   budget: svg('<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4"/>'),
   safe: svg('<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5V7M12 17v-1.5M7 20v1M17 20v1"/>'),
+  paw: svg('<circle cx="7" cy="10" r="1.8"/><circle cx="11" cy="6.5" r="1.8"/><circle cx="16" cy="6.8" r="1.8"/><circle cx="19" cy="11" r="1.8"/><path d="M8.5 17.5c0-3 2.2-5.5 4.5-5.5s4.5 2.5 4.5 5.5c0 1.6-1.4 2.5-3 2-1-.3-2-.3-3 0-1.6.5-3-.4-3-2Z"/>'),
   calendar: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>'),
 };
 
@@ -348,11 +345,9 @@ export function tabbar() {
   return `<nav class="tabbar">
     ${item('home', 'Главная', icons.home)}
     ${item('charts', 'Графики', icons.chart)}
-    ${item('budget', 'Бюджет', icons.budget)}
     <button class="tab add" data-tab="add" aria-label="Добавить операцию">${icons.plus}</button>
+    ${item('budget', 'Бюджет', icons.budget)}
     ${item('deposits', 'Вклады', icons.safe)}
-    ${item('search', 'Поиск', icons.search)}
-    ${item('profile', 'Профиль', icons.user)}
   </nav>`;
 }
 
