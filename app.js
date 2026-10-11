@@ -13,8 +13,11 @@ setRender(main);
 function main() {
   const acc = auth.account();
   if (!acc && !state.authMode) return renderWelcome();
-  if (!acc) return renderAuth(state.authMode);
-  if (!state.unlocked) return renderAuth(acc.credId && !state.usePassword ? 'lock' : 'login');
+  if (!acc) return renderOnboarding();
+  if (!state.unlocked) {
+    if (!auth.hasPassword()) { state.unlocked = true; return main(); }
+    return renderAuth('login');
+  }
   if (state.info) return renderInfo();
   if (state.flow === 'add') return renderAmount();
   if (state.flow === 'category') return renderCategory();
@@ -43,21 +46,16 @@ function renderWelcome() {
       <div class="aurora"></div>
       <div class="brand">NOTA</div>
       <div class="auth-body">
-        <h1>Деньги под контролем</h1>
-        <p>Записывайте траты в одно касание.</p>
-        <button class="btn" id="reg">Создать аккаунт <span class="arr">→</span></button>
-        <button class="btn ghost" id="log">Восстановить из копии</button>
+        <h1>Записывайте траты<br>в одно касание</h1>
+        <button class="btn breathe" id="reg">Создать аккаунт <span class="arr">→</span></button>
       </div>
     </section>`;
   app.querySelector('#reg').onclick = () => { state.authMode = 'register'; state.step = 0; state.draft = {}; render(); };
-  app.querySelector('#log').onclick = restoreBackup;
 }
 
 /* ---------- регистрация ---------- */
-function renderAuth(mode) {
+function renderAuth() {
   const acc = auth.account();
-  if (mode === 'register') return renderOnboarding();
-
   app.innerHTML = `
     <section class="screen auth">
       <div class="aurora"></div>
@@ -65,47 +63,28 @@ function renderAuth(mode) {
       <div class="auth-body">
         <h1>С возвращением</h1>
         <p>${esc(acc?.login || '')}</p>
-        ${mode === 'lock' ? `
-          <div class="stack">
-            <button class="btn with-icon" id="faceid">${icons.face} Войти с Face ID</button>
-            <div class="error" id="err"></div>
-            ${auth.hasPassword() ? '<button class="btn ghost" id="usepass">Войти по паролю</button>' : ''}
-          </div>` : `
-          <form novalidate>
-            <input class="field" name="password" type="password" placeholder="Пароль" autocomplete="current-password" autofocus>
-            <div class="error" id="err"></div>
-            <button class="btn" type="submit">Войти <span class="arr">→</span></button>
-          </form>
-          <div class="switch">${acc.credId ? '<button id="back-faceid">Face ID</button>' : ''}${acc.credId && auth.hasPassword() ? ' · ' : ''}${auth.hasPassword() ? '<button id="reset" class="muted-link">Забыли пароль?</button>' : ''}</div>`}
+        <form novalidate>
+          <input class="field" name="password" type="password" placeholder="Пароль" autocomplete="current-password">
+          <div class="error" id="err"></div>
+          <button class="btn" type="submit">Войти <span class="arr">→</span></button>
+        </form>
+        <div class="switch"><button id="reset" class="muted-link">Забыли пароль?</button></div>
       </div>
     </section>`;
 
-  const err = app.querySelector('#err');
-  const fail = (msg) => { err.textContent = msg; };
-
-  if (mode === 'lock') {
-    app.querySelector('#faceid').onclick = async () => {
-      try { (await auth.verifyFaceId()) ? unlock() : fail('Не удалось подтвердить'); } catch { fail('Face ID отменён'); }
-    };
-    app.querySelector('#usepass')?.addEventListener('click', () => { state.usePassword = true; render(); });
-    return;
-  }
-
-  app.querySelector('#back-faceid')?.addEventListener('click', () => { state.usePassword = false; render(); });
-  app.querySelector('#reset')?.addEventListener('click', async () => {
+  app.querySelector('#reset').onclick = async () => {
     if (!(await ask('Сбросить аккаунт?', 'Пароль восстановить нельзя. Все траты на этом устройстве будут удалены.', 'Сбросить'))) return;
     await store.wipe();
     auth.reset();
     localStorage.removeItem('loggedIn');
     localStorage.removeItem('avatar');
-    localStorage.removeItem('avatarEmoji');
     render();
-  });
+  };
   app.querySelector('form').onsubmit = async (e) => {
     e.preventDefault();
     const { password = '' } = Object.fromEntries(new FormData(e.target));
     if (await auth.checkPassword(null, password)) unlock();
-    else fail('Неверный пароль');
+    else app.querySelector('#err').textContent = 'Неверный пароль';
   };
 }
 
@@ -450,6 +429,38 @@ document.addEventListener('keydown', (e) => {
 });
 
 store.onChange(() => { if (!state.flow) render(); });
+
+// Жест «назад»: свайп от левого края вправо
+function goBack() {
+  if (state.info) { state.info = null; return render(); }
+  if (state.flow === 'newcat') { state.flow = 'category'; return render(); }
+  if (state.flow === 'category') { state.flow = 'add'; return render(); }
+  if (state.flow === 'import' || state.flow === 'cats') { state.flow = null; state.tab = 'profile'; return render(); }
+  if (state.flow === 'cat') { state.flow = null; state.catId = null; return render(); }
+  if (state.flow === 'add') { state.edit = null; return go(state.tab || 'home'); }
+  if (state.tab !== 'home') return go('home');
+}
+
+let swipe = null;
+document.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  swipe = t.clientX <= 28 ? { x: t.clientX, y: t.clientY, t: Date.now() } : null;
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  if (!swipe) return;
+  const t = e.touches[0];
+  if (Math.abs(t.clientY - swipe.y) > 60) swipe = null;
+  else document.body.style.setProperty('--swipe', `${Math.min(1, Math.max(0, (t.clientX - swipe.x) / 110))}`);
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  document.body.style.removeProperty('--swipe');
+  if (!swipe) return;
+  const t = e.changedTouches[0];
+  const far = t.clientX - swipe.x > 70;
+  const quick = Date.now() - swipe.t < 700;
+  swipe = null;
+  if (far && quick) { haptic(); goBack(); }
+}, { passive: true });
 
 applySkin();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');

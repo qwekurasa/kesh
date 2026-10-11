@@ -517,7 +517,6 @@ export async function renderProfile() {
   const acc = auth.account();
   const all = await store.allExpenses();
   const imported = await store.importedCount();
-  const faceId = await auth.faceIdAvailable();
 
   const item = (id, icon, label, extra = '') =>
     `<button class="row" data-a="${id}">${icon}<span>${label}</span><span class="row-extra">${extra}</span></button>`;
@@ -541,7 +540,6 @@ export async function renderProfile() {
           ${item('password', icons.lock, auth.hasPassword() ? 'Сменить пароль' : 'Поставить пароль', auth.hasPassword() ? '' : 'Выкл')}
           ${auth.hasPassword() ? item('nopass', icons.lock, 'Убрать пароль') : ''}
           ${item('cats', icons.tag, 'Свои категории', String(customCategories().length))}
-          ${faceId ? item('faceid', icons.face, 'Face ID', acc.credId ? 'Вкл' : 'Выкл') : ''}
         </div>
         <div class="section-label">Данные</div>
         <div class="card rows">
@@ -551,7 +549,7 @@ export async function renderProfile() {
         </div>
         ${imported ? `<div class="card rows">${item('clear-imported', icons.trash, 'Удалить импортированные', String(imported))}</div>` : ''}
         <div class="card rows">
-          ${item('logout', icons.out, 'Выйти')}
+          ${auth.hasPassword() ? item('logout', icons.out, 'Выйти') : item('wipe', icons.trash, 'Сбросить аккаунт')}
         </div>
         <div class="version">NOTA · данные хранятся на этом устройстве</div>
       </div>
@@ -582,7 +580,6 @@ export async function renderProfile() {
       });
     }
     if (a === 'cats') { state.flow = 'cats'; return render(); }
-    if (a === 'faceid') return toggleFaceId(acc);
     if (a === 'statement') return pickStatement();
     if (a === 'export') return exportData();
     if (a === 'import') return importData();
@@ -594,6 +591,17 @@ export async function renderProfile() {
       state.unlocked = false;
       localStorage.removeItem('loggedIn');
       render();
+    }
+    if (a === 'wipe') {
+      return ask('Сбросить аккаунт?', 'Имя, настройки и все траты на этом устройстве будут удалены.', 'Сбросить').then(async (yes) => {
+        if (!yes) return;
+        await store.wipe();
+        auth.reset();
+        ['loggedIn', 'avatar', 'avatarSkin', 'customCats'].forEach((k) => localStorage.removeItem(k));
+        state.unlocked = false;
+        state.authMode = null;
+        render();
+      });
     }
   });
 }
@@ -673,21 +681,6 @@ export function renderCustomCats() {
       render();
     });
   });
-}
-
-async function toggleFaceId(acc) {
-  if (acc.credId) {
-    auth.disableFaceId();
-    toast('Face ID отключён');
-    return render();
-  }
-  try {
-    await auth.enableFaceId();
-    toast('Face ID включён');
-    render();
-  } catch {
-    toast('Не удалось включить Face ID');
-  }
 }
 
 async function exportData() {
