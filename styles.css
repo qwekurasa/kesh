@@ -39,7 +39,8 @@
 
 * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
 
-html, body {
+html { background: var(--bg); }
+body {
   min-height: 100%;
   background: var(--bg);
   color: var(--text);
@@ -63,7 +64,6 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
   flex-direction: column;
   padding: calc(var(--safe-top) + 12px) 18px calc(var(--safe-bottom) + 16px);
   overflow: hidden;
-  background-image: radial-gradient(95% 55% at 50% 100%, #1f1f24 0%, rgba(20, 20, 22, 0) 72%);
   animation: in .24s ease-out;
 }
 .screen.tabbed { padding-bottom: 0; }
@@ -79,7 +79,6 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
     border: 1px solid var(--border);
     border-radius: 36px;
     background: var(--bg);
-    background-image: radial-gradient(90% 55% at 50% 100%, #202024 0%, rgba(20, 20, 22, 0) 72%);
     padding: 20px 20px 24px;
     box-shadow: 0 40px 110px rgba(0, 0, 0, .7);
   }
