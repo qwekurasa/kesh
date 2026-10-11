@@ -450,10 +450,8 @@ document.addEventListener('touchmove', (e) => {
   if (!swipe) return;
   const t = e.touches[0];
   if (Math.abs(t.clientY - swipe.y) > 60) swipe = null;
-  else document.body.style.setProperty('--swipe', `${Math.min(1, Math.max(0, (t.clientX - swipe.x) / 110))}`);
 }, { passive: true });
 document.addEventListener('touchend', (e) => {
-  document.body.style.removeProperty('--swipe');
   if (!swipe) return;
   const t = e.changedTouches[0];
   const far = t.clientX - swipe.x > 70;

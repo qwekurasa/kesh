@@ -41,7 +41,9 @@
 
 html { background: var(--bg); }
 body {
-  min-height: 100%;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font: 400 16px/1.45 Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -53,11 +55,11 @@ body {
 button, input { font: inherit; letter-spacing: inherit; color: inherit; }
 button { background: none; border: 0; cursor: pointer; touch-action: manipulation; }
 
-#app { min-height: 100dvh; }
+#app { height: 100%; }
 
 .screen {
   position: relative;
-  height: 100dvh;
+  height: 100%;
   max-width: 460px;
   margin: 0 auto;
   display: flex;
@@ -71,8 +73,8 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 @keyframes in { from { opacity: 0; transform: translateY(6px); } }
 
 @media (min-width: 700px) {
-  body { display: grid; place-items: center; background: #0c0c0e; background-image: radial-gradient(70% 60% at 50% 50%, #17171a 0%, #0c0c0e 70%); }
-  #app { min-height: 0; height: auto; }
+  body { position: static; overflow: visible; display: grid; place-items: center; background: #0c0c0e; background-image: radial-gradient(70% 60% at 50% 50%, #17171a 0%, #0c0c0e 70%); }
+  #app { height: auto; }
   .screen {
     height: min(880px, 100dvh - 40px);
     width: 420px;
@@ -241,11 +243,9 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 }
 .cat span { font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.25; letter-spacing: 0; }
 .cat.on { background: color-mix(in srgb, var(--skin-b) 10%, transparent); border-color: color-mix(in srgb, var(--skin-a) 55%, transparent); }
-.cat.on .ico {
-  border-color: color-mix(in srgb, var(--skin-a) 60%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--skin-a) 25%, transparent), 0 0 18px color-mix(in srgb, var(--skin-b) 35%, transparent);
-}
-.cat.on .ico .ci { color: #fff; filter: drop-shadow(0 0 7px color-mix(in srgb, var(--skin-a) 85%, transparent)); }
+
+.cat.on .ico { border-color: transparent; }
+.cat.on .ico .ci { color: #fff; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--skin-a) 80%, transparent)); }
 .cat.on span { color: var(--text); }
 
 .bottom { display: grid; gap: 10px; padding: 10px 18px 0; border-top: 1px solid var(--border); margin: 0 -18px; }
@@ -256,8 +256,8 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
   display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr; align-items: center;
   margin: 0 -18px; padding: 8px 8px calc(var(--safe-bottom) + 8px);
   border-top: 1px solid var(--border);
-  background: rgba(20, 20, 22, .88);
-  backdrop-filter: blur(20px);
+  background: var(--bg);
+  transform: translateZ(0);
 }
 @media (min-width: 700px) { .tabbar { margin: 0 -20px; border-radius: 0 0 35px 35px; } }
 .tab {
@@ -603,7 +603,6 @@ button.cat-row { animation: rise .4s ease-out backwards; animation-delay: calc(v
   background: linear-gradient(165deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07);
 }
-.cat.on .ico { box-shadow: 0 8px 22px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .6); }
 .ava.emoji { display: grid; place-items: center; font-size: 22px; background: var(--surface-2); }
 .ava.emoji.lg { font-size: 44px; }
 
@@ -613,7 +612,6 @@ button.cat-row { animation: rise .4s ease-out backwards; animation-delay: calc(v
 .tr-ico .ci { width: 19px; height: 19px; color: var(--muted); }
 .tr-ico.lg .ci { width: 27px; height: 27px; color: var(--text); }
 .cat .ico .ci { width: 24px; height: 24px; color: #cfcfd8; }
-.cat.on .ico .ci { color: #17171b; }
 .chip .ci { width: 15px; height: 15px; vertical-align: -3px; margin-right: 4px; color: inherit; }
 .newcat-head .ico .ci { width: 29px; height: 29px; }
 .row .tr-ico .ci { width: 18px; height: 18px; }
@@ -700,8 +698,12 @@ button:focus-visible { outline: 2px solid color-mix(in srgb, var(--skin-a) 70%, 
 /* ---------- шапка выбора категории ---------- */
 .cat-bar { gap: 8px; }
 .amount-chip.center { flex: 1; justify-content: center; }
-.date-chip { position: relative; overflow: hidden; width: 40px; padding: 0; gap: 5px; }
-.date-chip.set { width: auto; padding: 0 12px; }
+.date-chip {
+  position: relative; overflow: hidden; width: 40px; padding: 0;
+  display: flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap;
+}
+.date-chip.set { width: auto; padding: 0 13px; }
+.date-chip svg { flex: none; }
 .date-chip b { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .date-chip.set { background: #ededf0; color: #141416; border-color: transparent; }
 .date-chip input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; }
@@ -747,6 +749,3 @@ button:focus-visible { outline: 2px solid color-mix(in srgb, var(--skin-a) 70%, 
 }
 .chip .ci { width: 15px; height: 15px; margin: 0; vertical-align: 0; }
 
-/* ---------- подсказка свайпа ---------- */
-body { --swipe: 0; }
-#app { transform: translateX(calc(var(--swipe, 0) * 16px)); transition: transform .12s ease-out; }
