@@ -460,6 +460,14 @@ document.addEventListener('touchend', (e) => {
   if (far && quick) { haptic(); goBack(); }
 }, { passive: true });
 
+// Высота экрана: на iOS CSS-единицы врут, берём реальный innerHeight
+function setViewport() {
+  document.documentElement.style.setProperty('--vh', `${window.innerHeight}px`);
+}
+setViewport();
+['resize', 'orientationchange', 'pageshow'].forEach((e) => window.addEventListener(e, setViewport));
+window.visualViewport?.addEventListener('resize', setViewport);
+
 applySkin();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 render();

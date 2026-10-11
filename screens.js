@@ -5,6 +5,8 @@ import {
   render, toast, tabbar, bindTabs, avatarHTML, openEdit, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
 } from './ui.js';
 
+export const BUILD = 'v18';
+
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
@@ -551,7 +553,7 @@ export async function renderProfile() {
         <div class="card rows">
           ${auth.hasPassword() ? item('logout', icons.out, 'Выйти') : item('wipe', icons.trash, 'Сбросить аккаунт')}
         </div>
-        <div class="version">NOTA · данные хранятся на этом устройстве</div>
+        <div class="version">NOTA ${BUILD} · данные хранятся на этом устройстве</div>
       </div>
       ${tabbar()}
     </section>`;
