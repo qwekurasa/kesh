@@ -251,8 +251,8 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 
 /* ---------- tabbar ---------- */
 .tabbar {
-  display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr; align-items: center;
-  margin: 0 -18px; padding: 8px 8px calc(var(--safe-bottom) + 8px);
+  display: grid; grid-template-columns: repeat(3, 1fr) auto repeat(3, 1fr); align-items: center;
+  margin: 0 -18px; padding: 8px 4px calc(var(--safe-bottom) + 8px);
   border-top: 1px solid var(--border);
   background: var(--bg);
   transform: translateZ(0);
@@ -261,7 +261,7 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 .tab {
   display: flex; flex-direction: column; align-items: center; gap: 5px;
   padding: 7px 0; border-radius: 14px; color: var(--faint);
-  font-size: 10.5px; font-weight: 500; letter-spacing: .01em;
+  font-size: 10px; font-weight: 500; letter-spacing: 0; white-space: nowrap; min-width: 0;
   transition: color .15s;
 }
 .tab svg { width: 21px; height: 21px; }
@@ -269,7 +269,7 @@ button { background: none; border: 0; cursor: pointer; touch-action: manipulatio
 .tab.add {
   color: #141416; background: linear-gradient(165deg, #fff, color-mix(in srgb, var(--skin-b) 70%, #fff) 55%, var(--skin-b));
   width: 48px; height: 48px; border-radius: 17px; justify-self: center; justify-content: center;
-  margin: 0 10px;
+  margin: 0 6px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .7);
 }
 .tab.add svg { width: 23px; height: 23px; }
@@ -748,3 +748,37 @@ button:focus-visible { outline: 2px solid color-mix(in srgb, var(--skin-a) 70%, 
 }
 .chip .ci { width: 15px; height: 15px; margin: 0; vertical-align: 0; }
 
+
+/* ---------- цвета категорий ---------- */
+.tr-ico, .cat .ico { position: relative; overflow: hidden; }
+.cbg { position: absolute; inset: 0; opacity: .16; pointer-events: none; }
+.ci { position: relative; }
+.chip .cbg { display: none; }
+.newcat-head .ico.preview { background: color-mix(in srgb, var(--cc) 18%, var(--surface)); }
+.newcat-head .ico .ci { color: var(--cc, var(--text)); }
+.color-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; margin: 2px 4px 14px; }
+.color-pick { aspect-ratio: 1; border-radius: 50%; background: var(--cc); transition: box-shadow .15s, transform .15s; }
+.color-pick:active { transform: scale(.88); }
+.color-pick.on { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--cc); }
+.row-sub { display: block; font-size: 12px; font-weight: 400; color: var(--faint); margin-top: 2px; }
+
+/* ---------- пополнения ---------- */
+.tr-sum.in, .plus, .info-amount.plus, .amount-chip.income { color: #5ee38f; }
+.seg.kind { width: 250px; margin: 14px auto 0; }
+.amount-wrap.income .amount:not(.empty) .val { color: #7ef0a8; }
+
+/* ---------- бюджет и вклады ---------- */
+.page-title { text-align: center; font-size: 15px; font-weight: 600; color: var(--muted); padding-top: 6px; }
+.month-total.over { color: var(--danger); }
+.meter.big { height: 6px; border-radius: 3px; margin: 16px 0 4px; }
+.meter.big i { border-radius: 3px; background: linear-gradient(90deg, var(--skin-c), var(--skin-a)); }
+.meter.big i.over { background: var(--danger); }
+.budget-left { display: block; font-size: 11.5px; color: var(--faint); margin-top: 6px; }
+.budget-left.over { color: var(--danger); }
+.add-dep { width: 100%; margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.add-dep svg, .dep-actions svg { width: 18px; height: 18px; }
+.dep-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 6px; }
+.dep-actions .btn { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.dep-form .lbl { display: block; font-size: 12.5px; color: var(--muted); margin: 16px 2px 7px; }
+.row span.tr-ico:first-of-type { flex: none; }
+.row .tr-ico + span { flex: 1; }

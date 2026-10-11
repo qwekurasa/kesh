@@ -10,6 +10,27 @@ const BASE = [
   ['marketplace', 'Маркетплейсы'], ['finance', 'Финансы'], ['cash', 'Наличные'], ['other', 'Другое'],
 ];
 
+const COLORS = {
+  groceries: '#6fd08c', cafe: '#ff9f5a', fastfood: '#ffb547', coffee: '#c8a27a', delivery: '#ff7a6b',
+  transport: '#5aa9ff', taxi: '#ffd84d', car: '#8fa3bf', home: '#7fc8c0', mobile: '#6ad1ff',
+  subs: '#b38cff', clothes: '#ff8ac2', health: '#ff6b7a', beauty: '#f49bd8', sport: '#7be0a6',
+  fun: '#c77dff', travel: '#4fd1c5', education: '#8c9eff', gifts: '#ff8f8f', pets: '#e0b97a',
+  kids: '#ffc46b', tech: '#74b3ff', household: '#a6c48a', transfers: '#9aa6b8', marketplace: '#a98bff',
+  finance: '#66d9a6', cash: '#b9d36b', other: '#9a9aa4',
+  salary: '#5ee38f', in_transfer: '#6ad1ff', cashback: '#ffd84d', interest: '#66d9a6',
+  side: '#ffb547', in_gift: '#ff8fb0', sale: '#b38cff', in_other: '#9a9aa4',
+};
+
+// Палитра для своих категорий
+export const PALETTE = ['#ff6b7a', '#ff9f5a', '#ffd84d', '#b9d36b', '#6fd08c', '#4fd1c5', '#6ad1ff',
+  '#5aa9ff', '#8c9eff', '#b38cff', '#f49bd8', '#ff8ac2', '#c8a27a', '#9aa6b8'];
+
+const INCOME = [
+  ['salary', 'Зарплата', 'briefcase'], ['in_transfer', 'Переводы', 'handshake'], ['cashback', 'Кэшбэк', 'credit_card'],
+  ['interest', 'Проценты', 'wallet'], ['side', 'Подработка', 'wrench'], ['in_gift', 'Подарки', 'gifts'],
+  ['sale', 'Продажа', 'receipt'], ['in_other', 'Другое', 'other'],
+];
+
 const KEYWORDS = {
   groceries: 'еда магазин супермаркет пятёрочка магнит лента',
   cafe: 'кафе ресторан обед ужин бар',
@@ -35,14 +56,20 @@ const KEYWORDS = {
   tech: 'техника гаджеты электроника компьютер',
   household: 'хозтовары бытовая химия дом ремонт',
   transfers: 'перевод деньги другу',
-  marketplace: '<path d="M232,96a7.89,7.89,0,0,0-.3-2.2L217.35,43.6A16.07,16.07,0,0,0,202,32H54A16.07,16.07,0,0,0,38.65,43.6L24.31,93.8A7.89,7.89,0,0,0,24,96h0v16a40,40,0,0,0,16,32v72a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V144a40,40,0,0,0,16-32V96ZM54,48H202l11.42,40H42.61Zm50,56h48v8a24,24,0,0,1-48,0Zm-16,0v8a24,24,0,0,1-35.12,21.26,7.88,7.88,0,0,0-1.82-1.06A24,24,0,0,1,40,112v-8ZM200,208H56V151.2a40.57,40.57,0,0,0,8,.8,40,40,0,0,0,32-16,40,40,0,0,0,64,0,40,40,0,0,0,32,16,40.57,40.57,0,0,0,8-.8Zm4.93-75.8a8.08,8.08,0,0,0-1.8,1.05A24,24,0,0,1,168,112v-8h48v8A24,24,0,0,1,204.93,132.2Z"/>',
+  marketplace: 'маркетплейс озон ozon вайлдберриз wb яндекс маркет авито',
   finance: 'финансы банк счёт вклад',
   cash: 'наличные снятие банкомат',
-  marketplace: '<path d="M216,56H176V48a24,24,0,0,0-24-24H104A24,24,0,0,0,80,48v8H40A16,16,0,0,0,24,72V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V72A16,16,0,0,0,216,56ZM96,48a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM216,72v41.61A184,184,0,0,1,128,136a184.07,184.07,0,0,1-88-22.38V72Zm0,128H40V131.64A200.19,200.19,0,0,0,128,152a200.25,200.25,0,0,0,88-20.37V200ZM104,112a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H112A8,8,0,0,1,104,112Z"/>',
   other: 'другое прочее разное',
+  salary: 'зарплата зп аванс работа',
+  in_transfer: 'перевод пришло вернули долг',
+  cashback: 'кэшбэк кешбек бонус',
+  interest: 'проценты вклад накопительный',
+  side: 'подработка фриланс заказ',
+  sale: 'продажа авито',
 };
 
 export const CATEGORIES = [];
+export const INCOME_CATEGORIES = [];
 export const CAT = {};
 
 export const CAT_ICONS = {
@@ -120,35 +147,49 @@ export const CAT_ICONS = {
   tooth: '<path d="M171,71.42,149.54,80,171,88.57A8,8,0,1,1,165,103.42L128,88.61,91,103.42A8,8,0,1,1,85,88.57L106.46,80,85,71.42A8,8,0,1,1,91,56.57l37,14.81,37-14.81A8,8,0,1,1,171,71.42Zm53,8.33c0,42.72-8,75.4-14.69,95.28-8.73,25.8-20.63,45.49-32.65,54a15.69,15.69,0,0,1-15.95,1.41,16.09,16.09,0,0,1-9.18-13.36C150.68,205.58,146.48,168,128,168s-22.68,37.59-23.53,49.11a16.09,16.09,0,0,1-16,14.9,15.67,15.67,0,0,1-9.13-2.95c-12-8.53-23.92-28.22-32.65-54C40,155.15,32,122.47,32,79.75A56,56,0,0,1,88,24h80A56,56,0,0,1,224,79.75Zm-16,0A40,40,0,0,0,168,40H88A40,40,0,0,0,48,79.76c0,40.55,7.51,71.4,13.85,90.14,11.05,32.66,23,43.37,26.61,46C91.57,174.67,105.59,152,128,152s36.45,22.71,39.49,63.94h0c3.6-2.59,15.57-13.26,26.66-46C200.49,151.16,208,120.31,208,79.76Z"/>',
 };
 
+export const catColor = (id) => CAT[id]?.color || '#9a9aa4';
+
 export const catIcon = (id) => {
   const c = CAT[id];
   if (c && c.emoji) return `<span class="em">${c.emoji}</span>`;
-  return rawIcon(c?.icon || id);
+  return `<i class="cbg" style="background:${catColor(id)}"></i>${rawIcon(c?.icon || id, catColor(id))}`;
 };
 
-export const rawIcon = (name) =>
-  `<svg class="ci" viewBox="0 0 256 256" fill="currentColor">${CAT_ICONS[name] || CAT_ICONS.other}</svg>`;
+export const rawIcon = (name, color) =>
+  `<svg class="ci" viewBox="0 0 256 256" fill="currentColor"${color ? ` style="color:${color}"` : ''}>${CAT_ICONS[name] || CAT_ICONS.other}</svg>`;
 
 export const customCategories = () => {
   try { return JSON.parse(localStorage.getItem('customCats')) || []; } catch { return []; }
 };
 
 export function reloadCategories() {
-  const custom = customCategories().map((c) => [c.id, c.name, c.icon, c.emoji]);
+  const all = customCategories();
+  const custom = (kind) => all.filter((c) => (c.kind || 'out') === kind).map((c) => [c.id, c.name, c.icon, c.emoji, c.color]);
   CATEGORIES.length = 0;
-  CATEGORIES.push(...BASE.slice(0, -1), ...custom, BASE[BASE.length - 1]);
+  CATEGORIES.push(...BASE.slice(0, -1), ...custom('out'), BASE[BASE.length - 1]);
+  INCOME_CATEGORIES.length = 0;
+  INCOME_CATEGORIES.push(...INCOME.slice(0, -1), ...custom('in'), INCOME[INCOME.length - 1]);
   Object.keys(CAT).forEach((k) => delete CAT[k]);
-  CATEGORIES.forEach(([id, name, icon, emoji]) => { CAT[id] = { id, name, icon: icon || id, emoji }; });
+  const put = (kind) => ([id, name, icon, emoji, color], n) => {
+    CAT[id] = { id, name, icon: icon || id, emoji, kind, color: color || COLORS[id] || PALETTE[n % PALETTE.length] };
+  };
+  CATEGORIES.forEach(put('out'));
+  INCOME_CATEGORIES.forEach(put('in'));
 }
 reloadCategories();
 
-export function addCategory(name, icon) {
+export function addCategory(name, icon, color, kind = 'out') {
   const list = customCategories();
   const id = `c${Date.now().toString(36)}`;
-  list.push({ id, name, icon });
+  list.push({ id, name, icon, color, kind });
   localStorage.setItem('customCats', JSON.stringify(list));
   reloadCategories();
   return id;
+}
+
+export function updateCategory(id, patch) {
+  localStorage.setItem('customCats', JSON.stringify(customCategories().map((c) => (c.id === id ? { ...c, ...patch } : c))));
+  reloadCategories();
 }
 
 export function removeCategory(id) {
@@ -173,7 +214,7 @@ export const state = {
   collapsed: new Set(),
   period: 'month',
   query: '', filter: null, authMode: null, imp: null, edit: null, catId: null,
-  catQuery: '', date: Date.now(), step: 0, draft: {}, info: null,
+  catQuery: '', date: Date.now(), step: 0, draft: {}, info: null, kind: 'out', dep: null,
 };
 
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
@@ -184,6 +225,8 @@ export const moneyShort = (kop) => {
   if (Math.abs(r) >= 10000) return `${nf.format(Math.round(r / 1000))}к`;
   return nf.format(r);
 };
+export const isIncome = (i) => i.type === 'in';
+export const sumCell = (i) => `<span class="tr-sum${isIncome(i) ? ' in' : ''}">${isIncome(i) ? '+' : ''}${money(i.amount)}</span>`;
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 export const haptic = () => navigator.vibrate?.(8);
 
@@ -209,6 +252,8 @@ export const icons = {
   bank: svg('<rect x="3" y="7" width="18" height="11" rx="3"/><circle cx="12" cy="12.5" r="2.4"/>'),
   tag: svg('<path d="M3 11V5a2 2 0 0 1 2-2h6l10 10-8 8L3 11Z"/><circle cx="8" cy="8" r="1.4"/>'),
   trash: svg('<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>'),
+  budget: svg('<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4"/>'),
+  safe: svg('<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5V7M12 17v-1.5M7 20v1M17 20v1"/>'),
   calendar: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>'),
 };
 
@@ -236,6 +281,7 @@ export function openEdit(item) {
     edit: item,
     amt: (Number.isInteger(rub) ? String(rub) : rub.toFixed(2)).replace('.', ','),
     cat: item.category,
+    kind: item.type === 'in' ? 'in' : 'out',
     note: item.note || '',
     catQuery: '',
     date: item.ts,
@@ -250,7 +296,7 @@ export function openCategory(id) {
 }
 
 export function openAdd() {
-  Object.assign(state, { flow: 'add', edit: null, amt: '', cat: null, note: '', catQuery: '', date: Date.now() });
+  Object.assign(state, { flow: 'add', edit: null, amt: '', cat: null, note: '', catQuery: '', date: Date.now(), kind: 'out' });
   render();
 }
 
@@ -302,7 +348,9 @@ export function tabbar() {
   return `<nav class="tabbar">
     ${item('home', 'Главная', icons.home)}
     ${item('charts', 'Графики', icons.chart)}
-    <button class="tab add" data-tab="add" aria-label="Добавить трату">${icons.plus}</button>
+    ${item('budget', 'Бюджет', icons.budget)}
+    <button class="tab add" data-tab="add" aria-label="Добавить операцию">${icons.plus}</button>
+    ${item('deposits', 'Вклады', icons.safe)}
     ${item('search', 'Поиск', icons.search)}
     ${item('profile', 'Профиль', icons.user)}
   </nav>`;

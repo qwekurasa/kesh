@@ -26,8 +26,9 @@ async function tx(mode, fn) {
   });
 }
 
-export async function addExpense({ amount, category, note, ts }) {
+export async function addExpense({ amount, category, note, ts, type }) {
   const item = { id: uuid(), amount, category, note: note || '', ts: ts || Date.now() };
+  if (type === 'in') item.type = 'in';
   await tx('readwrite', (s) => s.put(item));
   emit();
   return item;
@@ -51,7 +52,7 @@ export async function removeExpense(id) {
 export async function todayTotal() {
   const from = new Date().setHours(0, 0, 0, 0);
   const items = await tx('readonly', (s) => s.index('ts').getAll(IDBKeyRange.lowerBound(from)));
-  return items.reduce((sum, i) => sum + i.amount, 0);
+  return items.reduce((sum, i) => sum + (i.type === 'in' ? 0 : i.amount), 0);
 }
 
 export async function recentCategories(limit = 4) {
@@ -78,7 +79,7 @@ export async function importExpenses(items) {
     // трату, которую пользователь поправил руками, повторный импорт не перезаписывает
     s.get(i.id).onsuccess = (e) => {
       if (e.target.result?.edited) return;
-      s.put({ id: i.id, amount: i.amount, category: i.category, note: String(i.note || ''), ts: i.ts });
+      s.put({ id: i.id, amount: i.amount, category: i.category, note: String(i.note || ''), ts: i.ts, ...(i.type === 'in' ? { type: 'in' } : {}) });
     };
   }));
   emit();

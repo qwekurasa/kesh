@@ -3,9 +3,10 @@ import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
   render, toast, tabbar, bindTabs, avatarHTML, openEdit, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
+  CATEGORIES, catColor, isIncome, sumCell, reloadCategories,
 } from './ui.js';
 
-export const BUILD = 'v22';
+export const BUILD = 'v23';
 
 // Диагностика раскладки: видно, насколько вьюпорт меньше экрана
 function diagnostics() {
@@ -28,6 +29,7 @@ const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
 const dayKey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 const sum = (items) => items.reduce((a, i) => a + i.amount, 0);
+const spent = (items) => items.filter((i) => !isIncome(i));
 
 function groupByDay(items) {
   const map = new Map();
@@ -45,14 +47,15 @@ export async function renderHome() {
   const next = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1);
   const items = await store.expensesBetween(from, next.getTime() - 1);
   const days = groupByDay(items);
-  const total = sum(items);
+  const total = sum(spent(items));
+  const income = sum(items.filter(isIncome));
   const isCurrent = next > new Date();
 
   const row = (i) => `
     <div class="tr" data-id="${i.id}">
       <span class="tr-ico">${catIcon(i.category)}</span>
       <span class="tr-name">${esc(CAT[i.category]?.name || i.category)}${i.note ? `<small>${esc(i.note)}</small>` : ''}</span>
-      <span class="tr-sum">${money(i.amount)}</span>
+      ${sumCell(i)}
     </div>`;
 
   const day = (d) => {
@@ -62,7 +65,7 @@ export async function renderHome() {
       <section class="day${open ? ' open' : ''}" data-key="${d.key}" style="--i:${days.indexOf(d)}">
         <button class="day-head">
           <span class="day-date"><b>${date.getDate()}</b><small>${WEEKDAYS[date.getDay()]}</small></span>
-          <span class="day-meta"><b>${money(sum(d.items))}</b><small>${d.items.length} ${plural(d.items.length, 'трата', 'траты', 'трат')}</small></span>
+          <span class="day-meta"><b>${money(sum(spent(d.items)))}</b><small>${d.items.length} ${plural(d.items.length, 'операция', 'операции', 'операций')}</small></span>
           <span class="chev">${icons.down}</span>
         </button>
         <div class="day-items">${d.items.map(row).join('')}</div>
@@ -81,7 +84,7 @@ export async function renderHome() {
           <button class="icon-btn sm" id="next" aria-label="Следующий месяц" ${isCurrent ? 'disabled' : ''}>${icons.right}</button>
         </div>
         <div class="month-total">${money(total)}</div>
-        <div class="month-sub">${items.length ? `${days.length} ${plural(days.length, 'день', 'дня', 'дней')} с тратами` : 'Трат пока нет'}</div>
+        <div class="month-sub">${items.length ? `${days.length} ${plural(days.length, 'день', 'дня', 'дней')} с операциями` : 'Трат пока нет'}${income ? ` · <span class="plus">+${money(income)}</span>` : ''}</div>
       </header>
       <div class="scroll" id="list">
         ${days.length ? days.map(day).join('') : `<div class="empty">Нажмите <b>＋</b>, чтобы добавить первую трату</div>`}
@@ -181,10 +184,10 @@ export async function renderCharts() {
   const r = periodRange(state.period);
   const elapsed = Math.min(Date.now(), +r.to) - +r.from;
   const prev = prevRange(r, elapsed);
-  const [items, prevItems] = await Promise.all([
+  const [items, prevItems] = (await Promise.all([
     store.expensesBetween(r.from.getTime(), r.to.getTime() - 1),
     store.expensesBetween(prev.from.getTime(), prev.to.getTime() - 1),
-  ]);
+  ])).map(spent);
   const total = sum(items);
   const prevTotal = sum(prevItems);
 
@@ -198,7 +201,7 @@ export async function renderCharts() {
 
   const slices = cats.slice(0, 5);
   const restSum = sum(items) - slices.reduce((a, [, v]) => a + v, 0);
-  const pie = [...slices.map(([id, v], n) => [CAT[id]?.name || id, v, SHADES[n], id]), ...(restSum > 0 ? [['Прочее', restSum, SHADES[5], null]] : [])];
+  const pie = [...slices.map(([id, v]) => [CAT[id]?.name || id, v, catColor(id), id]), ...(restSum > 0 ? [['Прочее', restSum, '#55535e', null]] : [])];
   const R = 52, C = 2 * Math.PI * R;
   let acc = 0;
   const arcs = pie.map(([, v, c], n) => {
@@ -263,7 +266,7 @@ export async function renderCharts() {
               <span class="tr-ico">${catIcon(id)}</span>
               <span class="cat-info">
                 <span class="cat-top">${esc(CAT[id]?.name || id)}<b>${money(v)}</b></span>
-                <span class="meter"><i style="width:${pct(v, total)}%"></i></span>
+                <span class="meter"><i style="width:${pct(v, total)}%;background:${catColor(id)}"></i></span>
               </span>
               <span class="cat-pct">${d === null ? `${Math.round((v / total) * 100)}%` : `${d > 0 ? '+' : ''}${d}%`}</span>
               <span class="chev sm">${icons.right}</span>
@@ -289,7 +292,6 @@ export async function renderCharts() {
   };
 }
 
-const SHADES = ['#eceaf2', '#c6c3d1', '#a19eac', '#7d7a88', '#5c5966', '#403e49'];
 const pct = (v, max) => (max ? Math.max(2, (v / max) * 100) : 0);
 
 function byCategory(items) {
@@ -362,7 +364,7 @@ export async function renderCategoryDetail() {
   const all = await store.expensesBetween(r.from.getTime(), r.to.getTime() - 1);
   const items = all.filter((i) => i.category === id).sort((a, b) => b.ts - a.ts);
   const total = sum(items);
-  const periodTotal = sum(all);
+  const periodTotal = sum(all.filter((i) => isIncome(i) === (CAT[id]?.kind === 'in')));
   const merchants = new Map();
   items.forEach((i) => {
     const k = i.note || 'Без описания';
@@ -383,7 +385,7 @@ export async function renderCategoryDetail() {
           <span class="tr-ico lg">${catIcon(id)}</span>
           <div>
             <div class="month-total sm">${money(total)}</div>
-            <div class="month-sub">${esc(CAT[id]?.name || id)} · ${Math.round((total / (periodTotal || 1)) * 100)}% трат периода</div>
+            <div class="month-sub">${esc(CAT[id]?.name || id)} · ${Math.round((total / (periodTotal || 1)) * 100)}% ${CAT[id]?.kind === 'in' ? 'поступлений' : 'трат'} периода</div>
           </div>
         </div>
       </header>
@@ -392,7 +394,7 @@ export async function renderCategoryDetail() {
         <div class="card">
           ${top.map(([name, v]) => `<div class="cat-row">
             <span class="cat-info"><span class="cat-top">${esc(name)}<b>${money(v)}</b></span>
-            <span class="meter"><i style="width:${pct(v, total)}%"></i></span></span>
+            <span class="meter"><i style="width:${pct(v, total)}%;background:${catColor(id)}"></i></span></span>
           </div>`).join('')}
         </div>` : ''}
         <div class="section-label">${items.length} ${plural(items.length, 'операция', 'операции', 'операций')}</div>
@@ -402,9 +404,9 @@ export async function renderCategoryDetail() {
             return `<button class="res" data-id="${i.id}">
               <span class="tr-ico">${catIcon(i.category)}</span>
               <span class="tr-name">${esc(i.note || CAT[i.category]?.name || '')}<small>${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</small></span>
-              <span class="tr-sum">${money(i.amount)}</span>
+              ${sumCell(i)}
             </button>`;
-          }).join('') || '<div class="empty sm">Трат нет</div>'}
+          }).join('') || '<div class="empty sm">Операций нет</div>'}
         </div>
       </div>
       ${tabbar()}
@@ -433,12 +435,12 @@ export function renderInfo() {
       <div class="glow-top"></div>
       <div class="topbar">
         <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
-        <div class="pill">Трата</div>
+        <div class="pill">${isIncome(i) ? 'Пополнение' : 'Трата'}</div>
         <div style="width:40px"></div>
       </div>
       <div class="info-hero">
         <span class="tr-ico xl">${catIcon(i.category)}</span>
-        <div class="info-amount">${money(i.amount)}</div>
+        <div class="info-amount${isIncome(i) ? ' plus' : ''}">${isIncome(i) ? '+' : ''}${money(i.amount)}</div>
         <div class="month-sub">${esc(CAT[i.category]?.name || i.category)}</div>
       </div>
       <div class="cats">
@@ -451,18 +453,18 @@ export function renderInfo() {
       </div>
       <div class="bottom">
         <button class="btn" id="edit">Изменить</button>
-        <button class="btn ghost danger" id="del">Удалить трату</button>
+        <button class="btn ghost danger" id="del">Удалить операцию</button>
       </div>
     </section>`;
 
   app.querySelector('#back').onclick = close;
   app.querySelector('#edit').onclick = () => openEdit(i);
   app.querySelector('#del').onclick = async () => {
-    if (!(await ask('Удалить трату?', `${money(i.amount)} · ${CAT[i.category]?.name || ''}`))) return;
+    if (!(await ask('Удалить операцию?', `${money(i.amount)} · ${CAT[i.category]?.name || ''}`))) return;
     state.info = null;
     await store.removeExpense(i.id);
     render();
-    toast('Трата удалена');
+    toast('Операция удалена');
   };
 }
 
@@ -481,7 +483,7 @@ export async function renderSearch() {
       <header class="month-head">
         <label class="search-bar">
           ${icons.search}
-          <input id="q" placeholder="Поиск по тратам" value="${esc(state.query)}" autocapitalize="none" spellcheck="false">
+          <input id="q" placeholder="Поиск по операциям" value="${esc(state.query)}" autocapitalize="none" spellcheck="false">
         </label>
         <div class="chips">
           <button class="chip${state.filter ? '' : ' on'}" data-c="">Все</button>
@@ -489,13 +491,13 @@ export async function renderSearch() {
         </div>
       </header>
       <div class="scroll">
-        <div class="section-label">${found.length ? `Найдено: ${found.length} · ${money(sum(found))}` : 'Ничего не найдено'}</div>
+        <div class="section-label">${found.length ? `Найдено: ${found.length} · ${money(sum(spent(found)))}` : 'Ничего не найдено'}</div>
         ${found.length ? `<div class="card">${found.slice(0, 200).map((i) => {
           const d = new Date(i.ts);
           return `<button class="res" data-id="${i.id}">
             <span class="tr-ico">${catIcon(i.category)}</span>
             <span class="tr-name">${esc(CAT[i.category]?.name || i.category)}<small>${i.note ? `${esc(i.note)} · ` : ''}${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</small></span>
-            <span class="tr-sum">${money(i.amount)}</span>
+            ${sumCell(i)}
           </button>`;
         }).join('')}</div>` : '<div class="empty sm">Измените запрос или категорию</div>'}
       </div>
@@ -547,7 +549,7 @@ export async function renderProfile() {
           <span class="ava-edit">${icons.camera}</span>
         </button>
         <div class="profile-name">${esc(acc.login)}</div>
-        <div class="month-sub">${all.length} ${plural(all.length, 'трата', 'траты', 'трат')} · ${money(sum(all))}</div>
+        <div class="month-sub">${spent(all).length} ${plural(spent(all).length, 'трата', 'траты', 'трат')} · ${money(sum(spent(all)))}</div>
         <div class="skins">${SKINS.map((_, n) =>
           `<button class="skin${avatarSkin() === n ? ' on' : ''}" data-skin="${n}" style="${skinStyle(n)}" aria-label="Цвет ${n + 1}"></button>`).join('')}</div>
       </header>
@@ -615,7 +617,7 @@ export async function renderProfile() {
         if (!yes) return;
         await store.wipe();
         auth.reset();
-        ['loggedIn', 'avatar', 'avatarSkin', 'customCats'].forEach((k) => localStorage.removeItem(k));
+        ['loggedIn', 'avatar', 'avatarSkin', 'customCats', 'budgets', 'deposits'].forEach((k) => localStorage.removeItem(k));
         state.unlocked = false;
         state.authMode = null;
         render();
@@ -682,7 +684,8 @@ export function renderCustomCats() {
       </header>
       <div class="scroll">
         ${list.length ? `<div class="card rows">${list.map((c) => `
-          <div class="row"><span class="tr-ico">${catIcon(c.id)}</span><span>${esc(c.name)}</span>
+          <div class="row" data-edit="${c.id}"><span class="tr-ico">${catIcon(c.id)}</span><span>${esc(c.name)}<small class="row-sub">${c.kind === 'in' ? 'Пополнение' : 'Расход'}</small></span>
+            <button class="icon-btn sm" data-edit="${c.id}" aria-label="Изменить">${icons.edit}</button>
             <button class="icon-btn sm" data-del="${c.id}" aria-label="Удалить">${icons.trash}</button></div>`).join('')}</div>`
           : '<div class="empty">Своих категорий пока нет.<br>Их можно добавить при создании траты.</div>'}
       </div>
@@ -692,6 +695,14 @@ export function renderCustomCats() {
   app.querySelector('#back').onclick = () => { state.flow = null; render(); };
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const id = e.target.closest('[data-del]')?.dataset.del;
+    const edit = !id && e.target.closest('[data-edit]')?.dataset.edit;
+    if (edit) {
+      const c = list.find((x) => x.id === edit);
+      haptic();
+      state.draft = { id: c.id, name: c.name, icon: c.icon || 'star', color: CAT[c.id]?.color, kind: c.kind || 'out', from: 'cats' };
+      state.flow = 'newcat';
+      return render();
+    }
     if (!id) return;
     ask('Удалить категорию?', 'Траты в ней останутся и перейдут в «Другое».').then((yes) => {
       if (!yes) return;
@@ -704,7 +715,7 @@ export function renderCustomCats() {
 async function exportData() {
   const expenses = await store.allExpenses();
   const name = `nota-${new Date().toISOString().slice(0, 10)}.json`;
-  const file = new File([JSON.stringify({ app: 'nota', version: 2, account: auth.account(), expenses })], name, { type: 'application/json' });
+  const file = new File([JSON.stringify({ app: 'nota', version: 3, account: auth.account(), expenses, customCats: customCategories(), budgets: budgets(), deposits: deposits() })], name, { type: 'application/json' });
   if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
     return navigator.share({ files: [file] }).catch(() => {});
   }
@@ -813,10 +824,208 @@ function importData() {
   input.onchange = async () => {
     try {
       const data = JSON.parse(await input.files[0].text());
+      if (Array.isArray(data.deposits) && !deposits().length) saveDeposits(data.deposits);
+      if (Array.isArray(data.customCats) && !customCategories().length) {
+        localStorage.setItem('customCats', JSON.stringify(data.customCats));
+        reloadCategories();
+      }
+      if (data.budgets && typeof data.budgets === 'object' && !Object.keys(budgets()).length) saveBudgets(data.budgets);
       toast(`Импортировано трат: ${await store.importExpenses(data.expenses || data)}`);
     } catch {
       toast('Не удалось прочитать файл');
     }
   };
   input.click();
+}
+
+/* ---------- бюджет ---------- */
+const readJSON = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } };
+const budgets = () => readJSON('budgets', {});
+const saveBudgets = (b) => localStorage.setItem('budgets', JSON.stringify(b));
+const toKop = (v) => Math.round(parseFloat(String(v).replace(/\s/g, '').replace(',', '.')) * 100);
+const rub = (kop) => String(Math.round(kop / 100));
+
+export async function renderBudget() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const items = spent(await store.expensesBetween(from.getTime(), to.getTime() - 1));
+  const bySpent = Object.fromEntries(byCategory(items));
+  const b = budgets();
+  const limited = CATEGORIES.filter(([id]) => b[id] > 0);
+  const free = CATEGORIES.filter(([id]) => !(b[id] > 0)).sort(([x], [y]) => (bySpent[y] || 0) - (bySpent[x] || 0));
+  const limit = limited.reduce((a, [id]) => a + b[id], 0);
+  const used = limited.reduce((a, [id]) => a + (bySpent[id] || 0), 0);
+  const left = limit - used;
+  const daysLeft = Math.max(1, Math.ceil((to - now) / 864e5));
+
+  app.innerHTML = `
+    <section class="screen tabbed">
+      <div class="glow-top"></div>
+      <header class="month-head">
+        <div class="page-title">Бюджет · ${MONTHS[now.getMonth()]}</div>
+        ${limit ? `
+          <div class="month-total${left < 0 ? ' over' : ''}">${money(Math.abs(left))}</div>
+          <div class="month-sub">${left < 0 ? 'Перерасход' : `Осталось · ≈ ${money(Math.floor(left / daysLeft / 100) * 100)} в день`} · потрачено ${money(used)} из ${money(limit)}</div>
+          <div class="meter big"><i style="width:${Math.min(100, pct(used, limit))}%"${left < 0 ? ' class="over"' : ''}></i></div>`
+        : `<div class="month-total">${money(sum(items))}</div>
+          <div class="month-sub">Потрачено в этом месяце · задайте лимит категории</div>`}
+      </header>
+      <div class="scroll">
+        ${limited.length ? `<div class="section-label">Лимиты на месяц</div>
+        <div class="card">${limited.map(([id, name], n) => {
+          const v = bySpent[id] || 0;
+          const rest = b[id] - v;
+          return `<button class="cat-row" data-b="${id}" style="--i:${n}">
+            <span class="tr-ico">${catIcon(id)}</span>
+            <span class="cat-info">
+              <span class="cat-top">${esc(name)}<b>${moneyShort(v)} / ${moneyShort(b[id])} ₽</b></span>
+              <span class="meter"><i style="width:${Math.min(100, pct(v, b[id]))}%;background:${rest < 0 ? 'var(--danger)' : catColor(id)}"></i></span>
+              <small class="budget-left${rest < 0 ? ' over' : ''}">${rest < 0 ? `Перерасход ${money(-rest)}` : `Осталось ${money(rest)}`}</small>
+            </span>
+          </button>`;
+        }).join('')}</div>` : ''}
+        <div class="section-label">${limited.length ? 'Без лимита' : 'Категории'}</div>
+        <div class="card rows">${free.map(([id, name]) => `
+          <button class="row" data-b="${id}"><span class="tr-ico">${catIcon(id)}</span><span>${esc(name)}</span>
+            <span class="row-extra">${bySpent[id] ? money(bySpent[id]) : ''}</span>${icons.plus}</button>`).join('')}
+        </div>
+      </div>
+      ${tabbar()}
+    </section>`;
+
+  bindTabs();
+  countUp(app.querySelector('.month-total'), limit ? Math.abs(left) : sum(items));
+  app.querySelector('.scroll').addEventListener('click', async (e) => {
+    const id = e.target.closest('[data-b]')?.dataset.b;
+    if (!id) return;
+    haptic();
+    const val = await askText(`Лимит: ${CAT[id].name}`, { mode: 'decimal', placeholder: 'Сумма в месяц, ₽', value: b[id] ? rub(b[id]) : '' });
+    if (val === null) return;
+    const next = budgets();
+    const kop = toKop(val);
+    if (kop > 0) next[id] = kop; else delete next[id];
+    saveBudgets(next);
+    render();
+    toast(kop > 0 ? `Лимит ${money(kop)} в месяц` : 'Лимит убран');
+  });
+}
+
+/* ---------- вклады ---------- */
+const deposits = () => readJSON('deposits', []);
+const saveDeposits = (list) => localStorage.setItem('deposits', JSON.stringify(list));
+const monthly = (d) => Math.round((d.amount * (d.rate || 0)) / 100 / 12);
+const depIcon = (d, n) => {
+  const c = ['#66d9a6', '#6ad1ff', '#ffd84d', '#b38cff', '#ff9f5a', '#ff8ac2'][n % 6];
+  return `<span class="tr-ico"><i class="cbg" style="background:${c}"></i>${icons.safe.replace('<svg', `<svg class="ci" style="color:${c}"`)}</span>`;
+};
+
+export function renderDeposits() {
+  const list = deposits();
+  const total = list.reduce((a, d) => a + d.amount, 0);
+  const income = list.reduce((a, d) => a + monthly(d), 0);
+
+  app.innerHTML = `
+    <section class="screen tabbed">
+      <div class="glow-top"></div>
+      <header class="month-head">
+        <div class="page-title">Вклады</div>
+        <div class="month-total">${money(total)}</div>
+        <div class="month-sub">${list.length
+          ? `${list.length} ${plural(list.length, 'вклад', 'вклада', 'вкладов')}${income ? ` · <span class="plus">≈ +${money(income)} в месяц</span>` : ''}`
+          : 'Добавьте вклад или накопительный счёт'}</div>
+      </header>
+      <div class="scroll">
+        ${list.length ? `<div class="card">${list.map((d, n) => `
+          <button class="res" data-id="${d.id}">
+            ${depIcon(d, n)}
+            <span class="tr-name">${esc(d.name)}<small>${d.rate ? `${String(d.rate).replace('.', ',')}% годовых · +${money(monthly(d))}/мес` : 'Без процентов'}</small></span>
+            <span class="tr-sum">${money(d.amount)}</span>
+          </button>`).join('')}</div>` : ''}
+        <button class="btn alt add-dep" id="add">${icons.plus} Добавить вклад</button>
+      </div>
+      ${tabbar()}
+    </section>`;
+
+  bindTabs();
+  countUp(app.querySelector('.month-total'), total);
+  const open = (dep) => { haptic(); state.dep = dep; state.flow = 'deposit'; render(); };
+  app.querySelector('#add').onclick = () => open({ name: '', amount: 0, rate: '' });
+  app.querySelector('.scroll').addEventListener('click', (e) => {
+    const id = e.target.closest('[data-id]')?.dataset.id;
+    if (id) open({ ...list.find((d) => d.id === id) });
+  });
+}
+
+export function renderDeposit() {
+  const d = state.dep;
+  const close = () => { state.flow = null; state.dep = null; render(); };
+  app.innerHTML = `
+    <section class="screen">
+      <div class="glow-top"></div>
+      <div class="topbar">
+        <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
+        <div class="pill">${d.id ? 'Вклад' : 'Новый вклад'}</div>
+        <div style="width:40px"></div>
+      </div>
+      <div class="cats dep-form">
+        ${d.id ? `<div class="info-hero"><div class="info-amount">${money(d.amount)}</div>
+          <div class="month-sub">${d.rate ? `≈ +${money(monthly(d))} в месяц` : 'Без процентов'}</div></div>
+          <div class="dep-actions">
+            <button class="btn alt" id="topup">${icons.plus} Пополнить</button>
+            <button class="btn alt" id="take">Снять</button>
+          </div>` : ''}
+        <label class="lbl">Название</label>
+        <input class="field" id="dname" placeholder="Например, Накопительный Т-Банк" maxlength="40" value="${esc(d.name)}">
+        <label class="lbl">Сумма, ₽</label>
+        <input class="field" id="damount" inputmode="decimal" placeholder="0" value="${d.amount ? rub(d.amount) : ''}">
+        <label class="lbl">Ставка, % годовых</label>
+        <input class="field" id="drate" inputmode="decimal" placeholder="Необязательно" value="${d.rate ? String(d.rate).replace('.', ',') : ''}">
+      </div>
+      <div class="bottom">
+        <button class="btn" id="save">${d.id ? 'Сохранить' : 'Добавить вклад'}</button>
+        ${d.id ? '<button class="btn ghost danger" id="del">Удалить вклад</button>' : ''}
+      </div>
+    </section>`;
+
+  const persist = (dep) => {
+    const list = deposits();
+    const i = list.findIndex((x) => x.id === dep.id);
+    i >= 0 ? (list[i] = dep) : list.push(dep);
+    saveDeposits(list);
+  };
+  const read = () => ({
+    ...d,
+    name: app.querySelector('#dname').value.trim(),
+    amount: Math.max(0, toKop(app.querySelector('#damount').value) || 0),
+    rate: Math.max(0, parseFloat(app.querySelector('#drate').value.replace(',', '.')) || 0),
+  });
+  app.querySelector('#back').onclick = close;
+  app.querySelector('#save').onclick = () => {
+    const dep = read();
+    if (!dep.name) return toast('Введите название');
+    persist({ ...dep, id: dep.id || `d${Date.now().toString(36)}` });
+    haptic();
+    close();
+    toast(d.id ? 'Вклад сохранён' : 'Вклад добавлен');
+  };
+  const move = async (sign) => {
+    const val = await askText(sign > 0 ? 'Пополнить вклад' : 'Снять со вклада', { mode: 'decimal', placeholder: 'Сумма, ₽' });
+    const kop = toKop(val || '');
+    if (!(kop > 0)) return;
+    const dep = { ...read(), name: read().name || d.name };
+    dep.amount = Math.max(0, d.amount + sign * kop);
+    persist(dep);
+    state.dep = dep;
+    render();
+    toast(`${sign > 0 ? '+' : '−'}${money(kop)}`);
+  };
+  app.querySelector('#topup')?.addEventListener('click', () => move(1));
+  app.querySelector('#take')?.addEventListener('click', () => move(-1));
+  app.querySelector('#del')?.addEventListener('click', async () => {
+    if (!(await ask('Удалить вклад?', d.name))) return;
+    saveDeposits(deposits().filter((x) => x.id !== d.id));
+    close();
+    toast('Вклад удалён');
+  });
 }

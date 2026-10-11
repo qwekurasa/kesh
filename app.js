@@ -1,8 +1,8 @@
 import * as store from './store.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport, renderCustomCats, renderInfo } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit } from './screens.js';
 import {
-  CATEGORIES, CAT, app, state, money, esc, haptic, icons,
+  CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
   setRender, render, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
 } from './ui.js';
 
@@ -25,6 +25,9 @@ function main() {
   if (state.flow === 'cats') return renderCustomCats();
   if (state.flow === 'import') return renderImport();
   if (state.flow === 'cat') return renderCategoryDetail();
+  if (state.flow === 'deposit') return renderDeposit();
+  if (state.tab === 'budget') return renderBudget();
+  if (state.tab === 'deposits') return renderDeposits();
   if (state.tab === 'charts') return renderCharts();
   if (state.tab === 'search') return renderSearch();
   if (state.tab === 'profile') return renderProfile();
@@ -190,10 +193,14 @@ async function renderAmount() {
       <div class="heat l"></div>
       <div class="heat r"></div>
       <div class="topbar">
-        <div class="pill">${editing ? 'Изменение траты' : `Сегодня <b>${money(today)}</b>`}</div>
+        <div class="pill">${editing ? 'Изменение' : `Сегодня <b>${money(today)}</b>`}</div>
         <button class="icon-btn" id="close" aria-label="Закрыть">${icons.back}</button>
       </div>
-      <div class="amount-wrap">
+      <div class="seg kind" id="kind">
+        <button class="${state.kind === 'out' ? 'on' : ''}" data-k="out">Расход</button>
+        <button class="${state.kind === 'in' ? 'on' : ''}" data-k="in">Пополнение</button>
+      </div>
+      <div class="amount-wrap${state.kind === 'in' ? ' income' : ''}">
         <div class="amount" id="amount"><span class="val"></span><span class="cur">₽</span></div>
         <div class="amount-hint" id="hint"></div>
       </div>
@@ -207,6 +214,16 @@ async function renderAmount() {
   updateAmount();
   app.querySelector('#close').onclick = () => { state.edit = null; go(state.tab || 'home'); };
   app.querySelector('#next').onclick = goCategory;
+  app.querySelector('#kind').onclick = (e) => {
+    const b = e.target.closest('[data-k]');
+    if (!b || b.dataset.k === state.kind) return;
+    haptic();
+    state.kind = b.dataset.k;
+    state.cat = null;
+    app.querySelectorAll('#kind button').forEach((n) => n.classList.toggle('on', n === b));
+    app.querySelector('.amount-wrap').classList.toggle('income', state.kind === 'in');
+    updateAmount();
+  };
 
   let holdTimer;
   const pad = app.querySelector('.pad');
@@ -248,9 +265,9 @@ function updateAmount() {
   el.querySelector('.val').textContent = text;
   el.classList.toggle('empty', !state.amt);
   el.style.setProperty('--size', `${Math.max(44, 88 - Math.max(0, text.length - 5) * 7)}px`);
-  const big = Math.min(1, Math.max(0, (kopecks() - 200000) / 1800000));
+  const big = state.kind === 'in' ? 0 : Math.min(1, Math.max(0, (kopecks() - 200000) / 1800000));
   app.querySelector('.screen').style.setProperty('--heat', big.toFixed(3));
-  app.querySelector('#hint').textContent = state.amt ? (big > .45 ? 'Крупная трата' : '') : 'Сколько потратили?';
+  app.querySelector('#hint').textContent = state.amt ? (big > .45 ? 'Крупная трата' : '') : (state.kind === 'in' ? 'Сколько пришло?' : 'Сколько потратили?');
   app.querySelector('#next').disabled = kopecks() <= 0;
 }
 
@@ -262,9 +279,11 @@ function goCategory() {
 
 /* ---------- category ---------- */
 async function renderCategory() {
-  const recent = await store.recentCategories();
+  const income = state.kind === 'in';
+  const list = income ? INCOME_CATEGORIES : CATEGORIES;
+  const recent = (await store.recentCategories(12)).filter((id) => CAT[id] && (CAT[id].kind === 'in') === income).slice(0, 4);
   const q = state.catQuery.trim().toLowerCase();
-  const found = q ? CATEGORIES.filter(([id, name]) => matchCategory(id, name, q)) : CATEGORIES;
+  const found = q ? list.filter(([id, name]) => matchCategory(id, name, q)) : list;
   const tile = ([id, name]) =>
     `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${name}</span></button>`;
   const d = new Date(state.date);
@@ -275,16 +294,16 @@ async function renderCategory() {
       <div class="glow-top"></div>
       <div class="topbar cat-bar">
         <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
-        <button class="amount-chip center" id="edit">${money(kopecks())} ${icons.edit}</button>
+        <button class="amount-chip center${income ? ' income' : ''}" id="edit">${income ? '+' : ''}${money(kopecks())} ${icons.edit}</button>
         <label class="icon-btn date-chip${today ? '' : ' set'}" aria-label="Дата траты">
           ${icons.calendar}${today ? '' : `<b>${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}</b>`}
           <input type="date" id="date" value="${iso}" max="${new Date().toISOString().slice(0, 10)}">
         </label>
       </div>
-      <h2 class="cat-title">На что потратили?</h2>
+      <h2 class="cat-title">${income ? 'Откуда пришли деньги?' : 'На что потратили?'}</h2>
       <label class="search-bar sm">${icons.search}<input id="cq" placeholder="Поиск категории" value="${esc(state.catQuery)}" autocapitalize="none" spellcheck="false"></label>
       <div class="cats">
-        ${!q && recent.length ? `<div class="section-label">Недавние</div><div class="grid">${recent.filter((id) => CAT[id]).map((id) => tile([id, CAT[id].name])).join('')}</div>` : ''}
+        ${!q && recent.length ? `<div class="section-label">Недавние</div><div class="grid">${recent.map((id) => tile([id, CAT[id].name])).join('')}</div>` : ''}
         <div class="section-label">${q ? `Найдено: ${found.length}` : 'Все категории'}</div>
         <div class="grid">${found.map(tile).join('')}${q ? '' : `<button class="cat new" id="newcat"><div class="ico">${icons.plus}</div><span>Своя</span></button>`}</div>
         ${q && !found.length ? '<div class="empty sm">Такой категории нет</div>' : ''}
@@ -292,7 +311,7 @@ async function renderCategory() {
       <div class="bottom">
         <input class="field" id="note" placeholder="Комментарий (необязательно)" maxlength="200" value="${esc(state.note)}">
         <button class="btn" id="save" ${state.cat ? '' : 'disabled'}>Сохранить</button>
-        ${state.edit ? '<button class="btn ghost danger" id="del">Удалить трату</button>' : ''}
+        ${state.edit ? '<button class="btn ghost danger" id="del">Удалить операцию</button>' : ''}
       </div>
     </section>`;
 
@@ -312,7 +331,11 @@ async function renderCategory() {
   const cq = app.querySelector('#cq');
   cq.oninput = () => { state.catQuery = cq.value; render(); };
   if (q) { cq.focus(); cq.setSelectionRange(q.length, q.length); }
-  app.querySelector('#newcat')?.addEventListener('click', () => { state.flow = 'newcat'; state.draft = { icon: 'star', name: '' }; render(); });
+  app.querySelector('#newcat')?.addEventListener('click', () => {
+    state.flow = 'newcat';
+    state.draft = { icon: 'star', name: '', color: PALETTE[customCount() % PALETTE.length], kind: state.kind, from: 'category' };
+    render();
+  });
   app.querySelector('.cats').onclick = (e) => {
     const btn = e.target.closest('.cat');
     if (!btn || btn.id === 'newcat') return;
@@ -323,31 +346,34 @@ async function renderCategory() {
   };
   app.querySelector('#save').onclick = save;
   app.querySelector('#del')?.addEventListener('click', async () => {
-    if (!(await ask('Удалить трату?', '', 'Удалить'))) return;
+    if (!(await ask('Удалить операцию?', '', 'Удалить'))) return;
     const { id } = state.edit;
     Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '' });
     await store.removeExpense(id);
     render();
-    toast('Трата удалена');
+    toast('Операция удалена');
   });
 }
+
+const customCount = () => CATEGORIES.length + INCOME_CATEGORIES.length; // для чередования цвета новой категории
 
 async function save() {
   if (!state.cat) return;
   const amount = kopecks();
   const category = state.cat;
   const note = state.note.trim();
+  const type = state.kind === 'in' ? 'in' : undefined;
   if (state.edit) {
     const { id } = state.edit;
     Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '', catQuery: '' });
-    await store.updateExpense(id, { amount, category, note, ts: state.date });
+    await store.updateExpense(id, { amount, category, note, ts: state.date, type });
     render();
     return toast('Изменения сохранены');
   }
-  const item = await store.addExpense({ amount, category, note, ts: state.date });
-  Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(state.date)), date: Date.now() });
+  const item = await store.addExpense({ amount, category, note, ts: state.date, type });
+  Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(state.date)), date: Date.now(), kind: 'out' });
   render();
-  toast(`${money(item.amount)} · ${CAT[item.category].name}`, async () => {
+  toast(`${type ? '+' : ''}${money(item.amount)} · ${CAT[item.category].name}`, async () => {
     await store.removeExpense(item.id);
     render();
   });
@@ -362,32 +388,44 @@ const PICKABLE = ['star', 'heart', 'music_notes', 'camera', 'game_controller', '
   'groceries', 'cafe', 'fastfood', 'coffee', 'travel', 'home', 'health', 'sport', 'fun', 'education', 'gifts', 'tech'];
 
 function renderNewCategory() {
-  const { icon = 'star', name = '' } = state.draft;
+  const { icon = 'star', name = '', color = PALETTE[0], id } = state.draft;
   app.innerHTML = `
     <section class="screen">
       <div class="glow-top"></div>
       <div class="topbar">
         <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
-        <div class="pill">Новая категория</div>
+        <div class="pill">${id ? 'Категория' : 'Новая категория'}</div>
         <div style="width:40px"></div>
       </div>
       <div class="newcat-head">
-        <div class="ico preview">${rawIcon(icon)}</div>
+        <div class="ico preview" style="--cc:${color}">${rawIcon(icon)}</div>
         <input class="field big" id="cname" placeholder="Название" maxlength="24" value="${esc(name)}" autocapitalize="words">
       </div>
       <div class="cats">
+        <div class="section-label">Цвет</div>
+        <div class="color-grid">
+          ${PALETTE.map((c) => `<button class="color-pick${c === color ? ' on' : ''}" data-c="${c}" style="--cc:${c}" aria-label="Цвет"></button>`).join('')}
+        </div>
         <div class="section-label">Иконка</div>
         <div class="emoji-grid">
           ${PICKABLE.map((e, i) => `<button class="emoji-pick${e === icon ? ' on' : ''}" data-e="${e}" style="--i:${i}">${rawIcon(e)}</button>`).join('')}
         </div>
       </div>
       <div class="bottom">
-        <button class="btn" id="create" ${name.trim().length >= 2 ? '' : 'disabled'}>Создать категорию</button>
+        <button class="btn" id="create" ${name.trim().length >= 2 ? '' : 'disabled'}>${id ? 'Сохранить' : 'Создать категорию'}</button>
       </div>
     </section>`;
 
-  const back = () => { state.flow = 'category'; render(); };
+  const back = () => { state.flow = state.draft.from; render(); };
   app.querySelector('#back').onclick = back;
+  app.querySelector('.color-grid').onclick = (e) => {
+    const b = e.target.closest('[data-c]');
+    if (!b) return;
+    haptic();
+    state.draft.color = b.dataset.c;
+    app.querySelectorAll('.color-pick').forEach((n) => n.classList.toggle('on', n === b));
+    app.querySelector('.ico.preview').style.setProperty('--cc', b.dataset.c);
+  };
   const input = app.querySelector('#cname');
   input.oninput = () => {
     state.draft.name = input.value;
@@ -402,12 +440,18 @@ function renderNewCategory() {
     app.querySelector('.ico.preview').innerHTML = rawIcon(b.dataset.e);
   };
   app.querySelector('#create').onclick = () => {
-    const id = addCategory(state.draft.name.trim(), state.draft.icon);
-    state.cat = id;
-    state.flow = 'category';
+    const d = state.draft;
     haptic();
+    if (d.id) {
+      updateCategory(d.id, { name: d.name.trim(), icon: d.icon, color: d.color });
+      state.flow = d.from;
+      render();
+      return toast('Категория сохранена');
+    }
+    state.cat = addCategory(d.name.trim(), d.icon, d.color, d.kind);
+    state.flow = 'category';
     render();
-    toast(`Категория «${state.draft.name.trim()}» создана`);
+    toast(`Категория «${d.name.trim()}» создана`);
   };
 }
 
@@ -433,7 +477,8 @@ store.onChange(() => { if (!state.flow) render(); });
 // Жест «назад»: свайп от левого края вправо
 function goBack() {
   if (state.info) { state.info = null; return render(); }
-  if (state.flow === 'newcat') { state.flow = 'category'; return render(); }
+  if (state.flow === 'newcat') { state.flow = state.draft.from; return render(); }
+  if (state.flow === 'deposit') { state.flow = null; state.dep = null; return render(); }
   if (state.flow === 'category') { state.flow = 'add'; return render(); }
   if (state.flow === 'import' || state.flow === 'cats') { state.flow = null; state.tab = 'profile'; return render(); }
   if (state.flow === 'cat') { state.flow = null; state.catId = null; return render(); }
