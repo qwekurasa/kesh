@@ -2,7 +2,7 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
-  render, toast, tabbar, bindTabs, avatarHTML, openEdit, openCategory, countUp, customCategories, removeCategory, catIcon,
+  render, toast, tabbar, bindTabs, avatarHTML, openEdit, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
 } from './ui.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -92,7 +92,7 @@ export async function renderHome() {
     const tr = e.target.closest('.tr');
     if (tr) {
       const item = items.find((i) => i.id === tr.dataset.id);
-      if (item) { haptic(); openEdit(item); }
+      if (item) { haptic(); openInfo(item); }
     }
   });
 }
@@ -399,8 +399,54 @@ export async function renderCategoryDetail() {
     const row = e.target.closest('[data-id]');
     if (!row) return;
     const item = items.find((i) => i.id === row.dataset.id);
-    if (item) { haptic(); openEdit(item); }
+    if (item) { haptic(); openInfo(item); }
   });
+}
+
+/* ---------- карточка траты ---------- */
+const WD_FULL = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+
+export function renderInfo() {
+  const i = state.info;
+  const d = new Date(i.ts);
+  const close = () => { state.info = null; render(); };
+
+  app.innerHTML = `
+    <section class="screen sheet-screen">
+      <div class="glow-top"></div>
+      <div class="topbar">
+        <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
+        <div class="pill">Трата</div>
+        <div style="width:40px"></div>
+      </div>
+      <div class="info-hero">
+        <span class="tr-ico xl">${catIcon(i.category)}</span>
+        <div class="info-amount">${money(i.amount)}</div>
+        <div class="month-sub">${esc(CAT[i.category]?.name || i.category)}</div>
+      </div>
+      <div class="cats">
+        <div class="card rows">
+          <div class="row"><span>Дата</span><span class="row-extra">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}, ${WD_FULL[d.getDay()]}</span></div>
+          <div class="row"><span>Время</span><span class="row-extra">${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</span></div>
+          ${i.note ? `<div class="row"><span>Описание</span><span class="row-extra">${esc(i.note)}</span></div>` : ''}
+          <div class="row"><span>Источник</span><span class="row-extra">${i.id.startsWith('imp') ? 'Выписка банка' : 'Добавлено вручную'}</span></div>
+        </div>
+      </div>
+      <div class="bottom">
+        <button class="btn" id="edit">Изменить</button>
+        <button class="btn ghost danger" id="del">Удалить трату</button>
+      </div>
+    </section>`;
+
+  app.querySelector('#back').onclick = close;
+  app.querySelector('#edit').onclick = () => openEdit(i);
+  app.querySelector('#del').onclick = async () => {
+    if (!(await ask('Удалить трату?', `${money(i.amount)} · ${CAT[i.category]?.name || ''}`))) return;
+    state.info = null;
+    await store.removeExpense(i.id);
+    render();
+    toast('Трата удалена');
+  };
 }
 
 /* ---------- search ---------- */
@@ -444,7 +490,7 @@ export async function renderSearch() {
     const row = e.target.closest('[data-id]');
     if (!row) return;
     const item = found.find((i) => i.id === row.dataset.id);
-    if (item) { haptic(); openEdit(item); }
+    if (item) { haptic(); openInfo(item); }
   });
   const input = app.querySelector('#q');
   input.oninput = debounce(() => { state.query = input.value; render(); }, 220);
@@ -480,12 +526,14 @@ export async function renderProfile() {
     <section class="screen tabbed">
       <div class="glow-top"></div>
       <header class="profile-head">
-        <button class="ava-wrap" id="pick-ava" aria-label="Сменить аватар">
+        <button class="ava-wrap" id="pick-ava" aria-label="Сменить фото">
           ${avatarHTML('lg')}
           <span class="ava-edit">${icons.camera}</span>
         </button>
         <div class="profile-name">${esc(acc.login)}</div>
         <div class="month-sub">${all.length} ${plural(all.length, 'трата', 'траты', 'трат')} · ${money(sum(all))}</div>
+        <div class="skins">${SKINS.map((_, n) =>
+          `<button class="skin${avatarSkin() === n ? ' on' : ''}" data-skin="${n}" style="${skinStyle(n)}" aria-label="Цвет ${n + 1}"></button>`).join('')}</div>
       </header>
       <div class="scroll">
         <div class="section-label">Аккаунт</div>
@@ -512,15 +560,26 @@ export async function renderProfile() {
 
   bindTabs();
   app.querySelector('#pick-ava').onclick = pickAvatar;
+  app.querySelector('.skins').onclick = (e) => {
+    const n = e.target.closest('[data-skin]')?.dataset.skin;
+    if (n === undefined) return;
+    haptic();
+    localStorage.setItem('avatarSkin', n);
+    localStorage.removeItem('avatar');
+    applySkin(Number(n));
+    render();
+  };
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const a = e.target.closest('.row')?.dataset.a;
     if (!a) return;
     if (a === 'password') return changePassword();
     if (a === 'nopass') {
-      if (!confirm('Убрать пароль? Приложение будет открываться сразу.')) return;
-      auth.removePassword();
-      toast('Пароль убран');
-      return render();
+      return ask('Убрать пароль?', 'Приложение будет открываться сразу.', 'Убрать').then((yes) => {
+        if (!yes) return;
+        auth.removePassword();
+        toast('Пароль убран');
+        render();
+      });
     }
     if (a === 'cats') { state.flow = 'cats'; return render(); }
     if (a === 'faceid') return toggleFaceId(acc);
@@ -528,8 +587,8 @@ export async function renderProfile() {
     if (a === 'export') return exportData();
     if (a === 'import') return importData();
     if (a === 'clear-imported') {
-      if (!confirm(`Удалить ${imported} ${plural(imported, 'трату', 'траты', 'трат')}, добавленных из выписок? Траты, внесённые вручную, останутся.`)) return;
-      return store.removeImported().then((n) => toast(`Удалено трат: ${n}`));
+      return ask(`Удалить ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`, 'Это траты из выписок. Внесённые вручную останутся.')
+        .then(async (yes) => { if (yes) toast(`Удалено трат: ${await store.removeImported()}`); });
     }
     if (a === 'logout') {
       state.unlocked = false;
@@ -539,10 +598,13 @@ export async function renderProfile() {
   });
 }
 
-function pickAvatar() {
-  if (localStorage.getItem('avatar') && confirm('Убрать текущий аватар?')) {
-    localStorage.removeItem('avatar');
-    return render();
+async function pickAvatar() {
+  if (localStorage.getItem('avatar')) {
+    if (await ask('Убрать фото?', 'Вернётся градиентный аватар.', 'Убрать')) {
+      localStorage.removeItem('avatar');
+      return render();
+    }
+    return;
   }
   const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*' });
   input.onchange = async () => {
@@ -564,22 +626,20 @@ function pickAvatar() {
 }
 
 async function changePassword() {
-  if (!auth.hasPassword()) {
-    const pass = prompt('Новый пароль (минимум 4 символа)');
-    if (pass === null) return;
-    if (pass.length < 4) return toast('Пароль: минимум 4 символа');
-    if (pass !== prompt('Повторите пароль')) return toast('Пароли не совпадают');
-    await auth.setPassword(pass);
-    render();
-    return toast('Пароль установлен');
+  if (auth.hasPassword()) {
+    const current = await askText('Текущий пароль', { type: 'password' });
+    if (current === null) return;
+    if (!(await auth.checkPassword(null, current))) return toast('Текущий пароль неверный');
   }
-  const current = prompt('Текущий пароль');
-  if (current === null) return;
-  const next = prompt('Новый пароль (минимум 4 символа)');
+  const next = await askText('Новый пароль', { type: 'password', placeholder: 'Минимум 4 символа' });
   if (next === null) return;
   if (next.length < 4) return toast('Пароль: минимум 4 символа');
-  if (next !== prompt('Повторите новый пароль')) return toast('Пароли не совпадают');
-  toast((await auth.changePassword(current, next)) ? 'Пароль изменён' : 'Текущий пароль неверный');
+  const again = await askText('Повторите пароль', { type: 'password' });
+  if (again === null) return;
+  if (next !== again) return toast('Пароли не совпадают');
+  await auth.setPassword(next);
+  render();
+  toast(auth.hasPassword() ? 'Пароль сохранён' : 'Пароль установлен');
 }
 
 export function renderCustomCats() {
@@ -606,9 +666,12 @@ export function renderCustomCats() {
   app.querySelector('#back').onclick = () => { state.flow = null; render(); };
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const id = e.target.closest('[data-del]')?.dataset.del;
-    if (!id || !confirm('Удалить категорию? Траты в ней останутся и перейдут в «Другое».')) return;
-    removeCategory(id);
-    render();
+    if (!id) return;
+    ask('Удалить категорию?', 'Траты в ней останутся и перейдут в «Другое».').then((yes) => {
+      if (!yes) return;
+      removeCategory(id);
+      render();
+    });
   });
 }
 

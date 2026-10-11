@@ -7,7 +7,7 @@ const BASE = [
   ['health', 'Здоровье'], ['beauty', 'Красота'], ['sport', 'Спорт'], ['fun', 'Развлечения'],
   ['travel', 'Путешествия'], ['education', 'Обучение'], ['gifts', 'Подарки'], ['pets', 'Питомцы'],
   ['kids', 'Дети'], ['tech', 'Техника'], ['household', 'Хозтовары'], ['transfers', 'Переводы'],
-  ['finance', 'Финансы'], ['cash', 'Наличные'], ['other', 'Другое'],
+  ['marketplace', 'Маркетплейсы'], ['finance', 'Финансы'], ['cash', 'Наличные'], ['other', 'Другое'],
 ];
 
 const KEYWORDS = {
@@ -35,8 +35,10 @@ const KEYWORDS = {
   tech: 'техника гаджеты электроника компьютер',
   household: 'хозтовары бытовая химия дом ремонт',
   transfers: 'перевод деньги другу',
+  marketplace: '<path d="M232,96a7.89,7.89,0,0,0-.3-2.2L217.35,43.6A16.07,16.07,0,0,0,202,32H54A16.07,16.07,0,0,0,38.65,43.6L24.31,93.8A7.89,7.89,0,0,0,24,96h0v16a40,40,0,0,0,16,32v72a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V144a40,40,0,0,0,16-32V96ZM54,48H202l11.42,40H42.61Zm50,56h48v8a24,24,0,0,1-48,0Zm-16,0v8a24,24,0,0,1-35.12,21.26,7.88,7.88,0,0,0-1.82-1.06A24,24,0,0,1,40,112v-8ZM200,208H56V151.2a40.57,40.57,0,0,0,8,.8,40,40,0,0,0,32-16,40,40,0,0,0,64,0,40,40,0,0,0,32,16,40.57,40.57,0,0,0,8-.8Zm4.93-75.8a8.08,8.08,0,0,0-1.8,1.05A24,24,0,0,1,168,112v-8h48v8A24,24,0,0,1,204.93,132.2Z"/>',
   finance: 'финансы банк счёт вклад',
   cash: 'наличные снятие банкомат',
+  marketplace: '<path d="M216,56H176V48a24,24,0,0,0-24-24H104A24,24,0,0,0,80,48v8H40A16,16,0,0,0,24,72V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V72A16,16,0,0,0,216,56ZM96,48a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM216,72v41.61A184,184,0,0,1,128,136a184.07,184.07,0,0,1-88-22.38V72Zm0,128H40V131.64A200.19,200.19,0,0,0,128,152a200.25,200.25,0,0,0,88-20.37V200ZM104,112a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H112A8,8,0,0,1,104,112Z"/>',
   other: 'другое прочее разное',
 };
 
@@ -171,7 +173,7 @@ export const state = {
   collapsed: new Set(),
   period: 'month',
   query: '', filter: null, authMode: null, imp: null, edit: null, catId: null,
-  catQuery: '', date: Date.now(), step: 0, draft: {},
+  catQuery: '', date: Date.now(), step: 0, draft: {}, info: null,
 };
 
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
@@ -221,7 +223,13 @@ export function go(tab) {
   render();
 }
 
+export function openInfo(item) {
+  state.info = item;
+  render();
+}
+
 export function openEdit(item) {
+  state.info = null;
   const rub = item.amount / 100;
   Object.assign(state, {
     flow: 'add',
@@ -245,6 +253,38 @@ export function openAdd() {
   Object.assign(state, { flow: 'add', edit: null, amt: '', cat: null, note: '', catQuery: '', date: Date.now() });
   render();
 }
+
+// Свои диалоги: в PWA на iOS нативные confirm/prompt не работают
+export function dialog({ title, text = '', ok = 'ОК', cancel = 'Отмена', danger = false, input = null }) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-wrap';
+    wrap.innerHTML = `
+      <div class="modal-bd"></div>
+      <div class="modal">
+        <h3>${esc(title)}</h3>
+        ${text ? `<p>${esc(text)}</p>` : ''}
+        ${input ? `<input class="field" id="mi" type="${input.type || 'text'}" inputmode="${input.mode || 'text'}"
+          placeholder="${esc(input.placeholder || '')}" value="${esc(input.value || '')}" autocomplete="off" autocapitalize="none">` : ''}
+        <div class="modal-btns">
+          <button class="btn alt" data-r="0">${esc(cancel)}</button>
+          <button class="btn${danger ? ' danger-btn' : ''}" data-r="1">${esc(ok)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const field = wrap.querySelector('#mi');
+    const close = (val) => { wrap.remove(); resolve(val); };
+    wrap.querySelector('.modal-bd').onclick = () => close(null);
+    wrap.querySelectorAll('[data-r]').forEach((b) => {
+      b.onclick = () => (b.dataset.r === '0' ? close(null) : close(input ? field.value : true));
+    });
+    field?.addEventListener('keydown', (e) => { if (e.key === 'Enter') wrap.querySelector('[data-r="1"]').click(); });
+    setTimeout(() => field?.focus(), 60);
+  });
+}
+
+export const ask = (title, text, ok = 'Удалить') => dialog({ title, text, ok, danger: true });
+export const askText = (title, opts = {}) => dialog({ title, ok: 'Готово', input: { ...opts } });
 
 let toastTimer;
 export function toast(text, undo) {
@@ -290,6 +330,14 @@ export const skinStyle = (n) => {
   const [a, b, c] = SKINS[n % SKINS.length];
   return `background:radial-gradient(62% 56% at 32% 26%, ${a} 0%, ${b} 46%, ${c} 100%)`;
 };
+
+export function applySkin(n = avatarSkin()) {
+  const [a, b, c] = SKINS[n % SKINS.length];
+  const r = document.documentElement.style;
+  r.setProperty('--skin-a', a);
+  r.setProperty('--skin-b', b);
+  r.setProperty('--skin-c', c);
+}
 
 export function avatarHTML(cls = '') {
   const src = avatar();

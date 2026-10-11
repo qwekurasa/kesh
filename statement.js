@@ -29,9 +29,13 @@ const RULES = [
 // Поступления и перекладывание денег между своими счетами тратой не считаются
 const INCOME = /пополнение|кэшбэк|кешбэк|возврат средств|банковский перевод|проценты на остаток|перевод себе|перевод с договора/i;
 
+// Банки маркетплейсов: перевод туда почти всегда оплата заказа
+const MARKETPLACE_BANK = /yandex|яндекс|ozon|озон|wildberries|вайлдберриз|\bwb\b|wbbank|avito|авито|megamarket|мегамаркет|sbermarket|aliexpress/i;
+
 export function categorize(desc) {
   const d = desc.toLowerCase();
-  if (/операция в других кредитных|yandexbank|c2a/.test(d)) return 'finance';
+  if (/операция в других кредитных|другой банк|c2a/.test(d)) return MARKETPLACE_BANK.test(d) ? 'marketplace' : 'finance';
+  if (MARKETPLACE_BANK.test(d) && /перевод|пополнен/.test(d)) return 'marketplace';
   if (/снятие наличных|выдача наличных/.test(d)) return 'cash';
   if (/внешний перевод|перевод по номеру|внутренний перевод/.test(d)) return 'transfers';
   for (const [re, cat] of RULES) if (re.test(d)) return cat;

@@ -1,9 +1,9 @@
 import * as store from './store.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport, renderCustomCats } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderSearch, renderProfile, renderImport, renderCustomCats, renderInfo } from './screens.js';
 import {
   CATEGORIES, CAT, app, state, money, esc, haptic, icons,
-  setRender, render, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle,
+  setRender, render, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
 } from './ui.js';
 
 const kopecks = () => Math.round(parseFloat(state.amt.replace(',', '.') || '0') * 100);
@@ -15,6 +15,7 @@ function main() {
   if (!acc && !state.authMode) return renderWelcome();
   if (!acc) return renderAuth(state.authMode);
   if (!state.unlocked) return renderAuth(acc.credId && !state.usePassword ? 'lock' : 'login');
+  if (state.info) return renderInfo();
   if (state.flow === 'add') return renderAmount();
   if (state.flow === 'category') return renderCategory();
   if (state.flow === 'newcat') return renderNewCategory();
@@ -75,7 +76,7 @@ function renderAuth(mode) {
             <div class="error" id="err"></div>
             <button class="btn" type="submit">Войти <span class="arr">→</span></button>
           </form>
-          <div class="switch">${acc.credId ? '<button id="back-faceid">Face ID</button> · ' : ''}<button id="reset" class="muted-link">Забыли пароль?</button></div>`}
+          <div class="switch">${acc.credId ? '<button id="back-faceid">Face ID</button>' : ''}${acc.credId && auth.hasPassword() ? ' · ' : ''}${auth.hasPassword() ? '<button id="reset" class="muted-link">Забыли пароль?</button>' : ''}</div>`}
       </div>
     </section>`;
 
@@ -92,7 +93,7 @@ function renderAuth(mode) {
 
   app.querySelector('#back-faceid')?.addEventListener('click', () => { state.usePassword = false; render(); });
   app.querySelector('#reset')?.addEventListener('click', async () => {
-    if (!confirm('Пароль восстановить нельзя. Сбросить аккаунт? Все траты на этом устройстве будут удалены.')) return;
+    if (!(await ask('Сбросить аккаунт?', 'Пароль восстановить нельзя. Все траты на этом устройстве будут удалены.', 'Сбросить'))) return;
     await store.wipe();
     auth.reset();
     localStorage.removeItem('loggedIn');
@@ -164,6 +165,7 @@ function renderOnboarding() {
     if (!b) return;
     haptic();
     state.draft.skin = Number(b.dataset.e);
+    applySkin(state.draft.skin);
     render();
   };
   app.querySelector('#done').onclick = () => {
@@ -292,10 +294,11 @@ async function renderCategory() {
   app.innerHTML = `
     <section class="screen">
       <div class="glow-top"></div>
-      <div class="topbar">
+      <div class="topbar cat-bar">
         <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
-        <button class="amount-chip" id="edit">${money(kopecks())} ${icons.edit}</button>
-        <label class="amount-chip date-chip">${today ? 'Сегодня' : `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`}
+        <button class="amount-chip center" id="edit">${money(kopecks())} ${icons.edit}</button>
+        <label class="icon-btn date-chip${today ? '' : ' set'}" aria-label="Дата траты">
+          ${icons.calendar}${today ? '' : `<b>${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}</b>`}
           <input type="date" id="date" value="${iso}" max="${new Date().toISOString().slice(0, 10)}">
         </label>
       </div>
@@ -341,7 +344,7 @@ async function renderCategory() {
   };
   app.querySelector('#save').onclick = save;
   app.querySelector('#del')?.addEventListener('click', async () => {
-    if (!confirm('Удалить эту трату?')) return;
+    if (!(await ask('Удалить трату?', '', 'Удалить'))) return;
     const { id } = state.edit;
     Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '' });
     await store.removeExpense(id);
@@ -416,8 +419,8 @@ function renderNewCategory() {
     if (!b) return;
     haptic();
     state.draft.icon = b.dataset.e;
-    render();
-    app.querySelector('#cname').value = state.draft.name || '';
+    app.querySelectorAll('.emoji-pick').forEach((n) => n.classList.toggle('on', n.dataset.e === b.dataset.e));
+    app.querySelector('.ico.preview').innerHTML = rawIcon(b.dataset.e);
   };
   app.querySelector('#create').onclick = () => {
     const id = addCategory(state.draft.name.trim(), state.draft.icon);
@@ -448,5 +451,6 @@ document.addEventListener('keydown', (e) => {
 
 store.onChange(() => { if (!state.flow) render(); });
 
+applySkin();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 render();
