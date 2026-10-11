@@ -5,7 +5,7 @@ import {
   render, toast, tabbar, bindTabs, avatarHTML, openEdit, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
 } from './ui.js';
 
-export const BUILD = 'v19';
+export const BUILD = 'v20';
 
 // Диагностика раскладки: видно, насколько вьюпорт меньше экрана
 function diagnostics() {
