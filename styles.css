@@ -759,13 +759,9 @@ button.switch-row { width: 100%; text-align: left; }
 .period-btn svg { width: 15px; height: 15px; color: var(--text-2); flex: none; }
 .period-btn:active { background: var(--raised); }
 .home-head .who { margin-left: 0; }
-.period-modal .lbl { display: block; font-size: 12.5px; color: var(--text-2); margin: 6px 2px -2px; }
-.preset-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .preset { height: 38px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; }
 .preset:active { background: var(--surface-3); }
-.range-row { display: flex; align-items: center; gap: 6px; }
-.range-row .field { flex: 1; min-width: 0; padding: 0 10px; font-size: 14px; }
-.range-row span { color: var(--text-3); }
 
 /* вклады */
 .dep-row .tr-name { gap: 3px; }
@@ -789,3 +785,38 @@ button.switch-row { width: 100%; text-align: left; }
 .add-screen .amount-edge .amount-kesh svg { width: 50px; height: auto; display: block; animation: peek-up .45s cubic-bezier(.3, 1.3, .5, 1); }
 @keyframes peek-up { from { transform: translateY(100%); } }
 .add-screen .amount-hint { margin-top: 12px; }
+
+/* окно периода с календарём */
+.period-modal { max-width: 360px; gap: 12px; }
+.range-show { display: grid; gap: 4px; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+.range-show small { font-size: 11.5px; color: var(--text-3); }
+.range-show b { font: 500 14.5px var(--mono); letter-spacing: -.02em; }
+.cal { min-height: 300px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 6px 6px 8px; }
+.cal .spinner { margin: 120px auto; }
+.cal .air-datepicker {
+  --adp-font-family: var(--font); --adp-font-size: 14px; --adp-width: 100%; --adp-padding: 4px;
+  --adp-background-color: transparent; --adp-background-color-hover: var(--raised); --adp-background-color-active: var(--surface-3);
+  --adp-color: var(--text); --adp-color-secondary: var(--text-2); --adp-accent-color: var(--pos); --adp-color-current-date: var(--pos);
+  --adp-color-other-month: var(--text-3); --adp-color-other-month-hover: var(--text-2); --adp-color-disabled: #3A3A40; --adp-color-disabled-in-range: #55555c;
+  --adp-border-color: transparent; --adp-border-color-inner: var(--border); --adp-border-color-inline: transparent; --adp-border-radius: 10px;
+  --adp-nav-height: 40px; --adp-nav-action-size: 36px; --adp-nav-arrow-color: var(--text-2); --adp-nav-color-secondary: var(--text-2);
+  --adp-day-name-color: var(--text-3); --adp-day-name-color-hover: var(--text-2); --adp-day-cell-height: 40px; --adp-month-cell-height: 46px; --adp-year-cell-height: 52px;
+  --adp-cell-border-radius: 10px; --adp-cell-background-color-hover: var(--raised);
+  --adp-cell-background-color-selected: var(--text); --adp-cell-background-color-selected-hover: var(--text);
+  --adp-cell-background-color-in-range: rgba(255, 255, 255, .07); --adp-cell-background-color-in-range-hover: rgba(255, 255, 255, .11);
+  --adp-cell-border-color-in-range: transparent; --adp-background-color-in-range: rgba(255, 255, 255, .07); --adp-background-color-selected-other-month: var(--raised);
+  width: 100%; box-sizing: border-box;
+}
+.cal .air-datepicker-nav { border-bottom: 0; }
+.cal .air-datepicker-nav--title { font-size: 15px; }
+.cal .air-datepicker-nav--title b { font-weight: 500; }
+.cal .air-datepicker-nav--title i { font-family: var(--mono); font-size: 13px; }
+.cal .air-datepicker-nav--action svg { width: 20px; height: 20px; }
+.cal .air-datepicker-nav--action path { fill: none; stroke: currentColor; stroke-width: 2px; }
+.cal .air-datepicker-nav--action { color: var(--text-2); }
+.cal .air-datepicker-body--day-name { font: 500 10.5px var(--mono); letter-spacing: .06em; }
+.cal .air-datepicker-cell.-day- { font-family: var(--mono); font-size: 13.5px; }
+.cal .air-datepicker-cell.-selected-, .cal .air-datepicker-cell.-selected-.-current- { color: var(--bg); font-weight: 600; }
+.cal .air-datepicker-cell.-current-:not(.-selected-) { box-shadow: inset 0 0 0 1px var(--border-strong); }
+.cal .air-datepicker-nav { justify-content: flex-start; gap: 2px; }
+.cal .air-datepicker-nav--title { order: -1; margin-right: auto; padding-left: 10px; }

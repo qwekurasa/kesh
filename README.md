@@ -35,4 +35,4 @@ python3 -m http.server 8080
 
 ## Лицензия
 
-MIT. Сторонние компоненты: PDF.js (Apache-2.0), шрифты Onest, Outfit, JetBrains Mono (OFL), иконки Phosphor (MIT).
+MIT. Сторонние компоненты: PDF.js (Apache-2.0), Air Datepicker (MIT), шрифты Onest, Outfit, JetBrains Mono (OFL), иконки Phosphor (MIT).

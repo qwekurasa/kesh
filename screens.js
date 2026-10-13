@@ -12,7 +12,7 @@ const REPO = 'https://github.com/qwekurasa/kesh';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { L, LANG, setLang, plural as pl } from './i18n.js';
 
-export const BUILD = 'v36';
+export const BUILD = 'v37';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -182,55 +182,84 @@ function shiftMonth(delta) {
   render();
 }
 
-// Выбор периода: готовые варианты, месяц или свой диапазон дат
-function pickPeriod() {
-  const day0 = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const now = new Date();
-  const tomorrow = day0(now) + 864e5;
-  const iso = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-  const presets = [
-    ['month', L('Этот месяц', 'This month')], ['prev', L('Прошлый месяц', 'Last month')],
-    ['7', L('7 дней', '7 days')], ['30', L('30 дней', '30 days')], ['90', L('3 месяца', '3 months')], ['year', L('Этот год', 'This year')],
-  ];
-  const cur = state.range || { from: state.month.getTime(), to: +new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1) };
+// Календарь — открытый Air Datepicker (MIT), подгружается при первом открытии
+let pickerLib;
+const loadPicker = () => (pickerLib ||= new Promise((res, rej) => {
+  document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: './vendor/air-datepicker.css' }));
+  const sc = Object.assign(document.createElement('script'), { src: './vendor/air-datepicker.js' });
+  sc.onload = () => res(window.AirDatepicker);
+  sc.onerror = () => { pickerLib = null; rej(new Error('picker')); };
+  document.head.appendChild(sc);
+}));
+const PICKER_LOCALE = L({
+  days: ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'],
+  daysShort: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'], daysMin: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+  months: MONTHS, monthsShort: MONTHS_SHORT, today: 'Сегодня', clear: 'Очистить', dateFormat: 'dd.MM.yyyy', timeFormat: 'HH:mm', firstDay: 1,
+}, {
+  days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  daysShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], daysMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+  months: MONTHS, monthsShort: MONTHS_SHORT, today: 'Today', clear: 'Clear', dateFormat: 'MM/dd/yyyy', timeFormat: 'hh:mm aa', firstDay: 1,
+});
+
+// Выбор периода: 7 / 14 / 30 дней или свой диапазон в календаре
+async function pickPeriod() {
+  const day0 = (ts) => { const d = new Date(ts); return +new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+  const tomorrow = day0(Date.now()) + 864e5;
+  const cur = state.range || { from: state.month.getTime(), to: Math.min(tomorrow, +new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1)) };
+  let sel = [new Date(cur.from), new Date(cur.to - 1)];
+  const fmt = (d) => (d ? L(`${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`, `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`) : '…');
   const wrap = document.createElement('div');
   wrap.className = 'modal-wrap';
   wrap.innerHTML = `<div class="modal-bd"></div>
     <div class="modal period-modal" role="dialog" aria-modal="true" aria-labelledby="pt">
       <h3 id="pt">${L('Период', 'Period')}</h3>
-      <div class="preset-grid">${presets.map(([k, t]) => `<button class="preset" data-p="${k}">${t}</button>`).join('')}</div>
-      <label class="lbl">${L('Месяц', 'Month')}</label>
-      <input class="field" type="month" id="mpick" value="${state.month.getFullYear()}-${String(state.month.getMonth() + 1).padStart(2, '0')}" max="${iso(Date.now()).slice(0, 7)}">
-      <label class="lbl">${L('Свой период', 'Custom range')}</label>
-      <div class="range-row"><input class="field" type="date" id="rfrom" value="${iso(cur.from)}" max="${iso(Date.now())}"><span>—</span><input class="field" type="date" id="rto" value="${iso(cur.to - 1)}" max="${iso(Date.now())}"></div>
+      <div class="preset-grid">${[7, 14, 30].map((n) => `<button class="preset" data-p="${n}">${n} ${L('дней', 'days')}</button>`).join('')}</div>
+      <div class="range-show"><small>${L('С — по', 'From — to')}</small><b id="rshow"></b></div>
+      <div class="cal" id="cal"><div class="spinner"></div></div>
       <div class="modal-btns"><button class="btn alt" data-r="0">${L('Отмена', 'Cancel')}</button><button class="btn" data-r="1">${L('Показать', 'Show')}</button></div>
     </div>`;
   document.body.appendChild(wrap);
-  const close = () => { wrap.remove(); document.removeEventListener('keydown', keys, true); };
+  const show = () => { wrap.querySelector('#rshow').textContent = `${fmt(sel[0])} — ${fmt(sel[1] || sel[0])}`; };
+  show();
+  let dp;
+  const close = () => { dp?.destroy(); wrap.remove(); document.removeEventListener('keydown', keys, true); };
   const keys = (e) => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', keys, true);
-  const apply = (range, month) => { close(); state.range = range; if (month) state.month = month; render(); };
+  // целый календарный месяц (или текущий месяц до сегодня) — обычный помесячный режим
+  const apply = (from, to) => {
+    close();
+    const f = new Date(from);
+    const monthEnd = +new Date(f.getFullYear(), f.getMonth() + 1, 1);
+    if (f.getDate() === 1 && (to === monthEnd || (to === tomorrow && monthEnd > Date.now()))) { state.range = null; state.month = new Date(f.getFullYear(), f.getMonth(), 1); }
+    else state.range = { from, to };
+    render();
+  };
   wrap.querySelector('.modal-bd').onclick = close;
   wrap.querySelector('[data-r="0"]').onclick = close;
   wrap.querySelector('.preset-grid').onclick = (e) => {
-    const k = e.target.closest('[data-p]')?.dataset.p;
-    if (!k) return;
-    haptic();
-    if (k === 'month') return apply(null, new Date(now.getFullYear(), now.getMonth(), 1));
-    if (k === 'prev') return apply(null, new Date(now.getFullYear(), now.getMonth() - 1, 1));
-    if (k === 'year') return apply({ from: +new Date(now.getFullYear(), 0, 1), to: tomorrow });
-    apply({ from: tomorrow - Number(k) * 864e5, to: tomorrow });
-  };
-  wrap.querySelector('#mpick').onchange = (e) => {
-    const [y, mm] = e.target.value.split('-').map(Number);
-    if (y) apply(null, new Date(y, mm - 1, 1));
+    const n = Number(e.target.closest('[data-p]')?.dataset.p);
+    if (n) { haptic(); apply(tomorrow - n * 864e5, tomorrow); }
   };
   wrap.querySelector('[data-r="1"]').onclick = () => {
-    const f = wrap.querySelector('#rfrom').value, t = wrap.querySelector('#rto').value;
-    if (!f || !t) return;
-    const [a, b] = [f, t].map((v) => { const [y, mm, d] = v.split('-').map(Number); return +new Date(y, mm - 1, d); }).sort((x, y) => x - y);
-    apply({ from: a, to: b + 864e5 });
+    if (!sel[0]) return;
+    const a = day0(sel[0]), b = day0(sel[1] || sel[0]);
+    apply(Math.min(a, b), Math.max(a, b) + 864e5);
   };
+  try {
+    const AirDatepicker = await loadPicker();
+    if (!wrap.isConnected) return;
+    const chev = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+    wrap.querySelector('#cal').innerHTML = '';
+    dp = new AirDatepicker(wrap.querySelector('#cal'), {
+      inline: true, range: true, dynamicRange: true, toggleSelected: false,
+      locale: PICKER_LOCALE, maxDate: new Date(), selectedDates: sel, startDate: sel[1],
+      navTitles: { days: '<b>MMMM</b> <i>yyyy</i>', months: '<i>yyyy</i>', years: '<i>yyyy1 – yyyy2</i>' },
+      prevHtml: chev('m15 18-6-6 6-6'), nextHtml: chev('m9 18 6-6-6-6'),
+      onSelect: ({ date }) => { sel = Array.isArray(date) ? date : [date]; show(); },
+    });
+  } catch {
+    wrap.querySelector('#cal').innerHTML = `<div class="empty sm">${L('Календарь не загрузился. Проверьте сеть.', 'Calendar failed to load. Check your connection.')}</div>`;
+  }
 }
 
 const PL_EN = {

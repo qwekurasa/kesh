@@ -242,7 +242,9 @@ export const state = {
 };
 
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
-export const money = (kop) => `${nf.format(kop / 100)} ₽`;
+const nf2 = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// копейки — всегда двумя знаками: 12 682,50 ₽, а не 12 682,5 ₽
+export const money = (kop) => `${(kop % 100 ? nf2 : nf).format(kop / 100)} ₽`;
 export const moneyShort = (kop) => {
   const r = Math.round(kop / 100);
   if (Math.abs(r) >= 1000000) return `${nf.format(Math.round(r / 100000) / 10)}M`;
