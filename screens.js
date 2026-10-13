@@ -13,7 +13,7 @@ import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { TYPES, accounts, balances, ownTotal, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v44';
+export const BUILD = 'v45';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -747,7 +747,7 @@ export async function renderProfile() {
         </div>
         <div class="section-label">${L('О проекте', 'About')}</div>
         <div class="card rows group">
-          ${link(REPO, icons.heart, L('Поддержать проект', 'Support the project'))}
+          ${link(REPO + '#поддержать', icons.heart, L('Поддержать проект', 'Support the project'))}
           ${link(REPO, icons.code, L('Исходный код', 'Source code'), 'GitHub')}
         </div>
         <div class="card rows group">
