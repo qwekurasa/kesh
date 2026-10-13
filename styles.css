@@ -528,12 +528,6 @@ button.cat-row { animation: rise .4s ease-out backwards; animation-delay: calc(v
 .metrics { margin-top: 0; }
 .metrics small { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
 .metrics .delta { justify-self: start; margin-top: 4px; font-size: 10.5px; padding: 2px 6px; }
-.mini-chart { display: block; width: 100%; text-align: left; margin-top: 8px; }
-.mini-bars { display: flex; align-items: flex-end; gap: 2px; height: 70px; }
-.mini-bars i { flex: 1; background: var(--bar); border-radius: 2px; min-height: 2px; }
-.mini-bars i.today { background: var(--pos); }
-.mini-axis { display: flex; justify-content: space-between; margin-top: 6px; }
-.mini-axis small { font: 9.5px var(--mono); color: var(--text-3); }
 .scroll > .day:first-of-type { margin-top: 8px; }
 .day-head { justify-content: space-between; padding: 12px 14px; }
 .day-title { font: 500 11px var(--mono); color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }

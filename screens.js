@@ -13,7 +13,7 @@ import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { TYPES, accounts, balances, ownTotal, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v42';
+export const BUILD = 'v43';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -69,14 +69,7 @@ export async function renderHome() {
   const yKey = dayKey(Date.now() - 864e5);
   const today = sum(spent(items.filter((i) => dayKey(i.ts) === todayKey)));
   const yesterday = sum(spent([...items, ...before].filter((i) => dayKey(i.ts) === yKey)));
-  // столбики по дням; длинный период — по неделям
-  const step = nDays > 62 ? 7 : 1;
-  const perDay = Array(Math.ceil(nDays / step)).fill(0);
-  spent(items).forEach((i) => { const k = Math.floor(Math.floor((i.ts - from) / 864e5) / step); if (k >= 0 && k < perDay.length) perDay[k] += i.amount; });
-  const nowBar = isCurrent ? Math.floor((passed - 1) / step) : -1;
-  const peak = Math.max(...perDay, 1);
   const dm = (ts) => { const d = new Date(ts); return L(`${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`, `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`); };
-  const axis = isMonth ? [1, 8, 15, 22, nDays] : [dm(from), dm(from + span / 2), dm(to - 1)];
   const oneDay = !isMonth && span === 864e5;
   const label = isMonth ? `${MONTHS[m.getMonth()]} ${m.getFullYear()}` : oneDay ? dm(from) : `${dm(from)} – ${dm(to - 1)}`;
   const sub = prevTotal
@@ -133,11 +126,6 @@ export async function renderHome() {
           <div><small>${L('Доходы', 'Income')}</small><b class="${income ? 'plus' : ''}">${income ? '+' : ''}${money(income)}</b>${deltaChip(income, prevIncome, true)}</div>
           <div><small>${L('В день', 'Per day')}</small><b>${money(Math.round(total / passed))}</b>${deltaChip(total / passed, prevTotal / prevPassed)}</div>
         </div>
-        ${total ? `<button class="card mini-chart" id="to-charts">
-          <span class="card-head"><b>${step > 1 ? L('По неделям', 'Weekly') : L('По дням', 'Daily')}</b><span class="chip">${step > 1 ? L('по неделям', 'weekly') : isMonth ? L('1М', '1M') : `${nDays} ${L('дн', 'd')}`}</span></span>
-          <span class="mini-bars">${perDay.map((v, i) => `<i class="${i === nowBar ? 'today' : ''}" style="height:${v ? Math.max(6, (v / peak) * 100) : 2}%"></i>`).join('')}</span>
-          <span class="mini-axis">${axis.map((d) => `<small>${d}</small>`).join('')}</span>
-        </button>` : ''}
         ${days.length ? days.map(day).join('') : `<div class="empty">${L('Нажмите <b>＋</b>, чтобы добавить первую трату', 'Tap <b>＋</b> to add your first expense')}</div>`}
       </div>
       ${tabbar()}
@@ -148,7 +136,6 @@ export async function renderHome() {
   app.querySelector('#wallet')?.addEventListener('click', () => { haptic(); go('budget'); });
   countUp(app.querySelector('.month-total'), total);
   app.querySelector('#me').onclick = () => { haptic(); go('profile'); };
-  app.querySelector('#to-charts')?.addEventListener('click', () => { haptic(); state.period = 'month'; go('charts'); });
   restoreScroll(app.querySelector('#list'));
   if (!items.length && isCurrent && isMonth) keshHint('home-first', L('Это твой месяц. Жми «＋» — запишем первую трату.', 'This is your month. Tap “＋” to log your first expense.'));
   app.querySelector('#prev').onclick = () => { shiftMonth(-1); };
