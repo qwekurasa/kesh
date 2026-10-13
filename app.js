@@ -216,7 +216,7 @@ function renderOnboarding() {
           <div class="error" id="err"></div>
           <button class="btn" id="next" ${name.trim().length >= 2 ? '' : 'disabled'}>${L('Дальше', 'Next')} <span class="arr">→</span></button>
         ` : `
-          <div class="onb-ava"><div class="onb-cat">${catAvatar(pick ?? 0, true)}</div><div class="onb-edge"></div></div>
+          <div class="onb-ava"><div class="onb-cat">${catAvatar(pick ?? 0, true)}</div></div>
           <h1>${L('Выберите аватар', 'Pick an avatar')}</h1>
           <p>${L('Потом можно поставить своё фото', 'You can set a photo later')}</p>
           <div class="ava-grid">

@@ -674,7 +674,6 @@ button.switch-row { width: 100%; text-align: left; }
 .onb-ava { flex-direction: column; align-items: center; margin-bottom: 10px; }
 .onb-cat { width: 128px; height: 128px; animation: k-pop .35s cubic-bezier(.3, 1.5, .5, 1); }
 .onb-cat svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.onb-edge { width: 180px; height: 1px; margin-top: -10px; background: linear-gradient(90deg, transparent, var(--border-strong), transparent); }
 .ava-grid { gap: 10px 6px; margin: 6px 0 14px; }
 .ava-pick, .ava-row .ava-pick { position: relative; background: none; border: 0; border-radius: 0; overflow: visible; padding: 0;
   opacity: .38; transform: scale(.88); filter: saturate(.6); transition: opacity .2s, transform .28s cubic-bezier(.3, 1.4, .5, 1), filter .2s; }
