@@ -1,4 +1,5 @@
 import { L, EN } from './i18n.js';
+import { AVATARS, catAvatar } from './kesh.js';
 const BASE = [
   ['groceries', 'Продукты'], ['cafe', 'Рестораны'], ['fastfood', 'Фастфуд'], ['coffee', 'Кофе'],
   ['delivery', 'Доставка'], ['transport', 'Транспорт'], ['taxi', 'Такси'], ['car', 'Авто'],
@@ -251,7 +252,7 @@ export const moneyShort = (kop) => {
 export const isIncome = (i) => i.type === 'in';
 export const sumCell = (i) => `<span class="tr-sum${isIncome(i) ? ' in' : ''}">${isIncome(i) ? '+' : ''}${money(i.amount)}</span>`;
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-export const haptic = () => navigator.vibrate?.(8);
+export const haptic = () => { if (navigator.userActivation?.hasBeenActive !== false) navigator.vibrate?.(8); };
 
 const svg = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 export const icons = {
@@ -388,6 +389,27 @@ export function dialog({ title, text = '', ok = 'OK', cancel = L('Отмена',
   });
 }
 
+// Меню действий: resolve(key) или null
+export function sheet(title, items, text = '') {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-wrap';
+    wrap.innerHTML = `<div class="modal-bd"></div>
+      <div class="modal sheet" role="dialog" aria-modal="true" aria-labelledby="mt">
+        <h3 id="mt">${esc(title)}</h3>${text ? `<p>${esc(text)}</p>` : ''}
+        <div class="sheet-list">${items.map((it) => `<button class="sheet-item${it.danger ? ' danger' : ''}" data-k="${it.key}">${it.icon || ''}<span>${esc(it.label)}</span></button>`).join('')}</div>
+        <button class="btn alt" data-k="">${L('Отмена', 'Cancel')}</button>
+      </div>`;
+    document.body.appendChild(wrap);
+    const keys = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(null); } };
+    const close = (v) => { wrap.remove(); document.removeEventListener('keydown', keys, true); resolve(v); };
+    document.addEventListener('keydown', keys, true);
+    wrap.querySelector('.modal-bd').onclick = () => close(null);
+    wrap.querySelectorAll('[data-k]').forEach((b) => { b.onclick = () => close(b.dataset.k || null); });
+    setTimeout(() => wrap.querySelector('.sheet-item')?.focus(), 60);
+  });
+}
+
 export const ask = (title, text, ok = L('Удалить', 'Delete')) => dialog({ title, text, ok, danger: true });
 export const askText = (title, opts = {}) => dialog({ title, ok: L('Готово', 'Done'), input: { ...opts } });
 
@@ -422,32 +444,16 @@ export function bindTabs() {
   });
 }
 
-export const SKINS = [
-  ['#f3f0ff', '#b9b2d6', '#5b5670'], ['#ffe9d6', '#e0a97a', '#6b4b33'], ['#d9f2ff', '#78b6d8', '#2f4e63'],
-  ['#e4ffe9', '#86c99a', '#33543f'], ['#ffe2ec', '#dd8aa6', '#60374a'], ['#fff6cf', '#d8bd6a', '#5e5128'],
-  ['#e8e8ec', '#9a9aa6', '#45454f'], ['#e6e2ff', '#9b8ae0', '#403565'], ['#d8fbf4', '#6fc3b4', '#2b5149'],
-  ['#ffd9d9', '#e08585', '#5f3030'], ['#dfe7ff', '#8a9ce0', '#353f66'], ['#f1e0ff', '#b98ade', '#4c3566'],
-];
+export const SKINS = AVATARS;
 export const avatar = () => localStorage.getItem('avatar') || '';
 export const avatarSkin = () => Number(localStorage.getItem('avatarSkin') || 0);
+export const skinStyle = () => '';
+export function applySkin() { /* аватары больше не перекрашивают интерфейс */ }
 
-export const skinStyle = (n) => {
-  const [a, b, c] = SKINS[n % SKINS.length];
-  return `background:radial-gradient(62% 56% at 32% 26%, ${a} 0%, ${b} 46%, ${c} 100%)`;
-};
-
-export function applySkin(n = avatarSkin()) {
-  const [a, b, c] = SKINS[n % SKINS.length];
-  const r = document.documentElement.style;
-  r.setProperty('--skin-a', a);
-  r.setProperty('--skin-b', b);
-  r.setProperty('--skin-c', c);
-}
-
-export function avatarHTML(cls = '') {
+export function avatarHTML(cls = '', n = avatarSkin()) {
   const src = avatar();
   if (src) return `<span class="ava photo ${cls}" style="background-image:url(${src})"></span>`;
-  return `<span class="ava ${cls}" style="${skinStyle(avatarSkin())}"></span>`;
+  return `<span class="ava cat ${cls}">${catAvatar(n)}</span>`;
 }
 
 // плавный счётчик для крупных чисел

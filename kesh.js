@@ -39,6 +39,18 @@ export const coatSVG = (pose) => keshSVG(pose, keshCoat() === 'black', keshCoat(
 
 const get = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const put = (k, v) => { try { localStorage.setItem(k, v); } catch { /* хранилище недоступно */ } };
+// Аватары — вариации Кэша: [мех, глаза, поза, фон]
+export const AVATARS = [
+  ['#ECECEE', '#0B0B0C', 'Рад', '#26262B'], ['#1C1C20', '#ECECEE', 'Ждёт', '#3A3A42'], ['#9A9AA3', '#0B0B0C', 'Рад', '#2A2A30'],
+  ['#E39B5B', '#0B0B0C', 'Ждёт', '#2E2620'], ['#E8D3B0', '#0B0B0C', 'Привет', '#2C2822'], ['#6B5546', '#F1E6DA', 'Рад', '#2A2420'],
+  ['#ECECEE', '#0B0B0C', 'Сомневается', '#22262B'], ['#1C1C20', '#ECECEE', 'Рад', '#2E3A34'], ['#9A9AA3', '#0B0B0C', 'Думает', '#2B2A33'],
+  ['#E39B5B', '#0B0B0C', 'Ликует', '#2F2A22'], ['#E8D3B0', '#0B0B0C', 'Ждёт', '#262B2A'], ['#6B5546', '#F1E6DA', 'Удивлён', '#2C2226'],
+];
+export const catAvatar = (n) => {
+  const [B, E, p, bg] = AVATARS[((n % AVATARS.length) + AVATARS.length) % AVATARS.length];
+  return `<svg viewBox="2 0 250 250" aria-hidden="true"><rect x="2" width="250" height="250" fill="${bg}"/><g transform="translate(0 22)"><path d="${HEAD}" fill="${B}"/>${POSES[p].replaceAll('"B"', `"${B}"`).replaceAll('"E"', `"${E}"`)}</g></svg>`;
+};
+
 export const keshOn = () => get('kesh') !== '0';
 export const hintsOn = () => get('keshHints') !== '0';
 export const calmMode = () => get('keshCalm') === '1';
@@ -88,6 +100,7 @@ export function keshHint(key, text, action, onAction, p = 'Показывает'
   if (key && s.has(key)) return false;
   if (key) put('keshSeen', JSON.stringify([...s, key].slice(-200)));
   keshReact(p, 6000);
+  el.classList.remove('tucked');
   bubble = document.createElement('div');
   bubble.className = 'kesh-bubble';
   bubble.setAttribute('role', 'status');
@@ -122,7 +135,7 @@ function place() {
   if (!show) return;
   const b = bar.getBoundingClientRect();
   const h = el.offsetHeight || 48;
-  el.style.top = `${b.top - h * 0.8}px`;
+  el.style.top = `${b.top - h * 0.78}px`;
   el.style.left = `${Math.min(b.right, window.innerWidth) - el.offsetWidth - 22}px`;
   positionBubble();
 }
@@ -172,6 +185,14 @@ export function startKesh(appEl, onSettings) {
   new MutationObserver(() => requestAnimationFrame(place)).observe(appEl, { childList: true });
   window.addEventListener('resize', place);
   document.addEventListener('pointerdown', resetIdle, { passive: true });
+  // листаешь — Кэш прячется, через секунду тишины выглядывает обратно
+  let tuckTimer;
+  appEl.addEventListener('scroll', () => {
+    if (bubble || menu) return;
+    el.classList.add('tucked');
+    clearTimeout(tuckTimer);
+    tuckTimer = setTimeout(() => el.classList.remove('tucked'), 1200);
+  }, { capture: true, passive: true });
   place();
   resetIdle();
   // «О, давно не виделись!» — если не заходили 14+ дней

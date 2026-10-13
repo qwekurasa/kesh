@@ -1,128 +1,33 @@
-<p align="center">
-  <img src="docs/banner.png" alt="Кэш — трекер трат" width="100%">
-</p>
+<p align="center"><img src="docs/banner.png" alt="Кэш — трекер трат с котом" width="100%"></p>
 
 <p align="center">
-  <a href="https://qwekurasa.github.io/kesh/"><b>Открыть приложение</b></a> ·
-  <a href="#установка">Установка</a> ·
-  <a href="#поддержать-проект">Поддержать</a> ·
-  <a href="#english">English</a>
+  <a href="https://qwekurasa.github.io/kesh/"><img alt="Открыть приложение" src="https://img.shields.io/badge/▶_открыть-qwekurasa.github.io/kesh-A6F0C0?style=for-the-badge&labelColor=111113"></a>
 </p>
-
 <p align="center">
-  <img alt="PWA" src="https://img.shields.io/badge/PWA-offline-A6F0C0?style=flat-square&labelColor=111113">
-  <img alt="Без зависимостей" src="https://img.shields.io/badge/dependencies-0-EDEDEF?style=flat-square&labelColor=111113">
-  <img alt="Лицензия MIT" src="https://img.shields.io/badge/license-MIT-EDEDEF?style=flat-square&labelColor=111113">
+  <img alt="PWA" src="https://img.shields.io/badge/PWA-офлайн-EDEDEF?style=flat-square&labelColor=111113">
+  <img alt="0 зависимостей" src="https://img.shields.io/badge/зависимости-0-EDEDEF?style=flat-square&labelColor=111113">
+  <img alt="RU EN" src="https://img.shields.io/badge/язык-RU_·_EN-EDEDEF?style=flat-square&labelColor=111113">
+  <img alt="MIT" src="https://img.shields.io/badge/лицензия-MIT-EDEDEF?style=flat-square&labelColor=111113">
 </p>
 
-**Кэш** — тёмный минималистичный трекер трат с котом-помощником. Без регистрации, без облака и без рекламы: все данные хранятся только в браузере на вашем телефоне.
+<p align="center"><img src="docs/screens.png" alt="Экраны приложения" width="100%"></p>
 
-## Возможности
+|  |  |  |
+|:--|:--|:--|
+| ⚡ **Запись за 2 касания** | 📊 **Аналитика** · динамика, структура | 🎯 **Лимиты** · предупреждение на 80 % |
+| 🏦 **Выписка Т-Банка** · PDF/CSV без дублей | 💾 **Копия и Excel** · JSON, XLSX | 🔒 **Только на телефоне** · без сервера |
 
-- **Запись в одно касание.** Сумма, частая категория, сохранить. Расходы и доходы.
-- **Аналитика.** Динамика к прошлому периоду, структура трат, тепловая карта за 13 недель, подсказки.
-- **Бюджет.** Лимиты по категориям, остаток на день, предупреждения на 80 % и 100 %.
-- **Вклады.** Суммы, ставки и примерный доход в месяц.
-- **Импорт выписки Т-Банка** (PDF и CSV) без дублей: повторно загруженные операции не задваиваются.
-- **Резервная копия и отчёт в Excel.** Восстановление из JSON или XLSX.
-- **Кэш-маскот.** Сидит на краю таббара, реагирует на суммы и лимиты, даёт подсказки. Можно сделать тише, перекрасить или выключить.
-- **Два языка:** русский и английский, переключаются при знакомстве и в профиле.
-- **Работает офлайн** и ставится на домашний экран как приложение.
+**Установка:** откройте ссылку → «Поделиться» → «На экран „Домой“» (iPhone) или ⋮ → «Установить» (Android).
 
-## Скриншоты
-
-| Знакомство | Главная | Ввод суммы | Аналитика |
-|:-:|:-:|:-:|:-:|
-| <img src="docs/screen-welcome.png" width="200"> | <img src="docs/screen-home.png" width="200"> | <img src="docs/screen-amount.png" width="200"> | <img src="docs/screen-charts.png" width="200"> |
-| **Бюджет** | **Вклады** | **Профиль** | |
-| <img src="docs/screen-budget.png" width="200"> | <img src="docs/screen-deposits.png" width="200"> | <img src="docs/screen-profile.png" width="200"> | |
-
-## Приватность
-
-- Нет аккаунтов, серверов, аналитики и трекеров.
-- Операции лежат в IndexedDB вашего браузера, настройки — в localStorage.
-- Выписка разбирается прямо на устройстве и никуда не отправляется.
-- Строгая Content Security Policy: страница не может обращаться к сторонним адресам.
-
-Данные привязаны к браузеру. Перед сменой телефона или очисткой браузера сохраните резервную копию: **Профиль → Резервная копия**.
-
-## Установка
-
-Откройте **[qwekurasa.github.io/kesh](https://qwekurasa.github.io/kesh/)**, затем:
-
-- **iPhone (Safari):** «Поделиться» → «На экран „Домой“».
-- **Android (Chrome):** меню ⋮ → «Установить приложение».
-- **Компьютер (Chrome, Edge):** значок установки в адресной строке.
-
-## Запуск у себя
-
-Сборки нет — это статичные файлы.
-
+**Запуск у себя** — сборки нет:
 ```bash
-git clone https://github.com/qwekurasa/kesh.git
-cd kesh
-python3 -m http.server 8080
-# откройте http://localhost:8080
+git clone https://github.com/qwekurasa/kesh && cd kesh && python3 -m http.server 8080
 ```
 
-Чтобы развернуть свою копию, включите GitHub Pages для ветки `main` (Settings → Pages) или положите файлы на любой статический хостинг.
+**Поддержать:** ⭐ звезда · идея в [Issues](https://github.com/qwekurasa/kesh/issues) · донат <!-- DONATE_LINK -->
 
-<details>
-<summary>Устройство проекта</summary>
-
-| Файл | Что внутри |
-|---|---|
-| `index.html` | Оболочка, CSP |
-| `app.js` | Роутер, онбординг, ввод суммы и категории |
-| `screens.js` | Главная, аналитика, бюджет, вклады, профиль, импорт |
-| `ui.js` | Состояние, категории, иконки, диалоги |
-| `i18n.js` | Язык интерфейса (RU/EN) |
-| `kesh.js` | Маскот: позы, реакции, подсказки |
-| `store.js` | IndexedDB |
-| `statement.js` | Разбор выписки PDF/CSV |
-| `backup.js`, `xlsx.js` | Резервная копия, чтение и запись XLSX без зависимостей |
-| `sw.js` | Офлайн-кэш |
-
-Чистый JavaScript (ES-модули), без фреймворков и сборщиков.
-</details>
-
-## Участие
-
-Идеи и ошибки — в [Issues](https://github.com/qwekurasa/kesh/issues). Pull request'ы приветствуются: держите код простым, без новых зависимостей, и проверьте изменения на телефоне.
-
-## Поддержать проект
-
-Кэш бесплатный и останется таким. Если он вам полезен:
-
-- ⭐ поставьте звезду репозиторию — это помогает другим его найти;
-- расскажите о нём друзьям;
-- поддержите разработку донатом. <!-- DONATE_LINK -->
-
-## Благодарности
-
-- [PDF.js](https://github.com/mozilla/pdf.js) — Apache-2.0
-- Шрифты [Onest](https://github.com/simpals/onest), [Outfit](https://github.com/Outfitio/Outfit-Fonts) и [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) — SIL Open Font License 1.1, тексты лицензий в [`fonts/LICENSE.txt`](fonts/LICENSE.txt)
-- Иконки категорий — [Phosphor Icons](https://phosphoricons.com), MIT
-
-## Лицензия
-
-[MIT](LICENSE) © 2026 qwekurasa
+<sub>MIT © 2026 qwekurasa · [PDF.js](https://github.com/mozilla/pdf.js) (Apache-2.0) · шрифты Onest, Outfit, JetBrains Mono ([OFL](fonts/LICENSE.txt)) · иконки [Phosphor](https://phosphoricons.com) (MIT)</sub>
 
 ---
 
-## English
-
-**Kesh** is a dark, minimal expense tracker with a cat sidekick. No sign-up, no cloud, no ads: your data never leaves your phone's browser.
-
-- One-tap entry for expenses and income, frequent categories
-- Analytics: period-over-period trend, spending breakdown, 13-week heatmap
-- Category budgets with 80 % / 100 % warnings
-- Savings accounts with estimated monthly interest
-- T-Bank statement import (PDF, CSV) with duplicate detection
-- JSON backup and Excel export
-- Russian and English interface
-- Works offline, installable as a PWA
-
-**[Open the app →](https://qwekurasa.github.io/kesh/)** Switch to English on the welcome screen or in Profile → Language.
-
-Run locally: `python3 -m http.server 8080` in the repo folder. No build step, no dependencies. Licensed under [MIT](LICENSE).
+<sub>🇬🇧 **Kesh** — an expense tracker with a cat. No account, no cloud, works offline. [Open the app](https://qwekurasa.github.io/kesh/) and switch to English on the first screen. Run locally with the command above.</sub>

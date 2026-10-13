@@ -2,17 +2,17 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
-  render, go, toast, dialog, tabbar, bindTabs, avatarHTML, openEdit, openRepeat, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
+  render, go, toast, dialog, sheet, PALETTE, tabbar, bindTabs, avatarHTML, openEdit, openRepeat, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
   CATEGORIES, catColor, isIncome, sumCell, reloadCategories, addCategory, ticket,
 } from './ui.js';
 import { writeXlsx, readXlsx } from './xlsx.js';
-import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCalm, keshCoat, setCoat } from './kesh.js';
+import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCalm, keshCoat, setCoat, keshSVG, catAvatar } from './kesh.js';
 
 const REPO = 'https://github.com/qwekurasa/kesh';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { L, LANG, setLang, plural as pl } from './i18n.js';
 
-export const BUILD = 'v31';
+export const BUILD = 'v32';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -36,7 +36,7 @@ function groupByDay(items) {
 
 /* ---------- home ---------- */
 const MONTHS_GEN = L(['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'], MONTHS);
-const MONTHS_DAT = L(['январю', 'февралю', 'марту', 'апрелю', 'маю', 'июню', 'июлю', 'августу', 'сентябрю', 'октябрю', 'ноябрю', 'декабрю'], MONTHS);
+const MONTHS_PREP = L(['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'], MONTHS);
 const hhmm = (ts) => { const d = new Date(ts); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
 export async function renderHome() {
@@ -109,7 +109,7 @@ export async function renderHome() {
         <div class="hero">
           <div class="hero-label">${L('Расходы за месяц', 'Spent this month')}</div>
           <div class="hero-row"><div class="month-total">${money(total)}</div>${deltaChip(total, prevTotal)}</div>
-          <div class="month-sub">${prevTotal ? (isCurrent ? L(`к тому же ${passed} дню ${MONTHS_GEN[prevFrom.getMonth()]}`, `vs. ${MONTHS[prevFrom.getMonth()]} 1–${passed}`) : L(`к ${MONTHS_DAT[prevFrom.getMonth()]}`, `vs. ${MONTHS[prevFrom.getMonth()]}`)) : items.length ? '' : L('Трат пока нет', 'No expenses yet')}</div>
+          <div class="month-sub">${prevTotal ? (isCurrent ? L(`За 1–${passed} ${MONTHS_GEN[prevFrom.getMonth()]} было ${money(prevTotal)}`, `${MONTHS_SHORT[prevFrom.getMonth()]} 1–${passed}: ${money(prevTotal)}`) : L(`В ${MONTHS_PREP[prevFrom.getMonth()]} было ${money(prevTotal)}`, `${MONTHS[prevFrom.getMonth()]}: ${money(prevTotal)}`)) : items.length ? '' : L('Трат пока нет', 'No expenses yet')}</div>
         </div>
         <div class="metrics">
           <div><small>${L('Сегодня', 'Today')}</small><b>${isCurrent ? money(today) : '—'}</b>${isCurrent ? deltaChip(today, yesterday) : ''}</div>
@@ -230,13 +230,9 @@ export async function renderCharts() {
   const r = periodRange(state.period);
   const elapsed = Math.min(Date.now(), +r.to) - +r.from;
   const prev = prevRange(r, elapsed);
-  // тепловая карта: 13 недель, начиная с понедельника
-  const heatFrom = new Date(); heatFrom.setHours(0, 0, 0, 0);
-  heatFrom.setDate(heatFrom.getDate() - ((heatFrom.getDay() + 6) % 7) - 12 * 7);
-  const [now, before, heatItems] = await Promise.all([
+  const [now, before] = await Promise.all([
     store.expensesBetween(r.from.getTime(), r.to.getTime() - 1),
     store.expensesBetween(prev.from.getTime(), prev.to.getTime() - 1),
-    store.expensesBetween(+heatFrom, Date.now()),
   ]);
   // Расходы или поступления — одна и та же аналитика по выбранному типу
   const inc = state.statKind === 'in';
@@ -255,10 +251,6 @@ export async function renderCharts() {
   prevItems.forEach((i) => { const b = bucketOf(i.ts, r); if (b < r.bars) prevBuckets[b] += i.amount; });
   const peak = Math.max(...buckets, ...prevBuckets, 1);
   const nowBucket = Date.now() < +r.to ? bucketOf(Date.now(), r) : -1;
-  const heat = Array(91).fill(0);
-  pick(heatItems).forEach((i) => { const k = Math.floor((i.ts - heatFrom) / 864e5); if (k >= 0 && k < 91) heat[k] += i.amount; });
-  const heatPeak = Math.max(...heat, 1);
-  const heatToday = Math.floor((Date.now() - heatFrom) / 864e5);
   const prevOut = sum(spent(before));
   const prevIn = sum(before.filter(isIncome));
   const short = (lbl) => lbl.slice(0, 3).toUpperCase();
@@ -319,10 +311,6 @@ export async function renderCharts() {
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-head"><b>${L('Тепловая карта', 'Heatmap')}</b><span class="chip">${L('13 нед', '13 wk')}</span></div>
-          <div class="heat-grid" aria-hidden="true">${heat.map((v, k) => `<i class="${k > heatToday ? 'future' : v ? `l${Math.min(4, Math.ceil((v / heatPeak) * 4))}` : ''}"></i>`).join('')}</div>
-        </div>
 
         ${inc ? '' : `<div class="section-label">${L('Что заметно', 'Insights')}</div>
         <div class="tips">${tips(items, cats, prevCats, total, prevTotal, r, days).map((t, n) =>
@@ -623,6 +611,7 @@ export async function renderProfile() {
           <button class="ava-wrap" id="pick-ava" aria-label="${L('Сменить фото', 'Change photo')}">${avatarHTML()}</button>
           <span class="tr-name"><span class="profile-name">${esc(acc.login)}</span><small>${all.length} ${plural(all.length, 'операция', 'операции', 'операций')}${first ? ` · ${L('с', 'since')} ${new Date(first).getDate()} ${MONTHS_SHORT[new Date(first).getMonth()]}` : ''}</small></span>
         </div>
+        <div class="ava-row" role="radiogroup" aria-label="${L('Аватар', 'Avatar')}">${SKINS.map((_, n) => `<button class="ava-pick${!localStorage.getItem('avatar') && avatarSkin() % SKINS.length === n ? ' on' : ''}" data-skin="${n}" aria-label="${L('Аватар', 'Avatar')} ${n + 1}">${catAvatar(n)}</button>`).join('')}</div>
         <div class="section-label">${L('Данные', 'Data')}</div>
         <div class="card rows group">
           ${item('backup', icons.down_file, L('Резервная копия', 'Backup'), lastBackupLabel())}
@@ -634,14 +623,12 @@ export async function renderProfile() {
         </div>
         <div class="section-label">${L('Кэш и интерфейс', 'Kesh & interface')}</div>
         <div class="card rows group">
-          ${item('kesh', icons.paw, L('Кэш', 'Kesh'), coat)}
-          ${item('hints', icons.bell, L('Подсказки Кэша', 'Kesh tips'), hintsOn() ? L('умеренно', 'moderate') : L('выкл', 'off'))}
-          ${item('calm', icons.moon, L('Спокойный режим', 'Calm mode'), calmMode() ? L('вкл', 'on') : L('выкл', 'off'))}
-          ${item('lang', icons.globe, L('Язык', 'Language'), LANG === 'en' ? 'English' : 'Русский')}
+          <button class="row" data-a="kesh"><span class="row-kesh">${keshSVG('Ждёт', keshCoat() === 'black', keshCoat() === 'black')}</span><span>${L('Кэш', 'Kesh')}</span><span class="row-extra">${coat}</span><span class="chev sm">${icons.right}</span></button>
+          <button class="row" data-a="lang">${icons.globe}<span>${L('Язык', 'Language')}</span>${langSwitch()}</button>
         </div>
         <div class="section-label">${L('О проекте', 'About')}</div>
         <div class="card rows group">
-          ${link(`${REPO}#поддержать-проект`, icons.heart, L('Поддержать проект', 'Support the project'))}
+          ${link(REPO, icons.heart, L('Поддержать проект', 'Support the project'))}
           ${link(REPO, icons.code, L('Исходный код', 'Source code'), 'GitHub')}
         </div>
         <div class="card rows group">
@@ -655,14 +642,20 @@ export async function renderProfile() {
   bindTabs();
   app.querySelector('#back').onclick = () => go('home');
   app.querySelector('#pick-ava').onclick = pickAvatar;
+  app.querySelector('.ava-row').onclick = (e) => {
+    const n = e.target.closest('[data-skin]')?.dataset.skin;
+    if (n === undefined) return;
+    haptic();
+    localStorage.setItem('avatarSkin', n);
+    localStorage.removeItem('avatar');
+    render();
+  };
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const a = e.target.closest('.row')?.dataset.a;
     if (!a) return;
     // белый → чёрный → выкл → белый
-    if (a === 'kesh') { haptic(); if (!keshOn()) { setKesh(true); setCoat('white'); } else if (keshCoat() === 'white') setCoat('black'); else setKesh(false); return render(); }
-    if (a === 'hints') { setHints(!hintsOn()); haptic(); return render(); }
-    if (a === 'calm') { setCalm(!calmMode()); haptic(); return render(); }
-    if (a === 'lang') return setLang(LANG === 'en' ? 'ru' : 'en');
+    if (a === 'kesh') { haptic(); state.flow = 'keshset'; return render(); }
+    if (a === 'lang') return flipLang(e.target.closest('.row').querySelector('.lswitch'));
     if (a === 'cats') { state.flow = 'cats'; return render(); }
     if (a === 'statement') return pickStatement();
     if (a === 'export') return exportData();
@@ -676,9 +669,70 @@ export async function renderProfile() {
   });
 }
 
+// Физический переключатель языка: ползунок едет, затем перезагрузка на новом языке
+export const langSwitch = () => `<span class="lswitch${LANG === 'en' ? ' en' : ''}" role="switch" aria-checked="${LANG === 'en'}" aria-label="Language"><i></i><b>RU</b><b>EN</b></span>`;
+export function flipLang(sw) {
+  haptic();
+  sw?.classList.toggle('en');
+  setTimeout(() => setLang(LANG === 'en' ? 'ru' : 'en'), 260);
+}
+
+/* ---------- настройки Кэша ---------- */
+const PREVIEW = ['Ждёт', 'Привет', 'Рад', 'Думает', 'Удивлён', 'Ликует', 'Сомневается', 'Спит'];
+export function renderKeshSettings() {
+  const black = keshCoat() === 'black';
+  const sw = (id, on, title, sub) => `<button class="switch-row" data-s="${id}"><span>${title}<small>${sub}</small></span><span class="sw${on ? ' on' : ''}"></span></button>`;
+  app.innerHTML = `
+    <section class="screen">
+      <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>${L('Кэш', 'Kesh')}</h1></button></header>
+      <div class="scroll">
+        <div class="card kesh-preview${keshOn() ? '' : ' off'}${calmMode() ? ' calm' : ''}" id="preview">
+          <div class="kp-cat" id="kp">${keshSVG(calmMode() ? 'Спит' : 'Ждёт', black, black)}</div>
+          <div class="kp-edge"></div>
+          <div class="kp-caption" id="kpc">${keshOn() ? (calmMode() ? L('Дремлет — спокойный режим', 'Napping — calm mode') : L('Так Кэш выглядит в приложении', 'This is how Kesh looks in the app')) : L('Кэш выключен', 'Kesh is off')}</div>
+        </div>
+        <div class="section-label">${L('Окрас', 'Coat')}</div>
+        <div class="coat-pick">
+          ${[['white', L('Белый', 'White')], ['black', L('Чёрный', 'Black')]].map(([k, name]) => `<button class="coat-opt${keshCoat() === k ? ' on' : ''}" data-coat="${k}">${keshSVG('Рад', k === 'black', k === 'black')}<span>${name}</span></button>`).join('')}
+        </div>
+        <div class="section-label">${L('Поведение', 'Behavior')}</div>
+        ${sw('on', keshOn(), L('Показывать Кэша', 'Show Kesh'), L('Сидит на краю нижней панели, реагирует на суммы и лимиты', 'Sits on the tab bar edge, reacts to amounts and limits'))}
+        ${sw('hints', hintsOn(), L('Подсказки', 'Tips'), L('Не больше одной на экран: первый визит, лимиты, крупные траты', 'At most one per screen: first visit, limits, big expenses'))}
+        ${sw('calm', calmMode(), L('Спокойный режим', 'Calm mode'), L('Кэш дремлет: без реакций, анимаций и подсказок. Просто трекер', 'Kesh naps: no reactions, animations or tips. Just a tracker'))}
+        <div class="imp-note dep-note">${L('Нажми на Кэша — свернётся клубком. Долгое нажатие — быстрое меню.', 'Tap Kesh to curl him up. Long-press for a quick menu.')}</div>
+      </div>
+    </section>`;
+  app.querySelector('#back').onclick = () => { state.flow = null; render(); };
+  // живое превью: позы по кругу, тап — клубок
+  const kp = app.querySelector('#kp');
+  let n = 0, hold = 0;
+  const tick = () => {
+    if (!kp.isConnected) return clearInterval(timer);
+    if (!keshOn() || calmMode() || Date.now() < hold) return;
+    n = (n + 1) % PREVIEW.length;
+    kp.innerHTML = keshSVG(PREVIEW[n], black, black);
+    kp.classList.remove('pop'); void kp.offsetWidth; kp.classList.add('pop');
+  };
+  const timer = setInterval(tick, 1500);
+  kp.onclick = () => { haptic(); hold = Date.now() + 3000; kp.innerHTML = keshSVG('Спит', black, black); };
+  app.querySelector('.coat-pick').onclick = (e) => {
+    const c = e.target.closest('[data-coat]')?.dataset.coat;
+    if (!c || c === keshCoat()) return;
+    haptic(); setCoat(c); if (!keshOn()) setKesh(true); render();
+  };
+  app.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => {
+    haptic();
+    const k = b.dataset.s;
+    if (k === 'on') setKesh(!keshOn());
+    if (k === 'hints') setHints(!hintsOn());
+    if (k === 'calm') setCalm(!calmMode());
+    render();
+  }));
+}
+
 async function pickAvatar() {
   if (localStorage.getItem('avatar')) {
-    if (await ask(L('Убрать фото?', 'Remove photo?'), L('Вернётся градиентный аватар.', 'The gradient avatar will return.'), L('Убрать', 'Remove'))) {
+    if (await ask(L('Убрать фото?', 'Remove photo?'), L('Вернётся аватар-кот.', 'Your cat avatar will return.'), L('Убрать', 'Remove'))) {
       localStorage.removeItem('avatar');
       return render();
     }
@@ -719,7 +773,7 @@ export function renderCustomCats() {
           <div class="row" data-edit="${c.id}"><span class="tr-ico">${catIcon(c.id)}</span><span>${esc(c.name)}<small class="row-sub">${c.kind === 'in' ? L('Доход', 'Income') : L('Расход', 'Expense')}</small></span>
             <button class="icon-btn sm" data-edit="${c.id}" aria-label="${L('Изменить', 'Edit')}">${icons.edit}</button>
             <button class="icon-btn sm" data-del="${c.id}" aria-label="${L('Удалить', 'Delete')}">${icons.trash}</button></div>`).join('')}</div>`
-          : `<div class="empty">${L('Своих категорий пока нет.<br>Их можно добавить при создании траты.', 'No custom categories yet.<br>Add one while logging an expense.')}</div>`}
+          : `<div class="empty">${L('Своих категорий пока нет.<br>Добавьте при записи траты или в «Бюджете».', 'No custom categories yet.<br>Add one while logging an expense or in Budget.')}</div>`}
       </div>
       ${tabbar()}
     </section>`;
@@ -729,26 +783,30 @@ export function renderCustomCats() {
     const id = e.target.closest('[data-del]')?.dataset.del;
     const edit = !id && e.target.closest('[data-edit]')?.dataset.edit;
     if (edit) {
-      const c = list.find((x) => x.id === edit);
       haptic();
-      state.draft = { id: c.id, name: c.name, icon: c.icon || 'star', color: CAT[c.id]?.color, kind: c.kind || 'out', from: 'cats' };
-      state.flow = 'newcat';
-      return render();
+      return editCategory(list.find((x) => x.id === edit), 'cats');
     }
-    if (!id) return;
-    const cat = list.find((x) => x.id === id);
-    const to = cat.kind === 'in' ? 'in_other' : 'other';
-    ask(L(`Удалить «${cat.name}»?`, `Delete “${cat.name}”?`), L('Операции из неё перейдут в «Другое», лимит категории будет снят.', 'Its transactions move to “Other”, and its limit is removed.')).then(async (yes) => {
-      if (!yes) return;
-      const n = await store.recategorize(id, to);
-      const b = budgets();
-      if (b[id]) { delete b[id]; saveBudgets(b); }
-      removeCategory(id);
-      render();
-      toast(n ? L(`Категория удалена, ${n} ${plural(n, 'операция перенесена', 'операции перенесены', 'операций перенесено')} в «Другое»`, `Category deleted, ${n} ${plural(n, 'операция перенесена', 'операции перенесены', 'операций перенесено')} to “Other”`) : L('Категория удалена', 'Category deleted'));
-    });
+    if (id) deleteCategory(list.find((x) => x.id === id));
   });
 }
+
+// Удаление своей категории: операции уходят в «Другое», лимит снимается
+async function deleteCategory(cat) {
+  const to = cat.kind === 'in' ? 'in_other' : 'other';
+  if (!(await ask(L(`Удалить «${cat.name}»?`, `Delete “${cat.name}”?`), L('Операции из неё перейдут в «Другое», лимит категории будет снят.', 'Its transactions move to “Other”, and its limit is removed.')))) return;
+  const n = await store.recategorize(cat.id, to);
+  const b = budgets();
+  if (b[cat.id]) { delete b[cat.id]; saveBudgets(b); }
+  removeCategory(cat.id);
+  render();
+  toast(n ? L(`Категория удалена, ${n} ${plural(n, 'операция перенесена', 'операции перенесены', 'операций перенесено')} в «Другое»`, `Category deleted, ${n} ${plural(n, 'операция перенесена', 'операции перенесены', 'операций перенесено')} to “Other”`) : L('Категория удалена', 'Category deleted'));
+}
+
+const editCategory = (c, from) => {
+  state.draft = { id: c.id, name: c.name, icon: c.icon || 'star', color: CAT[c.id]?.color, kind: c.kind || 'out', from };
+  state.flow = 'newcat';
+  render();
+};
 
 /* ---------- резервная копия ---------- */
 function lastBackupLabel() {
@@ -1110,6 +1168,7 @@ export async function renderBudget() {
           <button class="row" data-b="${id}"><span class="tr-ico">${catIcon(id)}</span><span>${esc(name)}</span>
             <span class="row-extra">${bySpent[id] ? money(bySpent[id]) : ''}</span>${icons.plus}</button>`).join('')}
         </div>
+        <button class="btn alt add-dep" id="newcat">${icons.plus} ${L('Своя категория', 'Custom category')}</button>
       </div>
       ${tabbar()}
     </section>`;
@@ -1117,10 +1176,33 @@ export async function renderBudget() {
   bindTabs();
   countUp(app.querySelector('.month-total'), limit ? Math.abs(left) : sum(items));
   if (!limit) keshHint('budget-first', L('Задай лимит категории — предупрежу на 80 %.', 'Set a category limit — I’ll warn you at 80%.'));
+  app.querySelector('#newcat').onclick = () => {
+    haptic();
+    state.draft = { icon: 'star', name: '', color: PALETTE[customCategories().length % PALETTE.length], kind: 'out', from: 'budget' };
+    state.flow = 'newcat';
+    render();
+  };
   app.querySelector('.scroll').addEventListener('click', async (e) => {
     const id = e.target.closest('[data-b]')?.dataset.b;
     if (!id) return;
     haptic();
+    const own = customCategories().find((c) => c.id === id);
+    const act = await sheet(CAT[id].name, [
+      { key: 'limit', icon: icons.budget, label: b[id] ? `${L('Изменить лимит', 'Change limit')} · ${money(b[id])}` : L('Задать лимит', 'Set limit') },
+      ...(b[id] ? [{ key: 'unlimit', icon: icons.trash, label: L('Убрать лимит', 'Remove limit') }] : []),
+      { key: 'ops', icon: icons.chart, label: L('Операции категории', 'Category transactions') },
+      ...(own ? [{ key: 'edit', icon: icons.edit, label: L('Изменить категорию', 'Edit category') },
+        { key: 'del', icon: icons.trash, label: L('Удалить категорию', 'Delete category'), danger: true }] : []),
+    ], bySpent[id] ? `${L('Потрачено в этом месяце', 'Spent this month')}: ${money(bySpent[id])}` : '');
+    if (act === 'ops') return openCategory(id);
+    if (act === 'edit') return editCategory(own, 'budget');
+    if (act === 'del') return deleteCategory(own);
+    if (act === 'unlimit') {
+      const next = budgets(); delete next[id]; saveBudgets(next);
+      render();
+      return toast(L('Лимит убран', 'Limit removed'));
+    }
+    if (act !== 'limit') return;
     const val = await askText(`${L('Лимит', 'Limit')}: ${CAT[id].name}`, { mode: 'decimal', placeholder: L('Сумма в месяц, ₽', 'Monthly amount, ₽'), value: b[id] ? rub(b[id]) : '' });
     if (val === null) return;
     const next = budgets();

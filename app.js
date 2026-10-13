@@ -1,12 +1,12 @@
 import * as store from './store.js';
 import { L, LANG, setLang } from './i18n.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, limitHint } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, limitHint, renderKeshSettings, langSwitch, flipLang } from './screens.js';
 import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
   setRender, render, ticket, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
 } from './ui.js';
-import { startKesh, keshSVG, keshOn, keshReact, amountPose, calmMode, keshHint, keshSay } from './kesh.js';
+import { catAvatar, coatSVG, startKesh, keshSVG, keshOn, keshReact, amountPose, calmMode, keshHint, keshSay } from './kesh.js';
 
 const kopecks = () => Math.round(parseFloat(state.amt.replace(',', '.') || '0') * 100);
 
@@ -24,6 +24,7 @@ function main() {
   if (state.flow === 'import') return renderImport();
   if (state.flow === 'cat') return renderCategoryDetail();
   if (state.flow === 'deposit') return renderDeposit();
+  if (state.flow === 'keshset') return renderKeshSettings();
   if (state.tab === 'budget') return renderBudget();
   if (state.tab === 'deposits') return renderDeposits();
   if (state.tab === 'charts') return renderCharts();
@@ -36,7 +37,7 @@ function renderWelcome() {
   app.innerHTML = `
     <section class="screen auth welcome" data-phase="empty">
       <div class="grain"></div>
-      <div class="lang-pick seg">${['ru', 'en'].map((l) => `<button class="${LANG === l ? 'on' : ''}" data-l="${l}">${l.toUpperCase()}</button>`).join('')}</div>
+      <button class="lang-pick" aria-label="Language">${langSwitch()}</button>
       <div class="stage">
         <div class="peek">${keshSVG('Ждёт')}</div>
         <div class="horizon"></div>
@@ -105,10 +106,7 @@ function renderWelcome() {
     pose('Привет');
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) phase('button'); else caught();
   });
-  app.querySelector('.lang-pick').onclick = (e) => {
-    const l = e.target.closest('[data-l]')?.dataset.l;
-    if (l && l !== LANG) setLang(l);
-  };
+  app.querySelector('.lang-pick').onclick = (e) => flipLang(e.currentTarget.querySelector('.lswitch'));
   btn.onclick = () => {
     timers.forEach(clearTimeout);
     haptic();
@@ -140,11 +138,11 @@ function renderOnboarding() {
           <div class="error" id="err"></div>
           <button class="btn" id="next" ${name.trim().length >= 2 ? '' : 'disabled'}>${L('Дальше', 'Next')} <span class="arr">→</span></button>
         ` : `
-          <div class="onb-ava"><span class="ava xl" style="${skinStyle(pick ?? 0)}"></span></div>
+          <div class="onb-ava"><span class="ava xl cat">${catAvatar(pick ?? 0)}</span></div>
           <h1>${L('Выберите аватар', 'Pick an avatar')}</h1>
           <p>${L('Потом можно поставить своё фото', 'You can set a photo later')}</p>
           <div class="ava-grid">
-            ${SKINS.map((_, i) => `<button class="ava-pick${pick === i ? ' on' : ''}" data-e="${i}" style="--i:${i};${skinStyle(i)}"></button>`).join('')}
+            ${SKINS.map((_, i) => `<button class="ava-pick${pick === i ? ' on' : ''}" data-e="${i}" style="--i:${i}" aria-label="${L('Аватар', 'Avatar')} ${i + 1}">${catAvatar(i)}</button>`).join('')}
           </div>
           <button class="btn" id="done">${L('Поехали', 'Let’s go')} <span class="arr">→</span></button>
         `}
@@ -259,7 +257,7 @@ async function renderAmount() {
 
   updateAmount();
   if (!editing) bindDate();
-  app.querySelector('#close').onclick = () => { state.edit = null; go(state.tab || 'home'); };
+  app.querySelector('#close').onclick = () => { if (state.edit) Object.assign(state, { amt: '', cat: null, note: '' }); state.edit = null; go(state.tab || 'home'); };
   app.querySelector('#next').onclick = () => (state.cat && kopecks() > 0 ? save() : goCategory());
   app.querySelector('#all').onclick = () => { state.flow = 'category'; render(); };
   app.querySelector('#note').oninput = (e) => { state.note = e.target.value; };
@@ -332,7 +330,7 @@ function updateAmount() {
   el.style.setProperty('--size', `${Math.max(40, 72 - Math.max(0, text.length - 5) * 6)}px`);
   const [pose, line] = amountPose(state.kind, kopecks());
   const k = app.querySelector('#kesh-amt');
-  if (k.dataset.pose !== pose) { k.dataset.pose = pose; k.innerHTML = keshOn() && !calmMode() ? keshSVG(pose) : ''; }
+  if (k.dataset.pose !== pose) { k.dataset.pose = pose; k.innerHTML = keshOn() && !calmMode() ? coatSVG(pose) : ''; }
   app.querySelector('#hint').textContent = (state.amt && line) || dateLabel(state.date);
   const btn = app.querySelector('#next');
   const kop = kopecks();
@@ -408,6 +406,7 @@ const customCount = () => CATEGORIES.length + INCOME_CATEGORIES.length; // дл�
 
 async function save() {
   if (!state.cat) return;
+  if (kopecks() <= 0) { state.flow = 'add'; render(); return; } // сумма не введена — назад к вводу
   const amount = kopecks();
   const category = state.cat;
   const note = state.note.trim();
@@ -472,7 +471,7 @@ function renderNewCategory() {
       </div>
     </section>`;
 
-  const back = () => { state.flow = state.draft.from; render(); };
+  const back = () => { state.flow = state.draft.from === 'budget' ? null : state.draft.from; render(); };
   app.querySelector('#back').onclick = back;
   app.querySelector('.color-grid').onclick = (e) => {
     const b = e.target.closest('[data-c]');
@@ -500,12 +499,13 @@ function renderNewCategory() {
     haptic();
     if (d.id) {
       updateCategory(d.id, { name: d.name.trim(), icon: d.icon, color: d.color });
-      state.flow = d.from;
+      state.flow = d.from === 'budget' ? null : d.from;
       render();
       return toast(L('Категория сохранена', 'Category saved'));
     }
-    state.cat = addCategory(d.name.trim(), d.icon, d.color, d.kind);
-    state.flow = 'category';
+    const created = addCategory(d.name.trim(), d.icon, d.color, d.kind);
+    if (d.from === 'budget') state.flow = null; // из бюджета — обратно в бюджет
+    else { state.cat = created; state.flow = 'category'; }
     render();
     toast(L(`Категория «${d.name.trim()}» создана`, `Category “${d.name.trim()}” created`));
   };
@@ -521,7 +521,7 @@ document.addEventListener('keydown', (e) => {
     if (/^\d$/.test(e.key)) press(e.key);
     else if (e.key === ',' || e.key === '.') press(',');
     else if (e.key === 'Backspace') press('del');
-    else if (e.key === 'Enter') goCategory();
+    else if (e.key === 'Enter') { if (state.cat && kopecks() > 0) save(); else goCategory(); }
   } else if (state.flow === 'category') {
     if (e.key === 'Escape') { state.flow = 'add'; render(); }
     else if (e.key === 'Enter') save();
@@ -546,12 +546,13 @@ window.addEventListener('unhandledrejection', (e) => fail(e.reason));
 // Жест «назад»: свайп от левого края вправо
 function goBack() {
   if (state.info) { state.info = null; return render(); }
-  if (state.flow === 'newcat') { state.flow = state.draft.from; return render(); }
+  if (state.flow === 'newcat') { state.flow = state.draft.from === 'budget' ? null : state.draft.from; return render(); }
+  if (state.flow === 'keshset') { state.flow = null; state.tab = 'profile'; return render(); }
   if (state.flow === 'deposit') { state.flow = null; state.dep = null; return render(); }
   if (state.flow === 'category') { state.flow = 'add'; return render(); }
   if (state.flow === 'import' || state.flow === 'cats') { state.flow = null; state.tab = 'profile'; return render(); }
   if (state.flow === 'cat') { state.flow = null; state.catId = null; return render(); }
-  if (state.flow === 'add') { state.edit = null; return go(state.tab || 'home'); }
+  if (state.flow === 'add') { if (state.edit) Object.assign(state, { amt: '', cat: null, note: '' }); state.edit = null; return go(state.tab || 'home'); }
   if (state.tab !== 'home') return go('home');
 }
 
