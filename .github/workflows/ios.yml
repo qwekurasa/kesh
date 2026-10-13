@@ -1,0 +1,24 @@
+name: iOS IPA
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build unsigned
+        run: |
+          xcodebuild -project ios/Kesh.xcodeproj -target Kesh -configuration Release -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir Payload && cp -R ios/build/Release-iphoneos/Kesh.app Payload/
+          zip -qr Kesh.ipa Payload
+      - name: Release
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release delete ipa --yes --cleanup-tag || true
+          gh release create ipa Kesh.ipa --title "Кэш для iPhone (неподписанный)" --notes "Установка с Windows через Sideloadly. Сборка ${{ github.run_number }}."
