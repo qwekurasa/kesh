@@ -2,7 +2,7 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
-  render, go, toast, dialog, sheet, PALETTE, tabbar, bindTabs, avatarHTML, openEdit, openRepeat, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
+  render, go, toast, dialog, sheet, bottomSheet, PALETTE, tabbar, bindTabs, avatarHTML, openEdit, openRepeat, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
   CATEGORIES, catColor, isIncome, sumCell, reloadCategories, addCategory, ticket,
 } from './ui.js';
 import { writeXlsx, readXlsx } from './xlsx.js';
@@ -10,9 +10,10 @@ import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCal
 
 const REPO = 'https://github.com/qwekurasa/kesh';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
+import { TYPES, accounts, balances, ownTotal, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl } from './i18n.js';
 
-export const BUILD = 'v37';
+export const BUILD = 'v38';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -54,7 +55,7 @@ export async function renderHome() {
   const [items, before, wal] = await Promise.all([
     store.expensesBetween(from, to - 1),
     store.expensesBetween(prevFrom, prevTo - 1),
-    walletBalance(),
+    balances(),
   ]);
   const days = groupByDay(items);
   const total = sum(spent(items));
@@ -76,7 +77,8 @@ export async function renderHome() {
   const peak = Math.max(...perDay, 1);
   const dm = (ts) => { const d = new Date(ts); return L(`${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`, `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`); };
   const axis = isMonth ? [1, 8, 15, 22, nDays] : [dm(from), dm(from + span / 2), dm(to - 1)];
-  const label = isMonth ? `${MONTHS[m.getMonth()]} ${m.getFullYear()}` : `${dm(from)} – ${dm(to - 1)}`;
+  const oneDay = !isMonth && span === 864e5;
+  const label = isMonth ? `${MONTHS[m.getMonth()]} ${m.getFullYear()}` : oneDay ? dm(from) : `${dm(from)} – ${dm(to - 1)}`;
   const sub = prevTotal
     ? (isMonth
       ? (isCurrent ? L(`За 1–${passed} ${MONTHS_GEN[new Date(prevFrom).getMonth()]} было ${money(prevTotal)}`, `${MONTHS_SHORT[new Date(prevFrom).getMonth()]} 1–${passed}: ${money(prevTotal)}`)
@@ -122,7 +124,7 @@ export async function renderHome() {
       </header>
       <div class="scroll" id="list">
         <div class="hero">
-          <div class="hero-top"><span class="hero-label">${isMonth ? L('Расходы за месяц', 'Spent this month') : L('Расходы за период', 'Spent in period')}</span>${wal ? `<button class="wallet-pill" id="wallet">${icons.wallet}<b class="${wal.balance < 0 ? 'minus' : ''}">${money(wal.balance)}</b></button>` : ''}</div>
+          <div class="hero-top"><span class="hero-label">${isMonth ? L('Расходы за месяц', 'Spent this month') : oneDay ? L('Расходы за день', 'Spent that day') : L('Расходы за период', 'Spent in period')}</span>${wal.length ? `<button class="wallet-pill" id="wallet">${icons.wallet}<b class="${ownTotal(wal) < 0 ? 'minus' : ''}">${money(ownTotal(wal))}</b></button>` : ''}</div>
           <div class="hero-row"><div class="month-total">${money(total)}</div>${deltaChip(total, prevTotal)}</div>
           <div class="month-sub">${sub}</div>
         </div>
@@ -201,65 +203,99 @@ const PICKER_LOCALE = L({
   months: MONTHS, monthsShort: MONTHS_SHORT, today: 'Today', clear: 'Clear', dateFormat: 'MM/dd/yyyy', timeFormat: 'hh:mm aa', firstDay: 1,
 });
 
-// Выбор периода: 7 / 14 / 30 дней или свой диапазон в календаре
-async function pickPeriod() {
-  const day0 = (ts) => { const d = new Date(ts); return +new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
-  const tomorrow = day0(Date.now()) + 864e5;
-  const cur = state.range || { from: state.month.getTime(), to: Math.min(tomorrow, +new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1)) };
-  let sel = [new Date(cur.from), new Date(cur.to - 1)];
-  const fmt = (d) => (d ? L(`${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`, `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`) : '…');
-  const wrap = document.createElement('div');
-  wrap.className = 'modal-wrap';
-  wrap.innerHTML = `<div class="modal-bd"></div>
-    <div class="modal period-modal" role="dialog" aria-modal="true" aria-labelledby="pt">
-      <h3 id="pt">${L('Период', 'Period')}</h3>
-      <div class="preset-grid">${[7, 14, 30].map((n) => `<button class="preset" data-p="${n}">${n} ${L('дней', 'days')}</button>`).join('')}</div>
-      <div class="range-show"><small>${L('С — по', 'From — to')}</small><b id="rshow"></b></div>
-      <div class="cal" id="cal"><div class="spinner"></div></div>
-      <div class="modal-btns"><button class="btn alt" data-r="0">${L('Отмена', 'Cancel')}</button><button class="btn" data-r="1">${L('Показать', 'Show')}</button></div>
-    </div>`;
-  document.body.appendChild(wrap);
-  const show = () => { wrap.querySelector('#rshow').textContent = `${fmt(sel[0])} — ${fmt(sel[1] || sel[0])}`; };
-  show();
-  let dp;
-  const close = () => { dp?.destroy(); wrap.remove(); document.removeEventListener('keydown', keys, true); };
-  const keys = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', keys, true);
-  // целый календарный месяц (или текущий месяц до сегодня) — обычный помесячный режим
-  const apply = (from, to) => {
-    close();
-    const f = new Date(from);
-    const monthEnd = +new Date(f.getFullYear(), f.getMonth() + 1, 1);
-    if (f.getDate() === 1 && (to === monthEnd || (to === tomorrow && monthEnd > Date.now()))) { state.range = null; state.month = new Date(f.getFullYear(), f.getMonth(), 1); }
-    else state.range = { from, to };
-    render();
-  };
-  wrap.querySelector('.modal-bd').onclick = close;
-  wrap.querySelector('[data-r="0"]').onclick = close;
-  wrap.querySelector('.preset-grid').onclick = (e) => {
-    const n = Number(e.target.closest('[data-p]')?.dataset.p);
-    if (n) { haptic(); apply(tomorrow - n * 864e5, tomorrow); }
-  };
-  wrap.querySelector('[data-r="1"]').onclick = () => {
-    if (!sel[0]) return;
-    const a = day0(sel[0]), b = day0(sel[1] || sel[0]);
-    apply(Math.min(a, b), Math.max(a, b) + 864e5);
-  };
+const chevSvg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+const day0 = (ts) => { const d = new Date(ts); return +new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+// Календарь в контейнере (Air Datepicker); onPick(dates)
+export async function mountCalendar(el, opts) {
   try {
     const AirDatepicker = await loadPicker();
-    if (!wrap.isConnected) return;
-    const chev = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
-    wrap.querySelector('#cal').innerHTML = '';
-    dp = new AirDatepicker(wrap.querySelector('#cal'), {
-      inline: true, range: true, dynamicRange: true, toggleSelected: false,
-      locale: PICKER_LOCALE, maxDate: new Date(), selectedDates: sel, startDate: sel[1],
-      navTitles: { days: '<b>MMMM</b> <i>yyyy</i>', months: '<i>yyyy</i>', years: '<i>yyyy1 – yyyy2</i>' },
-      prevHtml: chev('m15 18-6-6 6-6'), nextHtml: chev('m9 18 6-6-6-6'),
-      onSelect: ({ date }) => { sel = Array.isArray(date) ? date : [date]; show(); },
+    if (!el.isConnected) return null;
+    el.innerHTML = '';
+    return new AirDatepicker(el, {
+      inline: true, locale: PICKER_LOCALE, maxDate: new Date(), toggleSelected: false,
+      navTitles: { days: 'MMMM yyyy', months: 'yyyy', years: 'yyyy1 – yyyy2' },
+      prevHtml: chevSvg('m15 18-6-6 6-6'), nextHtml: chevSvg('m9 18 6-6-6-6'), ...opts,
     });
   } catch {
-    wrap.querySelector('#cal').innerHTML = `<div class="empty sm">${L('Календарь не загрузился. Проверьте сеть.', 'Calendar failed to load. Check your connection.')}</div>`;
+    el.innerHTML = `<div class="empty sm">${L('Календарь не загрузился. Проверьте сеть.', 'Calendar failed to load. Check your connection.')}</div>`;
+    return null;
   }
+}
+
+// Выбор периода: месяц (один тап), день или «от–до»
+function pickPeriod(tab) {
+  const tomorrow = day0(Date.now()) + 864e5;
+  const r = state.range;
+  tab ||= !r ? 'month' : r.to - r.from === 864e5 ? 'day' : 'range';
+  const now = new Date();
+  let year = state.month.getFullYear();
+  const tabs = [['month', L('Месяц', 'Month')], ['day', L('День', 'Day')], ['range', L('От–до', 'Range')]];
+  const { panel, close } = bottomSheet(L('Выбор периода', 'Choose period'), `
+    <div class="seg pp-tabs">${tabs.map(([k, t]) => `<button class="${k === tab ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div>
+    <div class="pp-body"></div>
+    <div class="bs-foot pp-foot"></div>`, () => dp?.destroy());
+  let dp;
+  const body = panel.querySelector('.pp-body');
+  const foot = panel.querySelector('.pp-foot');
+  const reset = `<button class="link" id="pp-reset">${L('Сбросить', 'Reset')}</button>`;
+  const apply = (range, month) => { state.range = range; if (month) state.month = month; close(); render(); };
+  const bindReset = () => { foot.querySelector('#pp-reset').onclick = () => apply(null, new Date(now.getFullYear(), now.getMonth(), 1)); };
+  const longDate = (d) => L(`${d.getDate()} ${MONTHS_GEN[d.getMonth()]}`, `${MONTHS[d.getMonth()]} ${d.getDate()}`);
+
+  const showMonth = () => {
+    const sel = !state.range ? state.month : null;
+    body.innerHTML = `<div class="pp-year"><button class="icon-btn sm" data-y="-1">${icons.left}</button><b>${year}</b><button class="icon-btn sm" data-y="1" ${year >= now.getFullYear() ? 'disabled' : ''}>${icons.right}</button></div>
+      <div class="pp-months">${MONTHS_SHORT.map((m, i) => {
+        const on = sel && sel.getFullYear() === year && sel.getMonth() === i;
+        const future = year > now.getFullYear() || (year === now.getFullYear() && i > now.getMonth());
+        return `<button class="pp-m${on ? ' on' : ''}" data-m="${i}" ${future ? 'disabled' : ''}>${m[0].toUpperCase() + m.slice(1)}${on ? ' ✓' : ''}</button>`;
+      }).join('')}</div>`;
+    foot.innerHTML = `<div><small>${L('Выбрано', 'Selected')}</small><b>${sel ? `${MONTHS[sel.getMonth()]} ${sel.getFullYear()}` : '—'}</b></div>${reset}`;
+    bindReset();
+    body.querySelector('.pp-year').onclick = (e) => { const d = Number(e.target.closest('[data-y]')?.dataset.y); if (d) { year += d; showMonth(); } };
+    body.querySelector('.pp-months').onclick = (e) => {
+      const m = e.target.closest('[data-m]');
+      if (!m || m.disabled) return;
+      haptic();
+      apply(null, new Date(year, Number(m.dataset.m), 1));
+    };
+  };
+  const showDay = async () => {
+    body.innerHTML = '<div class="cal"><div class="spinner"></div></div>';
+    foot.innerHTML = `<span class="pp-hint">${L('Нажмите на дату для выбора', 'Tap a date to select it')}</span>${reset}`;
+    bindReset();
+    const cur = state.range && state.range.to - state.range.from === 864e5 ? new Date(state.range.from) : null;
+    dp = await mountCalendar(body.querySelector('.cal'), {
+      selectedDates: cur ? [cur] : [], startDate: cur || new Date(),
+      onSelect: ({ date }) => { if (date) { haptic(); const a = day0(date); apply({ from: a, to: a + 864e5 }); } },
+    });
+  };
+  const showRange = async () => {
+    body.innerHTML = '<div class="cal"><div class="spinner"></div></div>';
+    const hint = (d) => {
+      foot.innerHTML = d
+        ? `<span class="pp-step">${icons.check}<span><b>${L('Начало', 'Start')}: ${longDate(d)}</b><small>${L('Теперь выберите конечную дату', 'Now pick the end date')}</small></span></span>`
+        : `<span class="pp-hint">${L('Сначала начало, затем конец', 'Start first, then end')}</span>${reset}`;
+      if (!d) bindReset();
+    };
+    hint(null);
+    dp = await mountCalendar(body.querySelector('.cal'), {
+      range: true, dynamicRange: true, startDate: state.range ? new Date(state.range.to - 1) : new Date(),
+      onSelect: ({ date }) => {
+        const d = Array.isArray(date) ? date : [date];
+        if (d.length === 1) { haptic(); hint(d[0]); }
+        if (d.length === 2) { haptic(); const a = day0(d[0]), b = day0(d[1]); setTimeout(() => apply({ from: Math.min(a, b), to: Math.max(a, b) + 864e5 }), 180); }
+      },
+    });
+  };
+  const show = (t) => {
+    tab = t;
+    dp?.destroy(); dp = null;
+    panel.querySelectorAll('.pp-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
+    ({ month: showMonth, day: showDay, range: showRange })[t]();
+  };
+  panel.querySelector('.pp-tabs').onclick = (e) => { const t = e.target.closest('[data-t]')?.dataset.t; if (t && t !== tab) { haptic(); show(t); } };
+  show(tab);
 }
 
 const PL_EN = {
@@ -952,7 +988,7 @@ async function wipeAll() {
     return toast(e.message === 'blocked' ? L('Кэш открыт в другой вкладке — закройте её и повторите', 'Kesh is open in another tab — close it and retry') : L('Не удалось удалить данные', 'Couldn’t delete data'));
   }
   auth.reset();
-  ['loggedIn', 'avatar', 'avatarSkin', 'customCats', 'budgets', 'deposits', 'wallet', 'lastBackup', 'kitty', 'kittyCoat', 'kesh', 'keshHints', 'keshSeen'].forEach((k) => localStorage.removeItem(k));
+  ['loggedIn', 'avatar', 'avatarSkin', 'customCats', 'budgets', 'deposits', 'wallet', 'accounts', 'accountsOff', 'lastAcc', 'lastBackup', 'kitty', 'kittyCoat', 'kesh', 'keshHints', 'keshSeen'].forEach((k) => localStorage.removeItem(k));
   reloadCategories();
   state.authMode = null;
   render();
@@ -1184,17 +1220,6 @@ function importData() {
 /* ---------- бюджет ---------- */
 const readJSON = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } };
 const budgets = () => readJSON('budgets', {});
-// Кошелёк: стартовая сумма + доходы − расходы с даты создания
-const wallet = () => readJSON('wallet', null);
-const saveWallet = (w) => (w ? localStorage.setItem('wallet', JSON.stringify(w)) : localStorage.removeItem('wallet'));
-export async function walletBalance() {
-  const w = wallet();
-  if (!w) return null;
-  const items = await store.expensesBetween(w.from, Date.now() + 366 * 864e5);
-  const out = sum(spent(items)), inc = sum(items.filter(isIncome));
-  return { ...w, out, inc, balance: w.base + inc - out };
-}
-// Подсказка Кэша при достижении 80 % / 100 % лимита категории после новой траты
 export async function limitHint(cat, added) {
   const lim = budgets()[cat];
   if (!(lim > 0)) return;
@@ -1222,18 +1247,131 @@ const saveBudgets = (b) => localStorage.setItem('budgets', JSON.stringify(b));
 const toKop = (v) => Math.round(parseFloat(String(v).replace(/\s/g, '').replace(',', '.')) * 100);
 const rub = (kop) => String(Math.round(kop / 100));
 
+/* ---------- счета ---------- */
+const accIcon = (a) => `<span class="acc-ico">${TYPES[a.type]?.icon || '₽'}</span>`;
+const accSub = (a, short) => a.type === 'credit'
+  ? `${short ? L('лимит', 'limit') : TYPES.credit.sub} · ${money(a.balance)}`
+  : short ? `${money(a.balance)} ${L('доступно', 'available')}` : `${TYPES[a.type]?.sub || ''} · ${money(a.balance)}`;
+export { accSub };
+
+function accountsCard(bal) {
+  if (!bal.length && accountsOff()) {
+    return `<button class="card acc-off" id="acc-on"><span class="tr-name">${L('Счета выключены', 'Accounts are off')}<small>${L('Включите, чтобы видеть остаток после каждой траты', 'Turn on to see the balance after each expense')}</small></span><span class="link">${L('Включить', 'Turn on')}</span></button>`;
+  }
+  if (!bal.length) {
+    return `<div class="card acc-card"><div class="card-head"><b>${icons.wallet}${L('Счета', 'Accounts')}</b></div>
+      <p class="month-sub">${L('Добавь наличные, карту или накопления — траты будут вычитаться из выбранного счёта.', 'Add cash, a card or savings — expenses will be subtracted from the chosen account.')}</p>
+      <div class="dep-actions"><button class="btn alt" id="acc-add">${icons.plus} ${L('Добавить счёт', 'Add account')}</button><button class="btn alt" id="acc-skip">${L('Не нужно', 'Not needed')}</button></div></div>`;
+  }
+  return `<div class="card acc-card"><div class="card-head"><b>${icons.wallet}${L('Счета', 'Accounts')}</b><span class="acc-total ${ownTotal(bal) < 0 ? 'minus' : ''}">${money(ownTotal(bal))}</span></div>
+    ${bal.map((a) => `<button class="acc-row" data-acc="${a.id}">${accIcon(a)}<span class="tr-name">${esc(a.name)}<small>${TYPES[a.type]?.name || ''}</small></span><b class="${a.balance < 0 ? 'minus' : ''}">${money(a.balance)}</b></button>`).join('')}
+    <button class="link acc-new" id="acc-add">${icons.plus} ${L('Добавить счёт', 'Add account')}</button></div>`;
+}
+
+function bindAccountsCard() {
+  app.querySelector('#acc-on')?.addEventListener('click', () => { haptic(); setAccountsOff(false); render(); });
+  app.querySelector('#acc-skip')?.addEventListener('click', () => { haptic(); setAccountsOff(true); render(); toast(L('Счета скрыты. Включить можно здесь же', 'Accounts hidden. You can turn them on here')); });
+  app.querySelector('#acc-add')?.addEventListener('click', () => { haptic(); openAddAccount(() => render()); });
+  app.querySelector('.acc-card')?.addEventListener('click', async (e) => {
+    const id = e.target.closest('[data-acc]')?.dataset.acc;
+    if (!id) return;
+    haptic();
+    const a = (await balances()).find((x) => x.id === id);
+    const act = await sheet(a.name, [
+      { key: 'add', icon: icons.plus, label: L('Пополнить', 'Add money') },
+      { key: 'sub', icon: icons.down_file, label: L('Списать', 'Take out') },
+      { key: 'set', icon: icons.sync, label: L('Задать остаток', 'Set balance') },
+      { key: 'rename', icon: icons.edit, label: L('Переименовать', 'Rename') },
+      { key: 'del', icon: icons.trash, label: L('Удалить счёт', 'Delete account'), danger: true },
+    ], accSub(a));
+    const amount = async (title, value) => { const v = await askText(title, { mode: 'decimal', placeholder: L('Сумма, ₽', 'Amount, ₽'), value }); const k = toKop(v || ''); return v === null || !(k >= 0) ? null : k; };
+    if (act === 'add' || act === 'sub') {
+      const k = await amount(act === 'add' ? L('Пополнить счёт', 'Add to account') : L('Списать со счёта', 'Take from account'));
+      if (!k) return;
+      updateAccount(id, { base: a.base + (act === 'add' ? k : -k) });
+      render(); toast(`${act === 'add' ? '+' : '−'}${money(k)}`);
+    }
+    if (act === 'set') {
+      const k = await amount(L('Сколько сейчас на счёте?', 'How much is on the account now?'), rub(a.balance));
+      if (k === null) return;
+      updateAccount(id, { base: a.base + (k - a.balance) });
+      render();
+    }
+    if (act === 'rename') {
+      const v = await askText(L('Название счёта', 'Account name'), { value: a.name });
+      if (v && v.trim()) { updateAccount(id, { name: v.trim().slice(0, 40) }); render(); }
+    }
+    if (act === 'del' && await ask(L(`Удалить «${a.name}»?`, `Delete “${a.name}”?`), L('Операции останутся, пропадёт только остаток счёта.', 'Transactions stay; only the account balance goes away.'))) {
+      removeAccount(id); render();
+    }
+  });
+}
+
+// Форма нового счёта в нижней панели; onDone(account)
+export function openAddAccount(onDone) {
+  let type = 'cash';
+  const { panel, close } = bottomSheet(L('Новый счёт', 'New account'), `
+    <div class="acc-types">${Object.entries(TYPES).map(([k, t]) => `<button class="${k === type ? 'on' : ''}" data-t="${k}"><span class="acc-ico">${t.icon}</span>${t.name}</button>`).join('')}</div>
+    <label class="lbl">${L('Название', 'Name')}</label>
+    <input class="field" id="acc-name" maxlength="40" placeholder="${TYPES.cash.name}">
+    <label class="lbl" id="acc-lbl">${L('Сколько сейчас, ₽', 'Balance now, ₽')}</label>
+    <input class="field" id="acc-sum" inputmode="decimal" placeholder="0">
+    <button class="btn" id="acc-save">${L('Добавить счёт', 'Add account')}</button>`);
+  panel.querySelector('.acc-types').onclick = (e) => {
+    const t = e.target.closest('[data-t]')?.dataset.t;
+    if (!t) return;
+    type = t; haptic();
+    panel.querySelectorAll('.acc-types button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
+    panel.querySelector('#acc-name').placeholder = TYPES[t].name;
+    panel.querySelector('#acc-lbl').textContent = t === 'credit' ? L('Доступный лимит, ₽', 'Available credit, ₽') : L('Сколько сейчас, ₽', 'Balance now, ₽');
+  };
+  panel.querySelector('#acc-save').onclick = () => {
+    const base = toKop(panel.querySelector('#acc-sum').value || '0') || 0;
+    const a = addAccount({ name: panel.querySelector('#acc-name').value.trim().slice(0, 40), type, base: Math.max(0, base) });
+    haptic(); close();
+    onDone?.(a);
+  };
+  setTimeout(() => panel.querySelector('#acc-sum').focus(), 300);
+}
+
+// Выбор счёта для операции; onPick(id | '')
+export async function openAccountPicker(current, income, onPick) {
+  const bal = await balances();
+  const title = income ? L('Зачислить на счёт', 'Deposit to') : L('Списать со счёта', 'Pay from');
+  if (!bal.length) {
+    const { panel, close } = bottomSheet(title, `
+      <p class="bs-sub">${L('Счетов пока нет. Добавь наличные или карту — Кэш будет считать остаток после каждой траты.', 'No accounts yet. Add cash or a card and Kesh will track the balance after each expense.')}</p>
+      <button class="btn" id="ap-add">${icons.plus} ${L('Добавить счёт', 'Add account')}</button>
+      <button class="btn ghost" id="ap-off">${L('Мне не нужно', 'I don’t need this')}</button>`);
+    panel.querySelector('#ap-add').onclick = () => { close(); openAddAccount((a) => onPick(a.id)); };
+    panel.querySelector('#ap-off').onclick = () => { close(); setAccountsOff(true); onPick(''); toast(L('Счета скрыты. Включить можно в «Бюджете»', 'Accounts hidden. Turn them on in Budget')); };
+    return;
+  }
+  const opt = (id, icon, name, sub) => `<button class="acc-opt${id === current ? ' on' : ''}" data-acc="${id}">${icon}<span class="tr-name">${esc(name)}<small>${sub}</small></span>${id === current ? icons.check : ''}</button>`;
+  const { panel, close } = bottomSheet(title, `
+    <p class="bs-sub">${L('Выберите один из ваших счетов.', 'Choose one of your accounts.')}</p>
+    <div class="acc-list">${bal.map((a) => opt(a.id, accIcon(a), a.name, accSub(a))).join('')}
+      ${opt('', '<span class="acc-ico">–</span>', L('Без счёта', 'No account'), L('Операция не меняет остатки', 'Doesn’t change balances'))}</div>
+    <button class="link acc-new" id="ap-add">${icons.plus} ${L('Добавить счёт', 'Add account')}</button>`);
+  panel.querySelector('.acc-list').onclick = (e) => {
+    const b = e.target.closest('[data-acc]');
+    if (!b) return;
+    haptic(); close(); onPick(b.dataset.acc);
+  };
+  panel.querySelector('#ap-add').onclick = () => { close(); openAddAccount((a) => onPick(a.id)); };
+}
+
 export async function renderBudget() {
   const live = ticket();
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const [all, wal] = await Promise.all([store.expensesBetween(from.getTime(), to.getTime() - 1), walletBalance()]);
+  const [all, bal] = await Promise.all([store.expensesBetween(from.getTime(), to.getTime() - 1), balances()]);
   const items = spent(all);
   const bySpent = Object.fromEntries(byCategory(items));
   const b = budgets();
   const limited = CATEGORIES.filter(([id]) => b[id] > 0);
   const free = CATEGORIES.filter(([id]) => !(b[id] > 0)).sort(([x], [y]) => (bySpent[y] || 0) - (bySpent[x] || 0));
-  const wd = wal && new Date(wal.from);
   const limit = limited.reduce((a, [id]) => a + b[id], 0);
   const used = limited.reduce((a, [id]) => a + (bySpent[id] || 0), 0);
   const left = limit - used;
@@ -1245,15 +1383,7 @@ export async function renderBudget() {
     <section class="screen tabbed">
       <header class="appbar"><h1>${L('Бюджет', 'Budget')} · ${MONTHS_LOW[now.getMonth()]}</h1></header>
       <div class="scroll">
-        <div class="card wallet-card">
-          <div class="card-head"><b>${icons.wallet}${L('Кошелёк', 'Wallet')}</b>${wal ? `<button class="icon-btn sm" id="w-more" aria-label="${L('Ещё', 'More')}">${icons.more}</button>` : ''}</div>
-          ${wal ? `
-            <div class="month-total${wal.balance < 0 ? ' over' : ''}" id="w-sum">${money(wal.balance)}</div>
-            <div class="month-sub">${L('с', 'since')} ${wd.getDate()} ${MONTHS_SHORT[wd.getMonth()]} · ${L('старт', 'start')} ${money(wal.base)}${wal.out ? ` · <span class="minus">−${money(wal.out)}</span>` : ''}${wal.inc ? ` · <span class="plus">+${money(wal.inc)}</span>` : ''}</div>
-            <div class="dep-actions"><button class="btn alt" id="w-add">${icons.plus} ${L('Пополнить', 'Add')}</button><button class="btn alt" id="w-sub">${L('Списать', 'Take out')}</button></div>`
-          : `<p class="month-sub">${L('Укажи, сколько денег у тебя сейчас. Расходы будут вычитаться, доходы — прибавляться.', 'Enter how much money you have now. Expenses will be subtracted, income added.')}</p>
-            <button class="btn alt add-dep" id="w-new">${L('Создать кошелёк', 'Create wallet')}</button>`}
-        </div>
+        ${accountsCard(bal)}
         <div class="card budget-card">
           ${limit ? `
             <div class="hero-label">${left < 0 ? L('Перерасход', 'Overspent') : L('Осталось на месяц', 'Left this month')}</div>
@@ -1312,41 +1442,7 @@ export async function renderBudget() {
     }
     askLimit(pick);
   };
-  // кошелёк
-  const walletAmount = async (title) => {
-    const v = await askText(title, { mode: 'decimal', placeholder: L('Сумма, ₽', 'Amount, ₽') });
-    const kop = toKop(v || '');
-    return kop > 0 ? kop : null;
-  };
-  app.querySelector('#w-new')?.addEventListener('click', async () => {
-    const kop = await walletAmount(L('Сколько денег сейчас?', 'How much money do you have now?'));
-    if (kop === null) return;
-    saveWallet({ base: kop, from: Date.now() });
-    render();
-    keshSay(L('Кошелёк готов. Траты буду вычитать сам.', 'Wallet ready. I’ll subtract expenses myself.'), 'Рад');
-  });
-  const adjust = (sign) => async () => {
-    const kop = await walletAmount(sign > 0 ? L('Пополнить кошелёк', 'Add to wallet') : L('Списать из кошелька', 'Take from wallet'));
-    if (kop === null) return;
-    const w = wallet(); saveWallet({ ...w, base: w.base + sign * kop });
-    render();
-    toast(`${sign > 0 ? '+' : '−'}${money(kop)}`);
-  };
-  app.querySelector('#w-add')?.addEventListener('click', adjust(1));
-  app.querySelector('#w-sub')?.addEventListener('click', adjust(-1));
-  app.querySelector('#w-more')?.addEventListener('click', async () => {
-    const act = await sheet(L('Кошелёк', 'Wallet'), [
-      { key: 'reset', icon: icons.sync, label: L('Задать сумму заново', 'Set amount again') },
-      { key: 'del', icon: icons.trash, label: L('Удалить кошелёк', 'Delete wallet'), danger: true },
-    ]);
-    if (act === 'reset') {
-      const kop = await walletAmount(L('Сколько денег сейчас?', 'How much money do you have now?'));
-      if (kop !== null) { saveWallet({ base: kop, from: Date.now() }); render(); }
-    }
-    if (act === 'del' && await ask(L('Удалить кошелёк?', 'Delete wallet?'), L('Операции останутся, исчезнет только остаток.', 'Transactions stay; only the balance goes away.'))) {
-      saveWallet(null); render();
-    }
-  });
+  bindAccountsCard();
   app.querySelector('.budget-list')?.addEventListener('click', async (e) => {
     const id = e.target.closest('[data-b]')?.dataset.b;
     if (!id) return;

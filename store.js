@@ -30,9 +30,10 @@ async function tx(mode, fn) {
   });
 }
 
-export async function addExpense({ amount, category, note, ts, type }) {
+export async function addExpense({ amount, category, note, ts, type, acc }) {
   const item = { id: uuid(), amount, category, note: note || '', ts: ts || Date.now() };
   if (type === 'in') item.type = 'in';
+  if (typeof acc === 'string') item.acc = acc; // '' — сознательно без счёта
   await tx('readwrite', (s) => s.put(item));
   emit();
   return item;
@@ -90,6 +91,7 @@ export function cleanItem(i) {
   const out = { id: i.id, amount: i.amount, category: i.category, note: String(i.note ?? '').slice(0, 500), ts: Math.round(i.ts) };
   if (i.type === 'in') out.type = 'in';
   if (i.edited) out.edited = 1;
+  if (typeof i.acc === 'string' && /^[\w-]{0,64}$/.test(i.acc)) out.acc = i.acc;
   return out;
 }
 

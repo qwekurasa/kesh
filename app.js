@@ -1,10 +1,11 @@
 import * as store from './store.js';
 import { L, LANG, setLang } from './i18n.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, limitHint, renderKeshSettings, langSwitch, flipLang } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, limitHint, renderKeshSettings, langSwitch, flipLang, mountCalendar, openAccountPicker, accSub } from './screens.js';
+import { accounts, balances, defaultAccount, rememberAccount, accountsOff } from './accounts.js';
 import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
-  setRender, render, ticket, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
+  setRender, render, ticket, bottomSheet, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
 } from './ui.js';
 import { catAvatar, coatSVG, startKesh, keshSVG, keshOn, keshReact, amountPose, calmMode, keshHint, keshSay } from './kesh.js';
 
@@ -281,18 +282,6 @@ const dateLabel = (ts) => {
   const k = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(ts).setHours(0, 0, 0, 0)) / 864e5);
   return `${k === 0 ? L('Сегодня · ', 'Today · ') : k === 1 ? L('Вчера · ', 'Yesterday · ') : ''}${d.getDate()} ${MONTHS_GEN[d.getMonth()]}`;
 };
-const dateInput = () => `<label class="icon-btn date-pick" aria-label="${L('Дата операции', 'Date')}">${icons.calendar}
-  <input type="date" id="date" value="${isoDay(new Date(state.date))}" max="${isoDay(new Date())}"></label>`;
-function bindDate() {
-  app.querySelector('#date').onchange = (e) => {
-    const [y, m, dd] = e.target.value.split('-').map(Number);
-    if (!y) return;
-    const picked = new Date(y, m - 1, dd);
-    state.date = picked.toDateString() === new Date().toDateString() ? Date.now() : new Date(y, m - 1, dd, 12, 0).getTime();
-    render();
-  };
-}
-
 // Частые категории: по последним операциям, добиваем первыми из списка
 async function frequent(income) {
   const list = (income ? INCOME_CATEGORIES : CATEGORIES).map(([id]) => id);
@@ -301,12 +290,59 @@ async function frequent(income) {
   return out.slice(0, 4);
 }
 
+// Счёт операции: undefined — счетов нет; '' — без счёта
+function currentAccount() {
+  const list = accounts();
+  if (!list.length) return undefined;
+  if (state.acc === '' || list.some((a) => a.id === state.acc)) return state.acc;
+  return defaultAccount();
+}
+const hm = (ts) => { const d = new Date(ts); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const shortDay = (ts) => { const d = new Date(ts); return L(`${d.getDate()} ${MONTHS_SHORT_APP[d.getMonth()]}`, `${MONTHS_SHORT_APP[d.getMonth()]} ${d.getDate()}`); };
+const MONTHS_SHORT_APP = L(['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'], ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
+function whenText() {
+  const ts = state.dateSet ? state.date : Date.now();
+  const k = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(ts).setHours(0, 0, 0, 0)) / 864e5);
+  const main = !state.dateSet ? L('Сейчас', 'Now') : k === 0 ? L('Сегодня', 'Today') : k === 1 ? L('Вчера', 'Yesterday') : shortDay(ts);
+  return [main, `${shortDay(ts)} · ${hm(ts)}`];
+}
+
+// Панель «Дата и время»: изменения применяются сразу
+function openWhen() {
+  const nowChip = () => `${icons.clock}${L('Сейчас', 'Now')} · ${shortDay(Date.now())} · ${hm(Date.now())}`;
+  const cur = () => (state.dateSet ? state.date : Date.now());
+  const { panel } = bottomSheet(L('Дата и время', 'Date and time'), `
+    <button class="when-now${state.dateSet ? '' : ' on'}" id="w-now">${nowChip()}</button>
+    <div class="cal"><div class="spinner"></div></div>
+    <div class="when-time"><span>${L('Время операции', 'Time')}</span><input class="field" type="time" id="w-time" value="${hm(cur())}"></div>
+    <p class="when-note">${L('Изменения применяются сразу · закройте панель свайпом или ×', 'Changes apply instantly · swipe down or tap × to close')}</p>`, () => render());
+  const set = (ts) => { state.date = Math.min(ts, Date.now()); state.dateSet = true; panel.querySelector('#w-now').classList.remove('on'); };
+  panel.querySelector('#w-now').onclick = () => { haptic(); state.dateSet = false; state.date = Date.now(); panel.querySelector('.bs-x').click(); };
+  panel.querySelector('#w-time').onchange = (e) => {
+    const [h, m] = e.target.value.split(':').map(Number);
+    if (Number.isNaN(h)) return;
+    const d = new Date(cur()); d.setHours(h, m, 0, 0); set(+d);
+  };
+  mountCalendar(panel.querySelector('.cal'), {
+    selectedDates: [new Date(cur())], startDate: new Date(cur()),
+    onSelect: ({ date }) => {
+      if (!date) return;
+      haptic();
+      const t = new Date(cur()); const d = new Date(date); d.setHours(t.getHours(), t.getMinutes(), 0, 0); set(+d);
+    },
+  });
+}
+
 async function renderAmount() {
   const live = ticket();
   const editing = !!state.edit;
   const income = state.kind === 'in';
-  const top = await frequent(income);
+  const [top, bal] = await Promise.all([frequent(income), balances()]);
   if (!live()) return;
+  const accId = currentAccount();
+  const acc = bal.find((a) => a.id === accId);
+  const [wMain, wSub] = whenText();
+  const showAcc = bal.length || !accountsOff();
   app.innerHTML = `
     <section class="screen add-screen">
       <div class="topbar">
@@ -315,16 +351,21 @@ async function renderAmount() {
           <button class="${income ? '' : 'on'}" data-k="out">${L('Расход', 'Expense')}</button>
           <button class="${income ? 'on' : ''}" data-k="in">${L('Доход', 'Income')}</button>
         </div>
-        ${editing ? `<button class="icon-btn" id="del" aria-label="${L('Удалить операцию', 'Delete')}">${icons.trash}</button>` : dateInput()}
+        ${editing ? `<button class="icon-btn" id="del" aria-label="${L('Удалить операцию', 'Delete')}">${icons.trash}</button>` : `<button class="icon-btn" id="cal-btn" aria-label="${L('Дата операции', 'Date')}">${icons.calendar}</button>`}
       </div>
       <div class="amount-wrap${income ? ' income' : ''}">
+        <div class="amount-label">${income ? L('Сумма дохода', 'Income amount') : L('Сумма расхода', 'Expense amount')}</div>
         <div class="amount" id="amount"><span class="val"></span><span class="cur">₽</span></div>
         <div class="amount-edge"><div class="amount-kesh" id="kesh-amt" aria-hidden="true"></div></div>
         <div class="amount-hint" id="hint"></div>
       </div>
+      <div class="meta-row${showAcc ? '' : ' one'}">
+        <button class="meta" id="when"><small>${L('Когда', 'When')}</small><span class="meta-main">${icons.clock}<b>${wMain}</b>${icons.right}</span><span class="meta-sub">${wSub}</span></button>
+        ${showAcc ? `<button class="meta" id="acc-btn"><small>${income ? L('Зачислить на', 'Deposit to') : L('Списать с', 'Pay from')}</small><span class="meta-main">${icons.wallet}<b>${acc ? esc(acc.name) : bal.length ? L('Без счёта', 'No account') : L('Счёт', 'Account')}</b>${icons.right}</span><span class="meta-sub">${acc ? accSub(acc, true) : bal.length ? L('Не меняет остатки', 'No balance change') : L('Добавить счёт', 'Add an account')}</span></button>` : ''}
+      </div>
       <div class="quick-head"><span class="section-label">${L('Частые', 'Frequent')}</span><button class="link" id="all">${L('Все категории', 'All categories')}</button></div>
       <div class="quick">${top.map((id) => `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${esc(CAT[id].name)}</span></button>`).join('')}</div>
-      <input class="field" id="note" placeholder="${L('Комментарий', 'Note')}" maxlength="200" value="${esc(state.note)}">
+      <input class="field" id="note" placeholder="${L('Комментарий (необязательно)', 'Note (optional)')}" maxlength="200" value="${esc(state.note)}">
       <div class="pad">
         ${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map((k) =>
           `<button class="key" data-k="${k}" aria-label="${k === 'del' ? L('Стереть', 'Erase') : k}">${k === 'del' ? icons.del : k}</button>`).join('')}
@@ -333,7 +374,12 @@ async function renderAmount() {
     </section>`;
 
   updateAmount();
-  if (!editing) bindDate();
+  app.querySelector('#when').onclick = () => { haptic(); openWhen(); };
+  app.querySelector('#cal-btn')?.addEventListener('click', () => { haptic(); openWhen(); });
+  app.querySelector('#acc-btn')?.addEventListener('click', () => {
+    haptic();
+    openAccountPicker(accId, income, (id) => { state.acc = id; render(); });
+  });
   app.querySelector('#close').onclick = () => { if (state.edit) Object.assign(state, { amt: '', cat: null, note: '' }); state.edit = null; go(state.tab || 'home'); };
   app.querySelector('#next').onclick = () => (state.cat && kopecks() > 0 ? save() : goCategory());
   app.querySelector('#all').onclick = () => { state.flow = 'category'; render(); };
@@ -404,11 +450,12 @@ function updateAmount() {
   const text = state.amt ? (int || '0').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (dec !== undefined ? `,${dec}` : '') : '0';
   el.querySelector('.val').textContent = text;
   el.classList.toggle('empty', !state.amt);
-  el.style.setProperty('--size', `${Math.max(40, 72 - Math.max(0, text.length - 5) * 6)}px`);
+  const base = window.innerHeight < 760 ? 58 : 72;
+  el.style.setProperty('--size', `${Math.max(36, base - Math.max(0, text.length - 5) * 6)}px`);
   const [pose, line] = amountPose(state.kind, kopecks());
   const k = app.querySelector('#kesh-amt');
   if (k.dataset.pose !== pose) { k.dataset.pose = pose; k.innerHTML = keshOn() && !calmMode() ? coatSVG(pose) : ''; }
-  app.querySelector('#hint').textContent = (state.amt && line) || dateLabel(state.date);
+  app.querySelector('#hint').textContent = (state.amt && line) || '';
   const btn = app.querySelector('#next');
   const kop = kopecks();
   btn.disabled = kop <= 0;
@@ -437,7 +484,7 @@ async function renderCategory() {
       <div class="topbar cat-bar">
         <button class="icon-btn" id="back" aria-label="${L('Назад', 'Back')}">${icons.back}</button>
         <button class="amount-chip center${income ? ' income' : ''}" id="edit">${income ? '+' : ''}${money(kopecks())} ${icons.edit}</button>
-        ${dateInput()}
+        <button class="icon-btn" id="cal-btn" aria-label="${L('Дата операции', 'Date')}">${icons.calendar}</button>
       </div>
       <h2 class="cat-title">${income ? L('Откуда пришли деньги?', 'Where did it come from?') : L('На что потратили?', 'What was it for?')}</h2>
       <label class="search-bar sm">${icons.search}<input id="cq" placeholder="${L('Поиск категории', 'Search categories')}" value="${esc(state.catQuery)}" autocapitalize="none" spellcheck="false"></label>
@@ -458,7 +505,7 @@ async function renderCategory() {
   app.querySelector('#back').onclick = back;
   app.querySelector('#edit').onclick = back;
   app.querySelector('#note').oninput = (e) => { state.note = e.target.value; };
-  bindDate();
+  app.querySelector('#cal-btn').onclick = () => { haptic(); openWhen(); };
   const cq = app.querySelector('#cq');
   cq.oninput = () => { state.catQuery = cq.value; render(); };
   if (q) { cq.focus(); cq.setSelectionRange(q.length, q.length); }
@@ -488,15 +535,18 @@ async function save() {
   const category = state.cat;
   const note = state.note.trim();
   const type = state.kind === 'in' ? 'in' : undefined;
+  const ts = state.dateSet ? state.date : Date.now();
+  const acc = currentAccount();
   if (state.edit) {
     const { id } = state.edit;
-    Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '', catQuery: '' });
-    await store.updateExpense(id, { amount, category, note, ts: state.date, type });
+    Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '', catQuery: '', dateSet: false, acc: undefined });
+    await store.updateExpense(id, { amount, category, note, ts, type, ...(acc !== undefined ? { acc } : {}) });
     render();
     return toast(L('Изменения сохранены', 'Changes saved'));
   }
-  const item = await store.addExpense({ amount, category, note, ts: state.date, type });
-  Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(state.date)), date: Date.now(), kind: 'out' });
+  const item = await store.addExpense({ amount, category, note, ts, type, acc });
+  if (acc !== undefined) rememberAccount(acc);
+  Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(ts)), date: Date.now(), dateSet: false, acc: undefined, kind: 'out' });
   // средняя трата за 30 дней — для реакции «Ого, крупная»
   const month = (await store.expensesBetween(Date.now() - 30 * 864e5, Date.now())).filter((i) => i.type !== 'in' && i.id !== item.id);
   const avg = month.length >= 5 ? month.reduce((x, i) => x + i.amount, 0) / month.length : Infinity;

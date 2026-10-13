@@ -21,7 +21,7 @@ export async function makeBackup(appVersion) {
     categories: customCategories(),
     budgets: read('budgets', {}),
     deposits: read('deposits', []),
-    wallet: read('wallet', null),
+    accounts: read('accounts', []),
     preferences,
   };
 }
@@ -35,6 +35,9 @@ const cleanDeposit = (d) => (d && typeof d.id === 'string' && /^[\w-]{1,64}$/.te
     opened: Number.isFinite(d.opened) && d.opened > 0 ? d.opened : 0,
     cap: d.cap === 'month' || d.cap === 'end' ? d.cap : 'month',
   }
+  : null);
+const cleanAccount = (a) => (a && typeof a.id === 'string' && /^[\w-]{1,64}$/.test(a.id) && Number.isSafeInteger(a.base) && Math.abs(a.base) <= 1e13 && Number.isFinite(a.from) && a.from > 0
+  ? { id: a.id, name: String(a.name ?? '').trim().slice(0, 40) || 'Счёт', type: ['cash', 'card', 'savings', 'credit'].includes(a.type) ? a.type : 'cash', base: a.base, from: a.from, ...(a.all ? { all: true } : {}) }
   : null);
 const cleanWallet = (w) => (w && Number.isSafeInteger(w.base) && Math.abs(w.base) <= 1e13 && Number.isFinite(w.from) && w.from > 0 ? { base: w.base, from: w.from } : null);
 
@@ -63,7 +66,10 @@ export function checkBackup(data) {
   return {
     ok: true,
     exportedAt: legacy ? null : String(data.exportedAt || ''),
-    transactions, categories, deposits, budgets, preferences, wallet: cleanWallet(data.wallet),
+    transactions, categories, deposits, budgets, preferences,
+    // старые копии хранили один «кошелёк» — превращаем в счёт
+    accounts: Array.isArray(data.accounts) ? data.accounts.map(cleanAccount).filter(Boolean)
+      : (cleanWallet(data.wallet) ? [{ id: `a${data.wallet.from.toString(36)}`, name: 'Кошелёк', type: 'cash', base: data.wallet.base, from: data.wallet.from, all: true }] : []),
     dropped: tx.length - transactions.length,
   };
 }
@@ -84,7 +90,10 @@ export async function restoreBackup(c) {
   const newBudgets = Object.keys(c.budgets).filter((id) => !(id in budgets));
   if (newBudgets.length) localStorage.setItem('budgets', JSON.stringify({ ...c.budgets, ...budgets }));
 
-  if (c.wallet && !localStorage.getItem('wallet')) localStorage.setItem('wallet', JSON.stringify(c.wallet));
+  const accs = read('accounts', []);
+  const accIds = new Set(accs.map((a) => a.id));
+  const newAccs = (c.accounts || []).filter((a) => !accIds.has(a.id));
+  if (newAccs.length) localStorage.setItem('accounts', JSON.stringify([...accs, ...newAccs]));
   Object.entries(c.preferences).forEach(([k, v]) => localStorage.setItem(k, v));
   const tx = await store.importExpenses(c.transactions);
   return { ...tx, categories: newCats.length, deposits: newDeps.length, budgets: newBudgets.length };

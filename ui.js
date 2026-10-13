@@ -282,6 +282,8 @@ export const icons = {
   safe: svg('<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5V7M12 17v-1.5M7 20v1M17 20v1"/>'),
   paw: svg('<circle cx="7" cy="10" r="1.8"/><circle cx="11" cy="6.5" r="1.8"/><circle cx="16" cy="6.8" r="1.8"/><circle cx="19" cy="11" r="1.8"/><path d="M8.5 17.5c0-3 2.2-5.5 4.5-5.5s4.5 2.5 4.5 5.5c0 1.6-1.4 2.5-3 2-1-.3-2-.3-3 0-1.6.5-3-.4-3-2Z"/>'),
   wallet: svg('<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2.5"/><circle cx="15.5" cy="13.5" r="1.2"/>'),
+  clock: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+  check: svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>', 2.2),
   more: svg('<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>', 1.6),
   sync: svg('<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>'),
   bell: svg('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>'),
@@ -323,6 +325,8 @@ export function openEdit(item) {
     note: item.note || '',
     catQuery: '',
     date: item.ts,
+    dateSet: true,
+    acc: item.acc,
   });
   render();
 }
@@ -330,7 +334,7 @@ export function openEdit(item) {
 // Повторить операцию: сумма, категория и комментарий те же, дата — сегодня; сохраняет сам пользователь
 export function openRepeat(item) {
   openEdit(item);
-  Object.assign(state, { edit: null, flow: 'category', date: Date.now() });
+  Object.assign(state, { edit: null, flow: 'category', date: Date.now(), dateSet: false });
   render();
 }
 
@@ -341,7 +345,7 @@ export function openCategory(id) {
 }
 
 export function openAdd() {
-  Object.assign(state, { flow: 'add', edit: null, amt: '', cat: null, note: '', catQuery: '', date: Date.now(), kind: 'out' });
+  Object.assign(state, { flow: 'add', edit: null, amt: '', cat: null, note: '', catQuery: '', date: Date.now(), dateSet: false, acc: undefined, kind: 'out' });
   render();
 }
 
@@ -390,6 +394,46 @@ export function dialog({ title, text = '', ok = 'OK', cancel = L('Отмена',
     field?.addEventListener('keydown', (e) => { if (e.key === 'Enter') wrap.querySelector('[data-r="1"]').click(); });
     setTimeout(() => (field || wrap.querySelector('[data-r="1"]')).focus(), 60);
   });
+}
+
+// Нижняя панель: заголовок, крестик, свайп вниз закрывает. Возвращает { panel, close }
+export function bottomSheet(title, body, onClose) {
+  const wrap = document.createElement('div');
+  wrap.className = 'bs-wrap';
+  wrap.innerHTML = `<div class="bs-bd"></div>
+    <div class="bs" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      <div class="bs-grab"></div>
+      <div class="bs-head"><h3>${esc(title)}</h3><button class="bs-x" aria-label="${L('Закрыть', 'Close')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="bs-body">${body}</div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const panel = wrap.querySelector('.bs');
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('keydown', keys, true);
+    wrap.classList.add('out');
+    setTimeout(() => wrap.remove(), 220);
+    onClose?.();
+  };
+  const keys = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  document.addEventListener('keydown', keys, true);
+  wrap.querySelector('.bs-bd').onclick = close;
+  wrap.querySelector('.bs-x').onclick = close;
+  // свайп вниз за шапку
+  let y0 = null;
+  const head = panel.querySelector('.bs-grab');
+  const top = panel.querySelector('.bs-head');
+  [head, top].forEach((el) => el.addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; panel.style.transition = 'none'; }, { passive: true }));
+  panel.addEventListener('touchmove', (e) => { if (y0 === null) return; const d = Math.max(0, e.touches[0].clientY - y0); panel.style.transform = `translateY(${d}px)`; }, { passive: true });
+  panel.addEventListener('touchend', (e) => {
+    if (y0 === null) return;
+    const d = e.changedTouches[0].clientY - y0;
+    y0 = null; panel.style.transition = ''; panel.style.transform = '';
+    if (d > 80) close();
+  });
+  return { panel, close };
 }
 
 // Меню действий: resolve(key) или null
