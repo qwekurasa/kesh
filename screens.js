@@ -13,7 +13,7 @@ import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { TYPES, accounts, balances, ownTotal, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v41';
+export const BUILD = 'v42';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -964,6 +964,14 @@ function lastBackupLabel() {
 }
 
 function saveFile(file) {
+  if (window.KeshAndroid) {
+    return file.arrayBuffer().then((buf) => {
+      const u = new Uint8Array(buf);
+      let s = '';
+      for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
+      window.KeshAndroid.share(file.name, file.type || 'application/octet-stream', btoa(s));
+    });
+  }
   if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
     return navigator.share({ files: [file] }).catch(() => {});
   }

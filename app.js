@@ -685,6 +685,14 @@ function goBack() {
   if (state.tab !== 'home') return go('home');
 }
 
+// Системная кнопка «назад» в Android-оболочке: true — обработано, false — свернуть приложение
+window.keshBack = () => {
+  if (document.querySelector('.bs-wrap:not(.out), .modal-wrap')) { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); return true; }
+  if (!state.info && !state.flow && (state.tab || 'home') === 'home') return false;
+  goBack();
+  return true;
+};
+
 let swipe = null;
 document.addEventListener('touchstart', (e) => {
   const t = e.touches[0];

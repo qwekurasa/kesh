@@ -1,0 +1,27 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'io.github.qwekurasa.kesh'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'io.github.qwekurasa.kesh'
+        minSdk 24
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName System.getenv('VERSION_NAME') ?: '1.0'
+    }
+    signingConfigs {
+        release {
+            storeFile file('kesh.keystore')
+            storePassword System.getenv('KS_PASS') ?: 'keshkesh'
+            keyAlias 'kesh'
+            keyPassword System.getenv('KS_PASS') ?: 'keshkesh'
+        }
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.release }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+
+dependencies { implementation 'androidx.core:core:1.13.1' }
