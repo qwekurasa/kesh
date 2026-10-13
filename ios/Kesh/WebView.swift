@@ -1,14 +1,26 @@
 import SwiftUI
 import WebKit
+import WidgetKit
+
+let appGroup = "group.io.github.qwekurasa.kesh"
+
+// Действие из виджета (kesh://out и т. п.), ждёт, пока страница загрузится
+final class DeepLink: ObservableObject {
+    static let shared = DeepLink()
+    @Published var action: String?
+}
 
 // Оболочка над PWA: веб-приложение открывается на весь экран, данные живут внутри WKWebView
 struct WebView: UIViewRepresentable {
     let url: URL
 
+    @ObservedObject var link = DeepLink.shared
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        config.userContentController.add(context.coordinator, name: "keshWidget")
         config.limitsNavigationsToAppBoundDomains = true // нужно для Service Worker
         config.websiteDataStore = .default()
         config.allowsInlineMediaPlayback = true
@@ -29,10 +41,35 @@ struct WebView: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: WKWebView, context: Context) {}
+    func updateUIView(_ view: WKWebView, context: Context) {
+        context.coordinator.web = view
+        if let a = link.action {
+            context.coordinator.pending = a
+            DispatchQueue.main.async { link.action = nil }
+            context.coordinator.runPending()
+        }
+    }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, WKScriptMessageHandler {
         private var downloadURL: URL?
+        weak var web: WKWebView?
+        var pending: String?
+
+        // Веб-код открывает экран, как только загрузится
+        func runPending() {
+            guard let a = pending, let web, ["out", "in", "charts", "budget", "deposits"].contains(a) else { return }
+            pending = nil
+            web.evaluateJavaScript("(function t(n){if(window.keshOpen)keshOpen('\(a)');else if(n)setTimeout(function(){t(n-1)},200)})(30)")
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { runPending() }
+
+        // Сводка для виджета
+        func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "keshWidget", let json = message.body as? String else { return }
+            UserDefaults(suiteName: appGroup)?.set(json, forKey: "summary")
+            WidgetCenter.shared.reloadAllTimelines()
+        }
 
         // Внешние ссылки (GitHub и т. п.) открываем в Safari
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {

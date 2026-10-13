@@ -6,7 +6,7 @@ import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderIm
 import { accounts, balances, defaultAccount, rememberAccount, accountsOff } from './accounts.js';
 import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
-  setRender, render, ticket, bottomSheet, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
+  setRender, render, ticket, bottomSheet, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask, openAdd,
 } from './ui.js';
 import { catAvatar, coatSVG, startKesh, keshSVG, keshOn, keshReact, amountPose, calmMode, keshHint, keshSay } from './kesh.js';
 
@@ -659,6 +659,43 @@ document.addEventListener('keydown', (e) => {
 });
 
 store.onChange(() => { if (!state.flow) render(); });
+
+/* ---------- виджет на экране «Домой» (оболочки iOS/Android) ---------- */
+const MON = L(['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'], ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
+let widgetTimer;
+async function pushWidget() {
+  const ios = window.webkit?.messageHandlers?.keshWidget;
+  if (!ios && !window.KeshAndroid?.widget) return;
+  const now = new Date();
+  const from = startOfMonth(now).getTime();
+  const day0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const items = await store.expensesBetween(from, Date.now() + 864e5);
+  const out = (list) => list.filter((i) => i.type !== 'in').reduce((s, i) => s + i.amount, 0);
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const data = {
+    total: money(out(items)),
+    today: money(out(items.filter((i) => i.ts >= day0))),
+    income: money(items.filter((i) => i.type === 'in').reduce((s, i) => s + i.amount, 0)),
+    period: L(`1–${last} ${MON[now.getMonth()]}`, `${MON[now.getMonth()]} 1–${last}`),
+    month: L('Расходы за месяц', 'Spent this month'),
+    todayLabel: L('Сегодня', 'Today'),
+    acts: [L('Расход', 'Expense'), L('Доход', 'Income'), L('Аналитика', 'Stats'), L('Бюджет', 'Budget'), L('Вклады', 'Savings')],
+    ts: Date.now(),
+  };
+  const json = JSON.stringify(data);
+  if (ios) ios.postMessage(json); else window.KeshAndroid.widget(json);
+}
+const queueWidget = () => { clearTimeout(widgetTimer); widgetTimer = setTimeout(() => pushWidget().catch(() => {}), 400); };
+store.onChange(queueWidget);
+document.addEventListener('visibilitychange', queueWidget);
+queueWidget();
+
+// Ссылки из виджета: kesh://out, in, charts, budget, deposits
+window.keshOpen = (a) => {
+  if (!auth.account()) return;
+  if (a === 'out' || a === 'in') { openAdd(); if (a === 'in') { state.kind = 'in'; render(); } return; }
+  if (['charts', 'budget', 'deposits'].includes(a)) { state.info = null; go(a); }
+};
 
 // Сбой где угодно: понятное сообщение вместо пустого экрана
 function fail(err) {

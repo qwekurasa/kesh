@@ -36,7 +36,7 @@ Android: Chrome → меню → «Установить приложение».
 ### iPhone-приложение через Mac
 
 1. Установить Xcode из App Store.
-2. Скачать репозиторий, открыть `ios/Kesh.xcodeproj`.
+2. Скачать репозиторий, в Терминале: `brew install xcodegen`, затем в папке `ios` выполнить `xcodegen` и открыть `Kesh.xcodeproj`.
 3. Signing & Capabilities → Team → свой Apple ID.
 4. Подключить iPhone, выбрать его вверху, нажать ▶.
 5. Доверие и режим разработчика — как в шагах 5–6 выше.

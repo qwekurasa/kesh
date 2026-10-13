@@ -7,5 +7,15 @@
 	<array>
 		<string>kesh-money.vercel.app</string>
 	</array>
+	<!-- Ссылки из виджета: kesh://out, kesh://charts и т. п. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>io.github.qwekurasa.kesh</string>
+			<key>CFBundleURLSchemes</key>
+			<array><string>kesh</string></array>
+		</dict>
+	</array>
 </dict>
 </plist>
