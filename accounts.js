@@ -1,13 +1,13 @@
 // Счета: наличные, карта, накопления, кредитка. Остаток = старт + доходы − расходы с даты создания счёта
 import * as store from './store.js';
-import { L } from './i18n.js';
+import { L, SYM } from './i18n.js';
 
 const get = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const put = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* хранилище недоступно */ } };
 const parse = (k) => { try { return JSON.parse(get(k)); } catch { return null; } };
 
 export const TYPES = {
-  cash: { name: L('Наличные', 'Cash'), sub: L('Доступный остаток', 'Available balance'), icon: '₽' },
+  cash: { name: L('Наличные', 'Cash'), sub: L('Доступный остаток', 'Available balance'), icon: SYM },
   card: { name: L('Карта', 'Card'), sub: L('Остаток на карте', 'Card balance'), icon: '▭' },
   savings: { name: L('Накопления', 'Savings'), sub: L('Сберегательный счёт', 'Savings account'), icon: '◇' },
   credit: { name: L('Кредитная карта', 'Credit card'), sub: L('Доступный кредитный лимит', 'Available credit'), icon: '▣' },

@@ -1,4 +1,4 @@
-import { L, EN } from './i18n.js';
+import { L, EN, CURRENCY, SYM } from './i18n.js';
 import { AVATARS, catAvatar } from './kesh.js';
 const BASE = [
   ['groceries', 'Продукты'], ['cafe', 'Рестораны'], ['fastfood', 'Фастфуд'], ['coffee', 'Кофе'],
@@ -241,10 +241,16 @@ export const state = {
   catQuery: '', date: Date.now(), step: 0, draft: {}, info: null, kind: 'out', dep: null,
 };
 
-const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
-const nf2 = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const LOC = EN ? 'en-US' : 'ru-RU';
+const nf = new Intl.NumberFormat(LOC, { maximumFractionDigits: 2 });
+const cf = (min) => new Intl.NumberFormat(LOC, { style: 'currency', currency: CURRENCY, currencyDisplay: 'narrowSymbol', minimumFractionDigits: min, maximumFractionDigits: 2 });
+const cf0 = cf(0), cf2 = cf(2);
+const nf2 = new Intl.NumberFormat(LOC, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// сумма без знака валюты: 12 480 / 12,480
+export const num = (kop) => (kop % 100 ? nf2 : nf).format(kop / 100);
+export { SYM };
 // копейки — всегда двумя знаками: 12 682,50 ₽, а не 12 682,5 ₽
-export const money = (kop) => `${(kop % 100 ? nf2 : nf).format(kop / 100)} ₽`;
+export const money = (kop) => (kop % 100 ? cf2 : cf0).format(kop / 100).replace(/^-/, '−');
 export const moneyShort = (kop) => {
   const r = Math.round(kop / 100);
   if (Math.abs(r) >= 1000000) return `${nf.format(Math.round(r / 100000) / 10)}M`;

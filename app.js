@@ -1,5 +1,5 @@
 import * as store from './store.js';
-import { L, LANG, setLang } from './i18n.js';
+import { L, LANG, setLang, EN, SYM } from './i18n.js';
 import * as auth from './auth.js';
 import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, limitHint, renderKeshSettings, langSwitch, flipLang, mountCalendar, openAccountPicker, accSub } from './screens.js';
 import { accounts, balances, defaultAccount, rememberAccount, accountsOff } from './accounts.js';
@@ -355,7 +355,7 @@ async function renderAmount() {
       </div>
       <div class="amount-wrap${income ? ' income' : ''}">
         <div class="amount-label">${income ? L('Сумма дохода', 'Income amount') : L('Сумма расхода', 'Expense amount')}</div>
-        <div class="amount" id="amount"><span class="val"></span><span class="cur">₽</span></div>
+        <div class="amount" id="amount"><span class="val"></span><span class="cur">${SYM}</span></div>
         <div class="amount-edge"><div class="amount-kesh" id="kesh-amt" aria-hidden="true"></div></div>
         <div class="amount-hint" id="hint"></div>
       </div>
@@ -368,7 +368,7 @@ async function renderAmount() {
       <input class="field" id="note" placeholder="${L('Комментарий (необязательно)', 'Note (optional)')}" maxlength="200" value="${esc(state.note)}">
       <div class="pad">
         ${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map((k) =>
-          `<button class="key" data-k="${k}" aria-label="${k === 'del' ? L('Стереть', 'Erase') : k}">${k === 'del' ? icons.del : k}</button>`).join('')}
+          `<button class="key" data-k="${k}" aria-label="${k === 'del' ? L('Стереть', 'Erase') : k}">${k === 'del' ? icons.del : k === ',' && EN ? '.' : k}</button>`).join('')}
       </div>
       <button class="btn" id="next">${L('Сохранить', 'Save')}</button>
     </section>`;
@@ -447,7 +447,9 @@ function updateAmount() {
   const el = app.querySelector('#amount');
   if (!el) return;
   const [int, dec] = state.amt.split(',');
-  const text = state.amt ? (int || '0').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (dec !== undefined ? `,${dec}` : '') : '0';
+  // EN: 12,480.50 — RU: 12 480,50 (узкий пробел)
+  const [gs, ds] = EN ? [',', '.'] : ['\u202f', ','];
+  const text = state.amt ? (int || '0').replace(/\B(?=(\d{3})+(?!\d))/g, gs) + (dec !== undefined ? `${ds}${dec}` : '') : '0';
   el.querySelector('.val').textContent = text;
   el.classList.toggle('empty', !state.amt);
   const base = window.innerHeight < 760 ? 58 : 72;

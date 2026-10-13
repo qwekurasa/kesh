@@ -927,3 +927,7 @@ button.switch-row { width: 100%; text-align: left; }
   .add-screen .key { height: 38px; font-size: 19px; }
   .add-screen .btn { height: 50px; }
 }
+
+html[data-lang="en"] .amount .cur { order: -1; }
+.row-sym { width: 18px; text-align: center; font: 600 15px var(--mono); color: var(--text-2); flex: none; }
+.row .row-sym + span { flex: 1; }

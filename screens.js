@@ -3,7 +3,7 @@ import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
   render, go, toast, dialog, sheet, bottomSheet, PALETTE, tabbar, bindTabs, avatarHTML, openEdit, openRepeat, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
-  CATEGORIES, catColor, isIncome, sumCell, reloadCategories, addCategory, ticket,
+  CATEGORIES, catColor, isIncome, sumCell, num, SYM, reloadCategories, addCategory, ticket,
 } from './ui.js';
 import { writeXlsx, readXlsx } from './xlsx.js';
 import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCalm, keshCoat, setCoat, keshSVG, catAvatar } from './kesh.js';
@@ -11,9 +11,9 @@ import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCal
 const REPO = 'https://github.com/qwekurasa/kesh';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { TYPES, accounts, balances, ownTotal, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
-import { L, LANG, setLang, plural as pl } from './i18n.js';
+import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v38';
+export const BUILD = 'v39';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -492,7 +492,6 @@ export async function renderCharts() {
   };
 }
 
-const num = (kop) => money(kop).replace(/\s?₽$/, '');
 const WAFFLE = ['#EDEDEF', '#B4B4BB', '#85858D', '#606068', '#45454B', '#2E2E33'];
 const pct = (v, max) => (max ? Math.max(2, (v / max) * 100) : 0);
 
@@ -581,7 +580,7 @@ function tips(items, cats, prevCats, total, prevTotal, r, days) {
 
   const small = items.filter((i) => i.amount <= 50000);
   if (small.length >= 8) {
-    out.push(['☕', L(`<b>${small.length}</b> мелких покупок до 500 ₽ сложились в <b>${money(sum(small))}</b> — это ${Math.round((sum(small) / total) * 100)}% всех трат за период.`, `<b>${small.length}</b> small purchases under 500 ₽ added up to <b>${money(sum(small))}</b> — ${Math.round((sum(small) / total) * 100)}% of the period’s spending.`)]);
+    out.push(['☕', L(`<b>${small.length}</b> мелких покупок до ${money(50000)} сложились в <b>${money(sum(small))}</b> — это ${Math.round((sum(small) / total) * 100)}% всех трат за период.`, `<b>${small.length}</b> small purchases under ${money(50000)} added up to <b>${money(sum(small))}</b> — ${Math.round((sum(small) / total) * 100)}% of the period’s spending.`)]);
   }
 
   const byDay = new Map();
@@ -757,6 +756,7 @@ export async function renderProfile() {
         <div class="card rows group">
           <button class="row" data-a="kesh"><span class="row-kesh">${keshSVG('Ждёт', keshCoat() === 'black', keshCoat() === 'black')}</span><span>${L('Кэш', 'Kesh')}</span><span class="row-extra">${coat}</span><span class="chev sm">${icons.right}</span></button>
           <button class="row" data-a="lang">${icons.globe}<span>${L('Язык', 'Language')}</span>${langSwitch()}</button>
+          ${item('currency', `<span class="row-sym">${SYM}</span>`, L('Валюта', 'Currency'), CURRENCY)}
         </div>
         <div class="section-label">${L('О проекте', 'About')}</div>
         <div class="card rows group">
@@ -787,6 +787,7 @@ export async function renderProfile() {
     if (!a) return;
     // белый → чёрный → выкл → белый
     if (a === 'kesh') { haptic(); state.flow = 'keshset'; return render(); }
+    if (a === 'currency') return pickCurrency();
     if (a === 'lang') return flipLang(e.target.closest('.row').querySelector('.lswitch'));
     if (a === 'cats') { state.flow = 'cats'; return render(); }
     if (a === 'statement') return pickStatement();
@@ -811,6 +812,20 @@ export function flipLang(sw) {
 
 /* ---------- настройки Кэша ---------- */
 const PREVIEW = ['Ждёт', 'Привет', 'Рад', 'Думает', 'Удивлён', 'Ликует', 'Сомневается', 'Спит'];
+// Выбор валюты: меняется знак во всём приложении, суммы не пересчитываются
+function pickCurrency() {
+  const { panel, close } = bottomSheet(L('Валюта', 'Currency'), `
+    <p class="bs-sub">${L('Меняется только знак — суммы не пересчитываются по курсу.', 'Only the symbol changes — amounts are not converted.')}</p>
+    <div class="acc-list">${CURRENCIES.map(([c, ru, en]) => `<button class="acc-opt${c === CURRENCY ? ' on' : ''}" data-c="${c}"><span class="acc-ico">${curSymbol(c)}</span><span class="tr-name">${L(ru, en)}<small>${c}</small></span>${c === CURRENCY ? icons.check : ''}</button>`).join('')}</div>`);
+  panel.querySelector('.acc-list').onclick = (e) => {
+    const c = e.target.closest('[data-c]')?.dataset.c;
+    if (!c) return;
+    haptic();
+    if (c === CURRENCY) return close();
+    setCurrency(c);
+  };
+}
+
 export function renderKeshSettings() {
   const black = keshCoat() === 'black';
   const sw = (id, on, title, sub) => `<button class="switch-row" data-s="${id}"><span>${title}<small>${sub}</small></span><span class="sw${on ? ' on' : ''}"></span></button>`;
@@ -1013,16 +1028,16 @@ async function exportData() {
   const b = budgets();
   const sheets = [
     { name: 'Операции', cols: [17, 13, 18, 36, 14, 10],
-      rows: [['Дата', 'Тип', 'Категория', 'Описание', 'Сумма, ₽', 'ID'],
+      rows: [['Дата', 'Тип', 'Категория', 'Описание', `Сумма, ${SYM}`, 'ID'],
         ...all.map((i) => [{ v: toSerial(i.ts), f: 'date' }, kind(i), CAT[i.category]?.name || i.category, i.note, rubles(i.amount), i.id])] },
     { name: 'Категории', cols: [22, 13, 11, 14],
-      rows: [['Категория', 'Тип', 'Операций', 'Сумма, ₽'],
+      rows: [['Категория', 'Тип', 'Операций', `Сумма, ${SYM}`],
         ...[...byCat].sort((x, y) => y[1].sum - x[1].sum).map(([id, c]) => [CAT[id]?.name || id, c.kind, c.n, rubles(c.sum)])] },
     { name: 'Бюджет', cols: [22, 16, 16, 14],
-      rows: [['Категория', 'Лимит в месяц, ₽', `Потрачено (${MONTHS[now.getMonth()].toLowerCase()}), ₽`, 'Осталось, ₽'],
+      rows: [['Категория', `Лимит в месяц, ${SYM}`, `Потрачено (${MONTHS[now.getMonth()].toLowerCase()}), ${SYM}`, `Осталось, ${SYM}`],
         ...Object.entries(b).filter(([id]) => CAT[id]).map(([id, v]) => [CAT[id].name, rubles(v), rubles(monthSpent[id] || 0), rubles(v - (monthSpent[id] || 0))])] },
     { name: 'Вклады', cols: [28, 14, 11, 16],
-      rows: [['Название', 'Сумма, ₽', 'Ставка, %', 'Доход в месяц, ₽'],
+      rows: [['Название', `Сумма, ${SYM}`, 'Ставка, %', `Доход в месяц, ${SYM}`],
         ...deposits().map((d) => [d.name, rubles(d.amount), d.rate || 0, rubles(monthly(d))])] },
   ];
   const name = `nota-${now.toISOString().slice(0, 10)}.xlsx`;
@@ -1248,7 +1263,7 @@ const toKop = (v) => Math.round(parseFloat(String(v).replace(/\s/g, '').replace(
 const rub = (kop) => String(Math.round(kop / 100));
 
 /* ---------- счета ---------- */
-const accIcon = (a) => `<span class="acc-ico">${TYPES[a.type]?.icon || '₽'}</span>`;
+const accIcon = (a) => `<span class="acc-ico">${TYPES[a.type]?.icon || SYM}</span>`;
 const accSub = (a, short) => a.type === 'credit'
   ? `${short ? L('лимит', 'limit') : TYPES.credit.sub} · ${money(a.balance)}`
   : short ? `${money(a.balance)} ${L('доступно', 'available')}` : `${TYPES[a.type]?.sub || ''} · ${money(a.balance)}`;
@@ -1284,7 +1299,7 @@ function bindAccountsCard() {
       { key: 'rename', icon: icons.edit, label: L('Переименовать', 'Rename') },
       { key: 'del', icon: icons.trash, label: L('Удалить счёт', 'Delete account'), danger: true },
     ], accSub(a));
-    const amount = async (title, value) => { const v = await askText(title, { mode: 'decimal', placeholder: L('Сумма, ₽', 'Amount, ₽'), value }); const k = toKop(v || ''); return v === null || !(k >= 0) ? null : k; };
+    const amount = async (title, value) => { const v = await askText(title, { mode: 'decimal', placeholder: L(`Сумма, ${SYM}`, `Amount, ${SYM}`), value }); const k = toKop(v || ''); return v === null || !(k >= 0) ? null : k; };
     if (act === 'add' || act === 'sub') {
       const k = await amount(act === 'add' ? L('Пополнить счёт', 'Add to account') : L('Списать со счёта', 'Take from account'));
       if (!k) return;
@@ -1314,7 +1329,7 @@ export function openAddAccount(onDone) {
     <div class="acc-types">${Object.entries(TYPES).map(([k, t]) => `<button class="${k === type ? 'on' : ''}" data-t="${k}"><span class="acc-ico">${t.icon}</span>${t.name}</button>`).join('')}</div>
     <label class="lbl">${L('Название', 'Name')}</label>
     <input class="field" id="acc-name" maxlength="40" placeholder="${TYPES.cash.name}">
-    <label class="lbl" id="acc-lbl">${L('Сколько сейчас, ₽', 'Balance now, ₽')}</label>
+    <label class="lbl" id="acc-lbl">${L(`Сколько сейчас, ${SYM}`, `Balance now, ${SYM}`)}</label>
     <input class="field" id="acc-sum" inputmode="decimal" placeholder="0">
     <button class="btn" id="acc-save">${L('Добавить счёт', 'Add account')}</button>`);
   panel.querySelector('.acc-types').onclick = (e) => {
@@ -1323,7 +1338,7 @@ export function openAddAccount(onDone) {
     type = t; haptic();
     panel.querySelectorAll('.acc-types button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
     panel.querySelector('#acc-name').placeholder = TYPES[t].name;
-    panel.querySelector('#acc-lbl').textContent = t === 'credit' ? L('Доступный лимит, ₽', 'Available credit, ₽') : L('Сколько сейчас, ₽', 'Balance now, ₽');
+    panel.querySelector('#acc-lbl').textContent = t === 'credit' ? L(`Доступный лимит, ${SYM}`, `Available credit, ${SYM}`) : L(`Сколько сейчас, ${SYM}`, `Balance now, ${SYM}`);
   };
   panel.querySelector('#acc-save').onclick = () => {
     const base = toKop(panel.querySelector('#acc-sum').value || '0') || 0;
@@ -1419,7 +1434,7 @@ export async function renderBudget() {
   countUp(app.querySelector('.budget-card .month-total'), limit ? Math.abs(left) : sum(items));
   if (!limit) keshHint('budget-first', L('Задай лимит категории — предупрежу на 80 %.', 'Set a category limit — I’ll warn you at 80%.'));
   const askLimit = async (id) => {
-    const val = await askText(`${L('Лимит', 'Limit')}: ${CAT[id].name}`, { mode: 'decimal', placeholder: L('Сумма в месяц, ₽', 'Monthly amount, ₽'), value: b[id] ? rub(b[id]) : '' });
+    const val = await askText(`${L('Лимит', 'Limit')}: ${CAT[id].name}`, { mode: 'decimal', placeholder: L(`Сумма в месяц, ${SYM}`, `Monthly amount, ${SYM}`), value: b[id] ? rub(b[id]) : '' });
     if (val === null) return;
     const next = budgets();
     const kop = toKop(val);
@@ -1561,7 +1576,7 @@ export function renderDeposit() {
           </div>` : ''}
         <label class="lbl">${L('Название', 'Name')}</label>
         <input class="field" id="dname" placeholder="${L('Например, Накопительный Т-Банк', 'e.g. High-yield savings')}" maxlength="40" value="${esc(d.name)}">
-        <label class="lbl">${L('Сумма, ₽', 'Amount, ₽')}</label>
+        <label class="lbl">${L(`Сумма, ${SYM}`, `Amount, ${SYM}`)}</label>
         <input class="field" id="damount" inputmode="decimal" placeholder="0" value="${d.amount ? rub(d.amount) : ''}">
         <label class="lbl">${L('Ставка, % годовых', 'Rate, % APR')}</label>
         <input class="field" id="drate" inputmode="decimal" placeholder="${L('Например, 16', 'e.g. 16')}" value="${d.rate ? String(d.rate).replace('.', ',') : ''}">
@@ -1628,7 +1643,7 @@ export function renderDeposit() {
     toast(d.id ? L('Вклад сохранён', 'Account saved') : L('Вклад добавлен', 'Account added'));
   };
   const move = async (sign) => {
-    const val = await askText(sign > 0 ? L('Пополнить вклад', 'Top up') : L('Снять со вклада', 'Withdraw'), { mode: 'decimal', placeholder: L('Сумма, ₽', 'Amount, ₽') });
+    const val = await askText(sign > 0 ? L('Пополнить вклад', 'Top up') : L('Снять со вклада', 'Withdraw'), { mode: 'decimal', placeholder: L(`Сумма, ${SYM}`, `Amount, ${SYM}`) });
     const kop = toKop(val || '');
     if (!(kop > 0)) return;
     const dep = { ...read(), name: read().name || d.name };

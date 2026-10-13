@@ -5,6 +5,21 @@ const hasAccount = () => { try { return !!localStorage.getItem('account'); } cat
 export const LANG = get() || (hasAccount() || /^(ru|uk|be|kk)\b/i.test(navigator.language || '') ? 'ru' : 'en');
 export const EN = LANG === 'en';
 export const L = (ru, en) => (EN ? en : ru);
+// Валюта: выбранная в настройках, иначе по языку (EN — доллар, RU — рубль). Курсы не пересчитываются — это только знак
+export const CURRENCIES = [
+  ['USD', 'Доллар США', 'US dollar'], ['EUR', 'Евро', 'Euro'], ['RUB', 'Российский рубль', 'Russian ruble'],
+  ['GBP', 'Фунт стерлингов', 'British pound'], ['CNY', 'Китайский юань', 'Chinese yuan'], ['JPY', 'Японская иена', 'Japanese yen'],
+  ['CHF', 'Швейцарский франк', 'Swiss franc'], ['KZT', 'Казахстанский тенге', 'Kazakhstani tenge'], ['TRY', 'Турецкая лира', 'Turkish lira'],
+  ['INR', 'Индийская рупия', 'Indian rupee'],
+];
+const savedCur = (() => { try { return localStorage.getItem('currency'); } catch { return null; } })();
+export const CURRENCY = CURRENCIES.some(([c]) => c === savedCur) ? savedCur : (EN ? 'USD' : 'RUB');
+export const curSymbol = (code) => new Intl.NumberFormat('en-US', { style: 'currency', currency: code, currencyDisplay: 'narrowSymbol' }).formatToParts(0).find((p) => p.type === 'currency').value;
+export const SYM = curSymbol(CURRENCY);
+export function setCurrency(code) {
+  try { localStorage.setItem('currency', code); } catch { /* хранилище недоступно */ }
+  location.reload();
+}
 export function setLang(l) {
   try { localStorage.setItem('lang', l); } catch { /* хранилище недоступно */ }
   location.reload();
