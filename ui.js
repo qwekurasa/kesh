@@ -453,7 +453,7 @@ export function applySkin() { /* аватары больше не перекра
 export function avatarHTML(cls = '', n = avatarSkin()) {
   const src = avatar();
   if (src) return `<span class="ava photo ${cls}" style="background-image:url(${src})"></span>`;
-  return `<span class="ava cat ${cls}">${catAvatar(n)}</span>`;
+  return `<span class="ava cat ${cls}">${catAvatar(n, true)}</span>`;
 }
 
 // плавный счётчик для крупных чисел

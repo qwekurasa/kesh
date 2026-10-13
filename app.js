@@ -138,11 +138,11 @@ function renderOnboarding() {
           <div class="error" id="err"></div>
           <button class="btn" id="next" ${name.trim().length >= 2 ? '' : 'disabled'}>${L('Дальше', 'Next')} <span class="arr">→</span></button>
         ` : `
-          <div class="onb-ava"><span class="ava xl cat">${catAvatar(pick ?? 0)}</span></div>
+          <div class="onb-ava"><div class="onb-cat">${catAvatar(pick ?? 0, true)}</div><div class="onb-edge"></div></div>
           <h1>${L('Выберите аватар', 'Pick an avatar')}</h1>
           <p>${L('Потом можно поставить своё фото', 'You can set a photo later')}</p>
           <div class="ava-grid">
-            ${SKINS.map((_, i) => `<button class="ava-pick${pick === i ? ' on' : ''}" data-e="${i}" style="--i:${i}" aria-label="${L('Аватар', 'Avatar')} ${i + 1}">${catAvatar(i)}</button>`).join('')}
+            ${SKINS.map((_, i) => `<button class="ava-pick${pick === i ? ' on' : ''}" data-e="${i}" style="--i:${i}" aria-label="${L('Аватар', 'Avatar')} ${i + 1}">${catAvatar(i, true)}</button>`).join('')}
           </div>
           <button class="btn" id="done">${L('Поехали', 'Let’s go')} <span class="arr">→</span></button>
         `}

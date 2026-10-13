@@ -690,3 +690,24 @@ button.switch-row { width: 100%; text-align: left; }
 .ava-row .ava-pick.on { border-color: var(--text); }
 .row .row-kesh { flex: none; }
 .row .row-kesh + span { flex: 1; }
+
+/* выбор аватара: без фона и рамок — коты, выбранный крупнее и ярче */
+.onb-ava { flex-direction: column; align-items: center; margin-bottom: 10px; }
+.onb-cat { width: 128px; height: 128px; animation: k-pop .35s cubic-bezier(.3, 1.5, .5, 1); }
+.onb-cat svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.onb-edge { width: 180px; height: 1px; margin-top: -10px; background: linear-gradient(90deg, transparent, var(--border-strong), transparent); }
+.ava-grid { gap: 10px 6px; margin: 6px 0 14px; }
+.ava-pick, .ava-row .ava-pick { position: relative; background: none; border: 0; border-radius: 0; overflow: visible; padding: 0;
+  opacity: .38; transform: scale(.88); filter: saturate(.6); transition: opacity .2s, transform .28s cubic-bezier(.3, 1.4, .5, 1), filter .2s; }
+.ava-pick svg { overflow: visible; }
+.ava-pick.on, .ava-row .ava-pick.on { opacity: 1; transform: scale(1.06); filter: none; border: 0; }
+.ava-pick.on::after { content: ''; position: absolute; left: 50%; bottom: -7px; width: 5px; height: 5px; border-radius: 50%; background: var(--pos); transform: translateX(-50%); }
+.ava-pick:active { transform: scale(.82); }
+.ava-row { gap: 6px; padding: 6px 18px 12px; }
+.ava-row .ava-pick { width: 44px; height: 44px; }
+.ava.cat { background: none; border-radius: 0; overflow: visible; box-shadow: none; }
+.ava.cat svg { overflow: visible; }
+.profile-card .ava-wrap { background: none; border: 0; padding: 0; }
+.profile-card .ava-wrap { flex: none; width: 56px; height: 56px; }
+.profile-card .ava-wrap .ava { width: 56px; height: 56px; }
+.profile-card .ava.cat svg, .who .ava.cat svg { width: 100%; height: 100%; transform: scale(1.15); }

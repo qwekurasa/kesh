@@ -12,7 +12,7 @@ const REPO = 'https://github.com/qwekurasa/kesh';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { L, LANG, setLang, plural as pl } from './i18n.js';
 
-export const BUILD = 'v32';
+export const BUILD = 'v33';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -611,7 +611,7 @@ export async function renderProfile() {
           <button class="ava-wrap" id="pick-ava" aria-label="${L('Сменить фото', 'Change photo')}">${avatarHTML()}</button>
           <span class="tr-name"><span class="profile-name">${esc(acc.login)}</span><small>${all.length} ${plural(all.length, 'операция', 'операции', 'операций')}${first ? ` · ${L('с', 'since')} ${new Date(first).getDate()} ${MONTHS_SHORT[new Date(first).getMonth()]}` : ''}</small></span>
         </div>
-        <div class="ava-row" role="radiogroup" aria-label="${L('Аватар', 'Avatar')}">${SKINS.map((_, n) => `<button class="ava-pick${!localStorage.getItem('avatar') && avatarSkin() % SKINS.length === n ? ' on' : ''}" data-skin="${n}" aria-label="${L('Аватар', 'Avatar')} ${n + 1}">${catAvatar(n)}</button>`).join('')}</div>
+        <div class="ava-row" role="radiogroup" aria-label="${L('Аватар', 'Avatar')}">${SKINS.map((_, n) => `<button class="ava-pick${!localStorage.getItem('avatar') && avatarSkin() % SKINS.length === n ? ' on' : ''}" data-skin="${n}" aria-label="${L('Аватар', 'Avatar')} ${n + 1}">${catAvatar(n, true)}</button>`).join('')}</div>
         <div class="section-label">${L('Данные', 'Data')}</div>
         <div class="card rows group">
           ${item('backup', icons.down_file, L('Резервная копия', 'Backup'), lastBackupLabel())}

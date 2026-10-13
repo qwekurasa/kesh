@@ -46,8 +46,11 @@ export const AVATARS = [
   ['#ECECEE', '#0B0B0C', 'Сомневается', '#22262B'], ['#1C1C20', '#ECECEE', 'Рад', '#2E3A34'], ['#9A9AA3', '#0B0B0C', 'Думает', '#2B2A33'],
   ['#E39B5B', '#0B0B0C', 'Ликует', '#2F2A22'], ['#E8D3B0', '#0B0B0C', 'Ждёт', '#262B2A'], ['#6B5546', '#F1E6DA', 'Удивлён', '#2C2226'],
 ];
-export const catAvatar = (n) => {
+// bare — без фона, для выбора аватара
+export const catAvatar = (n, bare = false) => {
   const [B, E, p, bg] = AVATARS[((n % AVATARS.length) + AVATARS.length) % AVATARS.length];
+  const edge = B === '#1C1C20' ? ' stroke="rgba(255,255,255,.22)" stroke-width="5"' : '';
+  if (bare) return `<svg viewBox="20 20 214 214" aria-hidden="true"><g transform="translate(0 22)"><path d="${HEAD}" fill="${B}"${edge}/>${POSES[p].replaceAll('"B"', `"${B}"`).replaceAll('"E"', `"${E}"`)}</g></svg>`;
   return `<svg viewBox="2 0 250 250" aria-hidden="true"><rect x="2" width="250" height="250" fill="${bg}"/><g transform="translate(0 22)"><path d="${HEAD}" fill="${B}"/>${POSES[p].replaceAll('"B"', `"${B}"`).replaceAll('"E"', `"${E}"`)}</g></svg>`;
 };
 
