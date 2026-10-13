@@ -12,7 +12,7 @@ const REPO = 'https://github.com/qwekurasa/kesh';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { L, LANG, setLang, plural as pl } from './i18n.js';
 
-export const BUILD = 'v33';
+export const BUILD = 'v34';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);

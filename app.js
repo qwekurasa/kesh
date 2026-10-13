@@ -36,6 +36,7 @@ function main() {
 function renderWelcome() {
   app.innerHTML = `
     <section class="screen auth welcome" data-phase="empty">
+      <div class="rays" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       <div class="grain"></div>
       <button class="lang-pick" aria-label="Language">${langSwitch()}</button>
       <div class="stage">
@@ -44,7 +45,7 @@ function renderWelcome() {
         <p class="hello" aria-live="polite"></p>
       </div>
       <div class="auth-body">
-        <button class="btn trap" id="reg"><span class="trap-kesh">${keshSVG('Переживает', true)}</span><span class="tuk l">${L('тук', 'knock')}</span><span class="tuk r">${L('тук', 'knock')}</span><span class="trap-label">${L('Начать', 'Start')}</span></button>
+        <button class="btn trap" id="reg"><canvas class="trap-px" aria-hidden="true"></canvas><span class="trap-kesh">${keshSVG('Ждёт')}</span><span class="trap-label">${L('Начать', 'Start')}</span></button>
       </div>
     </section>`;
   const scr = app.querySelector('.welcome');
@@ -56,7 +57,8 @@ function renderWelcome() {
   const at = (ms, fn) => timers.push(setTimeout(() => scr.isConnected && fn(), ms));
   const phase = (p) => { scr.dataset.phase = p; };
   const pose = (p) => { peek.innerHTML = keshSVG(p); };
-  const caught = () => { btn.classList.add('caught'); btn.style.setProperty('--w', `${btn.offsetWidth}px`); phase('trap'); };
+  let stopTrap = () => {};
+  const caught = () => { if (btn.classList.contains('caught')) return; btn.classList.add('caught'); phase('trap'); stopTrap = startTrap(btn); };
 
   // 5. Кэш прыгает по дуге в кнопку, кнопка проминается
   const jumpIn = () => {
@@ -68,9 +70,9 @@ function renderWelcome() {
     Object.assign(fly.style, { left: `${a.left}px`, top: `${a.top}px`, width: `${a.width}px` });
     document.body.appendChild(fly);
     phase('trap');
-    const s = 36 / a.width;
-    const dx = b.left + 10 - a.left - (a.width - 36) / 2;
-    const dy = b.bottom - 6 - a.bottom + (a.height * (1 - s)) / 2;
+    const s = 30 / a.width;
+    const dx = b.left + 14 - a.left - (a.width - 30) / 2;
+    const dy = b.bottom + 7 - a.bottom + (a.height * (1 - s)) / 2;
     fly.animate([
       { transform: 'none' },
       { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 70}px) scale(${(1 + s) / 2}) rotate(-10deg)`, offset: 0.5 },
@@ -111,9 +113,75 @@ function renderWelcome() {
     timers.forEach(clearTimeout);
     haptic();
     btn.classList.add('free');
-    btn.querySelector('.trap-kesh').innerHTML = keshSVG('Рад', true);
+    stopTrap();
+    btn.querySelector('.trap-kesh').innerHTML = keshSVG('Рад');
     setTimeout(() => { state.authMode = 'register'; state.step = 0; state.draft = {}; state.jumpOut = true; render(); }, 220);
   };
+}
+
+// Кэш заперт в кнопке: неспешно ходит, по кнопке бегут пиксельные волны, от волны он убегает
+function startTrap(btn) {
+  const cv = btn.querySelector('.trap-px');
+  const cat = btn.querySelector('.trap-kesh');
+  const ctx = cv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = btn.offsetWidth, H = btn.offsetHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.scale(dpr, dpr);
+  const P = 4, G = 2; // пиксель и зазор
+  const cols = Math.ceil(W / (P + G)), rows = Math.ceil(H / (P + G));
+  const CAT = 30, MIN = 14, MAX = W - CAT - 14;
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let x = MIN, dir = 1, speed = 0, pose = 'Ждёт', last = performance.now(), t = 0, nextWave = 1.2, raf = 0;
+  const waves = [];
+  const setPose = (p) => { if (p !== pose) { pose = p; cat.innerHTML = keshSVG(p); } };
+  const draw = () => {
+    ctx.clearRect(0, 0, W, H);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const px = c * (P + G) + P / 2, py = r * (P + G) + P / 2;
+        let b = 0;
+        for (const w of waves) {
+          const d = Math.hypot(px - w.x, (py - H / 2) * 1.6);
+          b = Math.max(b, Math.max(0, 1 - Math.abs(d - w.r) / 9) * w.a);
+        }
+        const k = Math.round(b * 4) / 4; // ступенчатая яркость — «пиксельно»
+        ctx.fillStyle = k > 0.7 ? `rgba(166,240,192,${0.18 + 0.35 * k})` : `rgba(237,237,239,${0.035 + 0.22 * k})`;
+        ctx.fillRect(c * (P + G), r * (P + G), P, P);
+      }
+    }
+  };
+  const frame = (now) => {
+    if (!btn.isConnected) return;
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    // волны: рождаются у края, за котом, и катятся к нему
+    nextWave -= dt;
+    if (nextWave <= 0) { waves.push({ x: dir > 0 ? x - 30 : x + CAT + 30, r: 0, a: 1 }); nextWave = 2.6 + Math.random() * 1.4; }
+    let flee = 0;
+    for (const w of waves) {
+      w.r += 70 * dt; w.a = Math.max(0, 1 - w.r / (W * 0.9));
+      const gap = Math.abs(x + CAT / 2 - w.x) - w.r;
+      if (w.a > 0.15 && gap > -10 && gap < 46) flee = Math.max(flee, 1 - gap / 46);
+    }
+    while (waves.length && waves[0].a <= 0) waves.shift();
+    // шаг: спокойно 22 px/с, от волны — до 64 px/с; плавный разгон
+    const want = 22 + 42 * flee;
+    speed += (want - speed) * Math.min(1, dt * 4);
+    x += dir * speed * dt;
+    if (x > MAX || x < MIN) {
+      x = Math.max(MIN, Math.min(MAX, x)); dir = -dir;
+      btn.animate([{ transform: 'none' }, { transform: `translateX(${-dir}px)` }, { transform: 'none' }], { duration: 180 });
+    }
+    setPose(flee > 0.35 ? 'Удивлён' : 'Ждёт');
+    const bob = Math.abs(Math.sin(t * (6 + speed / 8))) * (1.2 + speed / 40);
+    cat.style.transform = `translate(${x}px, ${-bob}px) scaleX(${dir})`;
+    draw();
+    raf = requestAnimationFrame(frame);
+  };
+  cat.style.transform = `translate(${x}px, 0)`;
+  draw();
+  if (!still) raf = requestAnimationFrame(frame);
+  return () => cancelAnimationFrame(raf);
 }
 
 function renderOnboarding() {

@@ -492,30 +492,9 @@ button.cat-row { animation: rise .4s ease-out backwards; animation-delay: calc(v
 .flyer { position: fixed; z-index: 50; pointer-events: none; }
 .flyer svg { width: 100%; display: block; }
 
-.btn.trap { position: relative; overflow: hidden; }
-.btn.trap::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .75) 50%, transparent 65%); transform: translateX(-120%); animation: glare 5s ease-in-out 1s infinite; pointer-events: none; }
-@keyframes glare { 0%, 80% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
 .trap-label { position: relative; z-index: 1; }
-.trap-kesh { position: absolute; left: 10px; bottom: 6px; width: 36px; opacity: 0; z-index: 2; }
 .trap-kesh svg { width: 100%; display: block; }
-.tuk { position: absolute; top: 4px; font: 500 9px var(--mono); letter-spacing: .1em; color: var(--text-3); opacity: 0; z-index: 2; }
-.tuk.r { right: 54px; } .tuk.l { left: 54px; }
-.btn.trap.caught .trap-kesh { opacity: 1; animation: trap-run 3.4s cubic-bezier(.45, 0, .3, 1.25) infinite; }
-.btn.trap.caught { animation: knock 3.4s infinite; }
-.btn.trap.caught .tuk.r { animation: tuk 3.4s infinite; }
-.btn.trap.caught .tuk.l { animation: tuk 3.4s 1.7s infinite; }
-.btn.trap.landed { animation: squish .3s ease-out; }
-.btn.trap.free .trap-kesh { animation: none; }
-@keyframes squish { 40% { transform: scale(.96, .92); } }
-@keyframes trap-run {
-  0% { transform: translateX(0) scaleX(-1); }
-  47% { transform: translateX(calc(var(--w, 300px) - 56px)) scaleX(-1); }
-  50% { transform: translateX(calc(var(--w, 300px) - 56px)) scaleX(1); }
-  97% { transform: translateX(0) scaleX(1); }
-  100% { transform: translateX(0) scaleX(-1); }
-}
-@keyframes knock { 0%, 46%, 50%, 96%, 100% { transform: none; } 48% { transform: translateX(1px); } 98% { transform: translateX(-1px); } }
-@keyframes tuk { 0%, 44% { opacity: 0; transform: none; } 48% { opacity: 1; transform: translateY(-2px); } 60%, 100% { opacity: 0; } }
+@keyframes squish { 40% { transform: scale(.97, .93); } }
 
 .field-wrap { position: relative; margin-top: 34px; }
 .field-kesh { position: absolute; right: 22px; bottom: 100%; width: 58px; height: 41px; overflow: hidden; pointer-events: none; }
@@ -711,3 +690,27 @@ button.switch-row { width: 100%; text-align: left; }
 .profile-card .ava-wrap { flex: none; width: 56px; height: 56px; }
 .profile-card .ava-wrap .ava { width: 56px; height: 56px; }
 .profile-card .ava.cat svg, .who .ava.cat svg { width: 100%; height: 100%; transform: scale(1.15); }
+
+/* приветствие: лучи света сверху, монохром с лёгким зелёным */
+.rays { position: absolute; inset: 0 0 auto; height: 70%; overflow: hidden; pointer-events: none; z-index: 0;
+  -webkit-mask-image: linear-gradient(#000 0%, rgba(0,0,0,.6) 45%, transparent 100%); mask-image: linear-gradient(#000 0%, rgba(0,0,0,.6) 45%, transparent 100%); }
+.rays i { position: absolute; top: -30%; width: 30%; height: 140%; filter: blur(22px); transform-origin: 50% 0; opacity: 0; animation: ray-in 2.4s ease-out forwards, ray-sway 14s ease-in-out infinite alternate; }
+.rays i:nth-child(1) { left: 2%; background: linear-gradient(180deg, rgba(237,237,239,.62), rgba(237,237,239,.12) 45%, transparent 78%); --r: 16deg; animation-delay: 0s, -3s; }
+.rays i:nth-child(2) { left: 30%; background: linear-gradient(180deg, rgba(166,240,192,.42), rgba(166,240,192,.08) 45%, transparent 72%); --r: 6deg; width: 22%; animation-delay: .2s, -8s; }
+.rays i:nth-child(3) { left: 52%; background: linear-gradient(180deg, rgba(237,237,239,.48), rgba(237,237,239,.1) 50%, transparent 82%); --r: -6deg; animation-delay: .4s, -1s; }
+.rays i:nth-child(4) { left: 78%; background: linear-gradient(180deg, rgba(154,154,163,.5), rgba(154,154,163,.1) 45%, transparent 72%); --r: -14deg; width: 26%; animation-delay: .1s, -11s; }
+@keyframes ray-in { to { opacity: 1; } }
+@keyframes ray-sway { from { transform: rotate(var(--r)) translateX(-4%); } to { transform: rotate(calc(var(--r) * .55)) translateX(4%); } }
+.welcome .stage, .welcome .auth-body, .lang-pick { position: relative; z-index: 1; }
+.lang-pick { position: absolute; }
+
+/* кнопка-клетка: тёмно-серая, внутри пиксельные волны и гуляющий Кэш */
+.btn.trap { position: relative; overflow: hidden; background: var(--raised); color: var(--text); border: 1px solid var(--border-strong); height: 58px; }
+.trap-px { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .5s; }
+.btn.trap.caught .trap-px { opacity: 1; }
+.trap-kesh { position: absolute; left: 0; bottom: -7px; width: 30px; opacity: 0; z-index: 1; will-change: transform; transform-origin: 50% 100%; }
+.trap-kesh svg { width: 100%; display: block; }
+.btn.trap.caught .trap-kesh { opacity: 1; }
+.trap-label { position: relative; z-index: 2; text-shadow: 0 0 10px var(--raised), 0 0 4px var(--raised); }
+.btn.trap.landed { animation: squish .3s ease-out; }
+@media (prefers-reduced-motion: reduce) { .rays i { opacity: 1; } }
