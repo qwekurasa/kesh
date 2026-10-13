@@ -319,7 +319,7 @@ async function renderAmount() {
       </div>
       <div class="amount-wrap${income ? ' income' : ''}">
         <div class="amount" id="amount"><span class="val"></span><span class="cur">₽</span></div>
-        <div class="amount-kesh" id="kesh-amt" aria-hidden="true"></div>
+        <div class="amount-edge"><div class="amount-kesh" id="kesh-amt" aria-hidden="true"></div></div>
         <div class="amount-hint" id="hint"></div>
       </div>
       <div class="quick-head"><span class="section-label">${L('Частые', 'Frequent')}</span><button class="link" id="all">${L('Все категории', 'All categories')}</button></div>

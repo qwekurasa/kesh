@@ -733,3 +733,59 @@ button.switch-row { width: 100%; text-align: left; }
 .welcome[data-phase="button"] .say-list li, .welcome[data-phase="trap"] .say-list li { transition-delay: 0s; }
 .welcome .peek { height: 120px; }
 .welcome .peek svg { width: 130px; height: 120px; }
+
+/* кошелёк и выбор категории для лимита */
+.wallet-card .card-head b { display: inline-flex; align-items: center; gap: 8px; }
+.wallet-card .card-head svg { width: 17px; height: 17px; color: var(--text-2); }
+.wallet-card .month-total { margin-top: 0; font-size: 34px; }
+.wallet-card p.month-sub { margin: 0 0 12px; line-height: 1.45; }
+.wallet-card .dep-actions { margin: 14px 0 0; }
+.wallet-card .add-dep { margin-top: 0; }
+.wallet-card + .card { margin-top: 8px; }
+.sheet-list { max-height: 52vh; overflow-y: auto; }
+.tr-ico.sm { width: 28px; height: 28px; border-radius: 8px; }
+.tr-ico.sm .ci { width: 15px; height: 15px; }
+.hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.hero-top .hero-label { margin: 0; }
+.wallet-pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); }
+.wallet-pill svg { width: 14px; height: 14px; }
+.wallet-pill b { font: 500 12px var(--mono); color: var(--text); letter-spacing: -.02em; }
+/* шапка главной: период по центру, профиль справа */
+.home-head { justify-content: space-between; }
+.head-side { width: 38px; flex: none; }
+.period-nav { flex: 1; display: flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; }
+.period-btn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); min-width: 0; }
+.period-btn .month-name { position: static; padding: 0; border: 0; background: none; font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.period-btn svg { width: 15px; height: 15px; color: var(--text-2); flex: none; }
+.period-btn:active { background: var(--raised); }
+.home-head .who { margin-left: 0; }
+.period-modal .lbl { display: block; font-size: 12.5px; color: var(--text-2); margin: 6px 2px -2px; }
+.preset-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.preset { height: 38px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; }
+.preset:active { background: var(--surface-3); }
+.range-row { display: flex; align-items: center; gap: 6px; }
+.range-row .field { flex: 1; min-width: 0; padding: 0 10px; font-size: 14px; }
+.range-row span { color: var(--text-3); }
+
+/* вклады */
+.dep-row .tr-name { gap: 3px; }
+.dep-meter { margin-top: 6px; width: 100%; }
+.dep-next { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.dep-next .tr-right b { font: 500 14px var(--mono); }
+.term-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.term-chips button { height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); font: 500 12.5px var(--mono); color: var(--text-2); }
+.term-chips button.on { background: var(--text); color: var(--bg); border-color: transparent; }
+.dep-form .seg button { font-size: 13px; }
+.dep-hint { margin-top: 12px; text-align: left; padding: 0 2px; line-height: 1.45; }
+.dep-calc:not(:empty) { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 10px; margin-top: 16px; padding: 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); }
+.dep-calc span { font-size: 13px; color: var(--text-2); }
+.dep-calc b { font: 500 18px var(--mono); letter-spacing: -.03em; }
+.dep-calc small { grid-column: 2; justify-self: end; font: 12px var(--mono); color: var(--text-3); }
+.dep-calc small.plus { color: var(--pos); }
+
+/* Кэш на экране суммы: выглядывает из-за линии под суммой */
+.add-screen .amount-edge { position: relative; width: 86%; height: 1px; margin-top: 14px; background: linear-gradient(90deg, transparent, var(--border-strong) 18%, var(--border-strong) 82%, transparent); }
+.add-screen .amount-edge .amount-kesh { position: absolute; right: 10%; left: auto; top: auto; bottom: 1px; transform: none; width: 50px; height: 31px; overflow: hidden; margin: 0; }
+.add-screen .amount-edge .amount-kesh svg { width: 50px; height: auto; display: block; animation: peek-up .45s cubic-bezier(.3, 1.3, .5, 1); }
+@keyframes peek-up { from { transform: translateY(100%); } }
+.add-screen .amount-hint { margin-top: 12px; }

@@ -12,7 +12,7 @@ const REPO = 'https://github.com/qwekurasa/kesh';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { L, LANG, setLang, plural as pl } from './i18n.js';
 
-export const BUILD = 'v35';
+export const BUILD = 'v36';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -42,31 +42,47 @@ const hhmm = (ts) => { const d = new Date(ts); return `${String(d.getHours()).pa
 export async function renderHome() {
   const live = ticket();
   const m = state.month;
-  const from = m.getTime();
-  const next = new Date(m.getFullYear(), m.getMonth() + 1, 1);
-  const isCurrent = next > new Date();
-  const prevFrom = new Date(m.getFullYear(), m.getMonth() - 1, 1);
-  // прошлый месяц сравниваем на тот же день, иначе текущий всегда «дешевле»
-  const prevTo = isCurrent ? Math.min(from, +prevFrom + (Date.now() - from)) : from;
-  const [items, before] = await Promise.all([
-    store.expensesBetween(from, next.getTime() - 1),
-    store.expensesBetween(+prevFrom, prevTo - 1),
+  const isMonth = !state.range;
+  const from = isMonth ? m.getTime() : state.range.from;
+  const to = isMonth ? +new Date(m.getFullYear(), m.getMonth() + 1, 1) : state.range.to;
+  const isCurrent = to > Date.now() && from <= Date.now();
+  const span = to - from;
+  const elapsed = isCurrent ? Date.now() - from : span;
+  // сравнение с прошлым периодом на тот же отрезок, иначе текущий всегда «дешевле»
+  const prevFrom = isMonth ? +new Date(m.getFullYear(), m.getMonth() - 1, 1) : from - span;
+  const prevTo = isCurrent ? Math.min(from, prevFrom + elapsed) : from;
+  const [items, before, wal] = await Promise.all([
+    store.expensesBetween(from, to - 1),
+    store.expensesBetween(prevFrom, prevTo - 1),
+    walletBalance(),
   ]);
   const days = groupByDay(items);
   const total = sum(spent(items));
   const income = sum(items.filter(isIncome));
   const prevTotal = sum(spent(before));
   const prevIncome = sum(before.filter(isIncome));
-  const nDays = new Date(next - 1).getDate();
-  const passed = isCurrent ? new Date().getDate() : nDays;
-  const prevPassed = isCurrent ? passed : new Date(from - 1).getDate();
+  const nDays = Math.max(1, Math.round(span / 864e5));
+  const passed = isCurrent ? Math.floor((Date.now() - from) / 864e5) + 1 : nDays;
+  const prevPassed = isCurrent ? passed : Math.max(1, Math.round((prevTo - prevFrom) / 864e5));
   const todayKey = dayKey(Date.now());
   const yKey = dayKey(Date.now() - 864e5);
   const today = sum(spent(items.filter((i) => dayKey(i.ts) === todayKey)));
   const yesterday = sum(spent([...items, ...before].filter((i) => dayKey(i.ts) === yKey)));
-  const perDay = Array(nDays).fill(0);
-  spent(items).forEach((i) => { perDay[new Date(i.ts).getDate() - 1] += i.amount; });
+  // столбики по дням; длинный период — по неделям
+  const step = nDays > 62 ? 7 : 1;
+  const perDay = Array(Math.ceil(nDays / step)).fill(0);
+  spent(items).forEach((i) => { const k = Math.floor(Math.floor((i.ts - from) / 864e5) / step); if (k >= 0 && k < perDay.length) perDay[k] += i.amount; });
+  const nowBar = isCurrent ? Math.floor((passed - 1) / step) : -1;
   const peak = Math.max(...perDay, 1);
+  const dm = (ts) => { const d = new Date(ts); return L(`${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`, `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`); };
+  const axis = isMonth ? [1, 8, 15, 22, nDays] : [dm(from), dm(from + span / 2), dm(to - 1)];
+  const label = isMonth ? `${MONTHS[m.getMonth()]} ${m.getFullYear()}` : `${dm(from)} – ${dm(to - 1)}`;
+  const sub = prevTotal
+    ? (isMonth
+      ? (isCurrent ? L(`За 1–${passed} ${MONTHS_GEN[new Date(prevFrom).getMonth()]} было ${money(prevTotal)}`, `${MONTHS_SHORT[new Date(prevFrom).getMonth()]} 1–${passed}: ${money(prevTotal)}`)
+        : L(`В ${MONTHS_PREP[new Date(prevFrom).getMonth()]} было ${money(prevTotal)}`, `${MONTHS[new Date(prevFrom).getMonth()]}: ${money(prevTotal)}`))
+      : L(`За такой же период до этого — ${money(prevTotal)}`, `Previous period: ${money(prevTotal)}`))
+    : items.length ? '' : L('Трат пока нет', 'No expenses yet');
   const acc = auth.account();
 
   const row = (i) => `
@@ -96,20 +112,19 @@ export async function renderHome() {
   app.innerHTML = `
     <section class="screen tabbed">
       <header class="home-head">
-        <button class="who" id="me" aria-label="${L('Профиль', 'Profile')}">${avatarHTML()}</button>
-        <div class="who-text"><b>${esc(acc?.login || '')}</b>
-          <label class="month-name">${MONTHS[m.getMonth()]} ${m.getFullYear()}
-            <input type="month" id="mpick" value="${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}" max="${new Date().toISOString().slice(0, 7)}">
-          </label>
+        <span class="head-side"></span>
+        <div class="period-nav">
+          <button class="icon-btn sm" id="prev" aria-label="${L('Назад', 'Back')}">${icons.left}</button>
+          <button class="period-btn" id="period"><span class="month-name">${label}</span>${icons.calendar}</button>
+          <button class="icon-btn sm" id="next" aria-label="${L('Вперёд', 'Forward')}" ${to > Date.now() ? 'disabled' : ''}>${icons.right}</button>
         </div>
-        <button class="icon-btn sm" id="prev" aria-label="${L('Предыдущий месяц', 'Previous month')}">${icons.left}</button>
-        <button class="icon-btn sm" id="next" aria-label="${L('Следующий месяц', 'Next month')}" ${isCurrent ? 'disabled' : ''}>${icons.right}</button>
+        <button class="who" id="me" aria-label="${L('Профиль', 'Profile')}">${avatarHTML()}</button>
       </header>
       <div class="scroll" id="list">
         <div class="hero">
-          <div class="hero-label">${L('Расходы за месяц', 'Spent this month')}</div>
+          <div class="hero-top"><span class="hero-label">${isMonth ? L('Расходы за месяц', 'Spent this month') : L('Расходы за период', 'Spent in period')}</span>${wal ? `<button class="wallet-pill" id="wallet">${icons.wallet}<b class="${wal.balance < 0 ? 'minus' : ''}">${money(wal.balance)}</b></button>` : ''}</div>
           <div class="hero-row"><div class="month-total">${money(total)}</div>${deltaChip(total, prevTotal)}</div>
-          <div class="month-sub">${prevTotal ? (isCurrent ? L(`За 1–${passed} ${MONTHS_GEN[prevFrom.getMonth()]} было ${money(prevTotal)}`, `${MONTHS_SHORT[prevFrom.getMonth()]} 1–${passed}: ${money(prevTotal)}`) : L(`В ${MONTHS_PREP[prevFrom.getMonth()]} было ${money(prevTotal)}`, `${MONTHS[prevFrom.getMonth()]}: ${money(prevTotal)}`)) : items.length ? '' : L('Трат пока нет', 'No expenses yet')}</div>
+          <div class="month-sub">${sub}</div>
         </div>
         <div class="metrics">
           <div><small>${L('Сегодня', 'Today')}</small><b>${isCurrent ? money(today) : '—'}</b>${isCurrent ? deltaChip(today, yesterday) : ''}</div>
@@ -117,9 +132,9 @@ export async function renderHome() {
           <div><small>${L('В день', 'Per day')}</small><b>${money(Math.round(total / passed))}</b>${deltaChip(total / passed, prevTotal / prevPassed)}</div>
         </div>
         ${total ? `<button class="card mini-chart" id="to-charts">
-          <span class="card-head"><b>${L('По дням', 'Daily')}</b><span class="chip">${L('1М', '1M')}</span></span>
-          <span class="mini-bars">${perDay.map((v, i) => `<i class="${isCurrent && i === passed - 1 ? 'today' : ''}" style="height:${v ? Math.max(6, (v / peak) * 100) : 2}%"></i>`).join('')}</span>
-          <span class="mini-axis">${[1, 8, 15, 22, nDays].map((d) => `<small>${d}</small>`).join('')}</span>
+          <span class="card-head"><b>${step > 1 ? L('По неделям', 'Weekly') : L('По дням', 'Daily')}</b><span class="chip">${step > 1 ? L('по неделям', 'weekly') : isMonth ? L('1М', '1M') : `${nDays} ${L('дн', 'd')}`}</span></span>
+          <span class="mini-bars">${perDay.map((v, i) => `<i class="${i === nowBar ? 'today' : ''}" style="height:${v ? Math.max(6, (v / peak) * 100) : 2}%"></i>`).join('')}</span>
+          <span class="mini-axis">${axis.map((d) => `<small>${d}</small>`).join('')}</span>
         </button>` : ''}
         ${days.length ? days.map(day).join('') : `<div class="empty">${L('Нажмите <b>＋</b>, чтобы добавить первую трату', 'Tap <b>＋</b> to add your first expense')}</div>`}
       </div>
@@ -127,15 +142,13 @@ export async function renderHome() {
     </section>`;
 
   bindTabs();
-  app.querySelector('#mpick').onchange = (e) => {
-    const [y, mm] = e.target.value.split('-').map(Number);
-    if (y) { state.month = new Date(y, mm - 1, 1); render(); }
-  };
+  app.querySelector('#period').onclick = () => { haptic(); pickPeriod(); };
+  app.querySelector('#wallet')?.addEventListener('click', () => { haptic(); go('budget'); });
   countUp(app.querySelector('.month-total'), total);
   app.querySelector('#me').onclick = () => { haptic(); go('profile'); };
   app.querySelector('#to-charts')?.addEventListener('click', () => { haptic(); state.period = 'month'; go('charts'); });
   restoreScroll(app.querySelector('#list'));
-  if (!items.length && isCurrent) keshHint('home-first', L('Это твой месяц. Жми «＋» — запишем первую трату.', 'This is your month. Tap “＋” to log your first expense.'));
+  if (!items.length && isCurrent && isMonth) keshHint('home-first', L('Это твой месяц. Жми «＋» — запишем первую трату.', 'This is your month. Tap “＋” to log your first expense.'));
   app.querySelector('#prev').onclick = () => { shiftMonth(-1); };
   app.querySelector('#next').onclick = () => { shiftMonth(1); };
   app.querySelector('#list').addEventListener('click', (e) => {
@@ -162,14 +175,68 @@ function restoreScroll(el) {
 }
 
 function shiftMonth(delta) {
-  state.month = new Date(state.month.getFullYear(), state.month.getMonth() + delta, 1);
+  if (state.range) {
+    const span = state.range.to - state.range.from;
+    state.range = { from: state.range.from + delta * span, to: state.range.to + delta * span };
+  } else state.month = new Date(state.month.getFullYear(), state.month.getMonth() + delta, 1);
   render();
+}
+
+// Выбор периода: готовые варианты, месяц или свой диапазон дат
+function pickPeriod() {
+  const day0 = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const now = new Date();
+  const tomorrow = day0(now) + 864e5;
+  const iso = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const presets = [
+    ['month', L('Этот месяц', 'This month')], ['prev', L('Прошлый месяц', 'Last month')],
+    ['7', L('7 дней', '7 days')], ['30', L('30 дней', '30 days')], ['90', L('3 месяца', '3 months')], ['year', L('Этот год', 'This year')],
+  ];
+  const cur = state.range || { from: state.month.getTime(), to: +new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1) };
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-wrap';
+  wrap.innerHTML = `<div class="modal-bd"></div>
+    <div class="modal period-modal" role="dialog" aria-modal="true" aria-labelledby="pt">
+      <h3 id="pt">${L('Период', 'Period')}</h3>
+      <div class="preset-grid">${presets.map(([k, t]) => `<button class="preset" data-p="${k}">${t}</button>`).join('')}</div>
+      <label class="lbl">${L('Месяц', 'Month')}</label>
+      <input class="field" type="month" id="mpick" value="${state.month.getFullYear()}-${String(state.month.getMonth() + 1).padStart(2, '0')}" max="${iso(Date.now()).slice(0, 7)}">
+      <label class="lbl">${L('Свой период', 'Custom range')}</label>
+      <div class="range-row"><input class="field" type="date" id="rfrom" value="${iso(cur.from)}" max="${iso(Date.now())}"><span>—</span><input class="field" type="date" id="rto" value="${iso(cur.to - 1)}" max="${iso(Date.now())}"></div>
+      <div class="modal-btns"><button class="btn alt" data-r="0">${L('Отмена', 'Cancel')}</button><button class="btn" data-r="1">${L('Показать', 'Show')}</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => { wrap.remove(); document.removeEventListener('keydown', keys, true); };
+  const keys = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', keys, true);
+  const apply = (range, month) => { close(); state.range = range; if (month) state.month = month; render(); };
+  wrap.querySelector('.modal-bd').onclick = close;
+  wrap.querySelector('[data-r="0"]').onclick = close;
+  wrap.querySelector('.preset-grid').onclick = (e) => {
+    const k = e.target.closest('[data-p]')?.dataset.p;
+    if (!k) return;
+    haptic();
+    if (k === 'month') return apply(null, new Date(now.getFullYear(), now.getMonth(), 1));
+    if (k === 'prev') return apply(null, new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    if (k === 'year') return apply({ from: +new Date(now.getFullYear(), 0, 1), to: tomorrow });
+    apply({ from: tomorrow - Number(k) * 864e5, to: tomorrow });
+  };
+  wrap.querySelector('#mpick').onchange = (e) => {
+    const [y, mm] = e.target.value.split('-').map(Number);
+    if (y) apply(null, new Date(y, mm - 1, 1));
+  };
+  wrap.querySelector('[data-r="1"]').onclick = () => {
+    const f = wrap.querySelector('#rfrom').value, t = wrap.querySelector('#rto').value;
+    if (!f || !t) return;
+    const [a, b] = [f, t].map((v) => { const [y, mm, d] = v.split('-').map(Number); return +new Date(y, mm - 1, d); }).sort((x, y) => x - y);
+    apply({ from: a, to: b + 864e5 });
+  };
 }
 
 const PL_EN = {
   операция: ['transaction', 'transactions'], операцию: ['transaction', 'transactions'], трата: ['expense', 'expenses'], трату: ['expense', 'expenses'],
   поступление: ['income', 'incomes'], день: ['day', 'days'], вклад: ['account', 'accounts'], лимит: ['limit', 'limits'], категория: ['category', 'categories'],
-  строка: ['row', 'rows'], новую: ['new', 'new'], была: ['was', 'were'], 'операция перенесена': ['transaction moved', 'transactions moved'],
+  строка: ['row', 'rows'], год: ['year', 'years'], новую: ['new', 'new'], была: ['was', 'were'], 'операция перенесена': ['transaction moved', 'transactions moved'],
 };
 const plural = (n, one, few, many) => pl(n, [one, few, many], PL_EN[one] || [one, few]);
 
@@ -856,7 +923,7 @@ async function wipeAll() {
     return toast(e.message === 'blocked' ? L('Кэш открыт в другой вкладке — закройте её и повторите', 'Kesh is open in another tab — close it and retry') : L('Не удалось удалить данные', 'Couldn’t delete data'));
   }
   auth.reset();
-  ['loggedIn', 'avatar', 'avatarSkin', 'customCats', 'budgets', 'deposits', 'lastBackup', 'kitty', 'kittyCoat', 'kesh', 'keshHints', 'keshSeen'].forEach((k) => localStorage.removeItem(k));
+  ['loggedIn', 'avatar', 'avatarSkin', 'customCats', 'budgets', 'deposits', 'wallet', 'lastBackup', 'kitty', 'kittyCoat', 'kesh', 'keshHints', 'keshSeen'].forEach((k) => localStorage.removeItem(k));
   reloadCategories();
   state.authMode = null;
   render();
@@ -1088,6 +1155,16 @@ function importData() {
 /* ---------- бюджет ---------- */
 const readJSON = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } };
 const budgets = () => readJSON('budgets', {});
+// Кошелёк: стартовая сумма + доходы − расходы с даты создания
+const wallet = () => readJSON('wallet', null);
+const saveWallet = (w) => (w ? localStorage.setItem('wallet', JSON.stringify(w)) : localStorage.removeItem('wallet'));
+export async function walletBalance() {
+  const w = wallet();
+  if (!w) return null;
+  const items = await store.expensesBetween(w.from, Date.now() + 366 * 864e5);
+  const out = sum(spent(items)), inc = sum(items.filter(isIncome));
+  return { ...w, out, inc, balance: w.base + inc - out };
+}
 // Подсказка Кэша при достижении 80 % / 100 % лимита категории после новой траты
 export async function limitHint(cat, added) {
   const lim = budgets()[cat];
@@ -1121,11 +1198,13 @@ export async function renderBudget() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const items = spent(await store.expensesBetween(from.getTime(), to.getTime() - 1));
+  const [all, wal] = await Promise.all([store.expensesBetween(from.getTime(), to.getTime() - 1), walletBalance()]);
+  const items = spent(all);
   const bySpent = Object.fromEntries(byCategory(items));
   const b = budgets();
   const limited = CATEGORIES.filter(([id]) => b[id] > 0);
   const free = CATEGORIES.filter(([id]) => !(b[id] > 0)).sort(([x], [y]) => (bySpent[y] || 0) - (bySpent[x] || 0));
+  const wd = wal && new Date(wal.from);
   const limit = limited.reduce((a, [id]) => a + b[id], 0);
   const used = limited.reduce((a, [id]) => a + (bySpent[id] || 0), 0);
   const left = limit - used;
@@ -1137,6 +1216,15 @@ export async function renderBudget() {
     <section class="screen tabbed">
       <header class="appbar"><h1>${L('Бюджет', 'Budget')} · ${MONTHS_LOW[now.getMonth()]}</h1></header>
       <div class="scroll">
+        <div class="card wallet-card">
+          <div class="card-head"><b>${icons.wallet}${L('Кошелёк', 'Wallet')}</b>${wal ? `<button class="icon-btn sm" id="w-more" aria-label="${L('Ещё', 'More')}">${icons.more}</button>` : ''}</div>
+          ${wal ? `
+            <div class="month-total${wal.balance < 0 ? ' over' : ''}" id="w-sum">${money(wal.balance)}</div>
+            <div class="month-sub">${L('с', 'since')} ${wd.getDate()} ${MONTHS_SHORT[wd.getMonth()]} · ${L('старт', 'start')} ${money(wal.base)}${wal.out ? ` · <span class="minus">−${money(wal.out)}</span>` : ''}${wal.inc ? ` · <span class="plus">+${money(wal.inc)}</span>` : ''}</div>
+            <div class="dep-actions"><button class="btn alt" id="w-add">${icons.plus} ${L('Пополнить', 'Add')}</button><button class="btn alt" id="w-sub">${L('Списать', 'Take out')}</button></div>`
+          : `<p class="month-sub">${L('Укажи, сколько денег у тебя сейчас. Расходы будут вычитаться, доходы — прибавляться.', 'Enter how much money you have now. Expenses will be subtracted, income added.')}</p>
+            <button class="btn alt add-dep" id="w-new">${L('Создать кошелёк', 'Create wallet')}</button>`}
+        </div>
         <div class="card budget-card">
           ${limit ? `
             <div class="hero-label">${left < 0 ? L('Перерасход', 'Overspent') : L('Осталось на месяц', 'Left this month')}</div>
@@ -1149,7 +1237,7 @@ export async function renderBudget() {
             <div class="month-sub">${L('Задайте лимит категории — предупрежу на 80 %', 'Set a category limit — I’ll warn you at 80%')}</div>`}
         </div>
         ${limited.length ? `
-        <div class="card">
+        <div class="card budget-list">
           <div class="card-head"><b>${L('Лимиты категорий', 'Category limits')}</b><span class="chip">${limited.length}</span></div>
           ${limited.map(([id, name], n) => {
             const v = bySpent[id] || 0;
@@ -1163,26 +1251,74 @@ export async function renderBudget() {
             </button>`;
           }).join('')}
         </div>` : ''}
-        <div class="section-label">${limited.length ? L('Без лимита', 'No limit') : L('Категории', 'Categories')}</div>
-        <div class="card rows">${free.map(([id, name]) => `
-          <button class="row" data-b="${id}"><span class="tr-ico">${catIcon(id)}</span><span>${esc(name)}</span>
-            <span class="row-extra">${bySpent[id] ? money(bySpent[id]) : ''}</span>${icons.plus}</button>`).join('')}
-        </div>
-        <button class="btn alt add-dep" id="newcat">${icons.plus} ${L('Своя категория', 'Custom category')}</button>
+        <button class="btn alt add-dep" id="addlimit">${icons.plus} ${L('Добавить лимит', 'Add limit')}</button>
       </div>
       ${tabbar()}
     </section>`;
 
   bindTabs();
-  countUp(app.querySelector('.month-total'), limit ? Math.abs(left) : sum(items));
+  countUp(app.querySelector('.budget-card .month-total'), limit ? Math.abs(left) : sum(items));
   if (!limit) keshHint('budget-first', L('Задай лимит категории — предупрежу на 80 %.', 'Set a category limit — I’ll warn you at 80%.'));
-  app.querySelector('#newcat').onclick = () => {
-    haptic();
-    state.draft = { icon: 'star', name: '', color: PALETTE[customCategories().length % PALETTE.length], kind: 'out', from: 'budget' };
-    state.flow = 'newcat';
+  const askLimit = async (id) => {
+    const val = await askText(`${L('Лимит', 'Limit')}: ${CAT[id].name}`, { mode: 'decimal', placeholder: L('Сумма в месяц, ₽', 'Monthly amount, ₽'), value: b[id] ? rub(b[id]) : '' });
+    if (val === null) return;
+    const next = budgets();
+    const kop = toKop(val);
+    if (kop > 0) next[id] = kop; else delete next[id];
+    saveBudgets(next);
     render();
+    toast(kop > 0 ? L(`Лимит ${money(kop)} в месяц`, `Limit ${money(kop)} per month`) : L('Лимит убран', 'Limit removed'));
   };
-  app.querySelector('.scroll').addEventListener('click', async (e) => {
+  app.querySelector('#addlimit').onclick = async () => {
+    haptic();
+    const pick = await sheet(L('Лимит для категории', 'Limit for category'), [
+      ...free.map(([id, name]) => ({ key: id, icon: `<span class="tr-ico sm">${catIcon(id)}</span>`, label: bySpent[id] ? `${name} · ${money(bySpent[id])}` : name })),
+      { key: '__new', icon: icons.plus, label: L('Своя категория', 'Custom category') },
+    ]);
+    if (!pick) return;
+    if (pick === '__new') {
+      state.draft = { icon: 'star', name: '', color: PALETTE[customCategories().length % PALETTE.length], kind: 'out', from: 'budget' };
+      state.flow = 'newcat';
+      return render();
+    }
+    askLimit(pick);
+  };
+  // кошелёк
+  const walletAmount = async (title) => {
+    const v = await askText(title, { mode: 'decimal', placeholder: L('Сумма, ₽', 'Amount, ₽') });
+    const kop = toKop(v || '');
+    return kop > 0 ? kop : null;
+  };
+  app.querySelector('#w-new')?.addEventListener('click', async () => {
+    const kop = await walletAmount(L('Сколько денег сейчас?', 'How much money do you have now?'));
+    if (kop === null) return;
+    saveWallet({ base: kop, from: Date.now() });
+    render();
+    keshSay(L('Кошелёк готов. Траты буду вычитать сам.', 'Wallet ready. I’ll subtract expenses myself.'), 'Рад');
+  });
+  const adjust = (sign) => async () => {
+    const kop = await walletAmount(sign > 0 ? L('Пополнить кошелёк', 'Add to wallet') : L('Списать из кошелька', 'Take from wallet'));
+    if (kop === null) return;
+    const w = wallet(); saveWallet({ ...w, base: w.base + sign * kop });
+    render();
+    toast(`${sign > 0 ? '+' : '−'}${money(kop)}`);
+  };
+  app.querySelector('#w-add')?.addEventListener('click', adjust(1));
+  app.querySelector('#w-sub')?.addEventListener('click', adjust(-1));
+  app.querySelector('#w-more')?.addEventListener('click', async () => {
+    const act = await sheet(L('Кошелёк', 'Wallet'), [
+      { key: 'reset', icon: icons.sync, label: L('Задать сумму заново', 'Set amount again') },
+      { key: 'del', icon: icons.trash, label: L('Удалить кошелёк', 'Delete wallet'), danger: true },
+    ]);
+    if (act === 'reset') {
+      const kop = await walletAmount(L('Сколько денег сейчас?', 'How much money do you have now?'));
+      if (kop !== null) { saveWallet({ base: kop, from: Date.now() }); render(); }
+    }
+    if (act === 'del' && await ask(L('Удалить кошелёк?', 'Delete wallet?'), L('Операции останутся, исчезнет только остаток.', 'Transactions stay; only the balance goes away.'))) {
+      saveWallet(null); render();
+    }
+  });
+  app.querySelector('.budget-list')?.addEventListener('click', async (e) => {
     const id = e.target.closest('[data-b]')?.dataset.b;
     if (!id) return;
     haptic();
@@ -1202,30 +1338,48 @@ export async function renderBudget() {
       render();
       return toast(L('Лимит убран', 'Limit removed'));
     }
-    if (act !== 'limit') return;
-    const val = await askText(`${L('Лимит', 'Limit')}: ${CAT[id].name}`, { mode: 'decimal', placeholder: L('Сумма в месяц, ₽', 'Monthly amount, ₽'), value: b[id] ? rub(b[id]) : '' });
-    if (val === null) return;
-    const next = budgets();
-    const kop = toKop(val);
-    if (kop > 0) next[id] = kop; else delete next[id];
-    saveBudgets(next);
-    render();
-    toast(kop > 0 ? L(`Лимит ${money(kop)} в месяц`, `Limit ${money(kop)} per month`) : L('Лимит убран', 'Limit removed'));
+    if (act === 'limit') askLimit(id);
   });
 }
 
 /* ---------- вклады ---------- */
 const deposits = () => readJSON('deposits', []);
 const saveDeposits = (list) => localStorage.setItem('deposits', JSON.stringify(list));
-const monthly = (d) => Math.round((d.amount * (d.rate || 0)) / 100 / 12);
-const depIcon = (d, n) => {
-  return `<span class="tr-ico">${icons.safe.replace('<svg', '<svg class="ci"')}</span>`;
+// Вклад: срочный (срок, капитализация или выплата в конце) или накопительный счёт (без срока)
+const TERMS = [1, 2, 3, 6, 9, 12, 18, 24, 36];
+const addMonths = (ts, m) => { const d = new Date(ts); d.setMonth(d.getMonth() + m); return +d; };
+const depEnd = (d) => (d.kind === 'term' && d.months && d.opened ? addMonths(d.opened, d.months) : 0);
+// доход к концу срока: ежемесячная капитализация — сложный процент, иначе простой по дням
+const depIncome = (d) => {
+  const r = (d.rate || 0) / 100;
+  if (d.kind !== 'term' || !d.months) return Math.round((d.amount * r) / 12);
+  if (d.cap === 'month') return Math.round(d.amount * ((1 + r / 12) ** d.months - 1));
+  const days = d.opened ? Math.round((depEnd(d) - d.opened) / 864e5) : d.months * 30.4;
+  return Math.round((d.amount * r * days) / 365);
 };
+const monthly = (d) => (d.kind === 'term' && d.months ? Math.round(depIncome(d) / d.months) : depIncome(d));
+const dmy = (ts) => { const d = new Date(ts); return L(`${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`, `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`); };
+const termLabel = (m) => (m % 12 === 0 ? `${m / 12} ${plural(m / 12, 'год', 'года', 'лет')}` : `${m} ${L('мес', 'mo')}`);
+const depIcon = () => `<span class="tr-ico">${icons.safe.replace('<svg', '<svg class="ci"')}</span>`;
 
 export function renderDeposits() {
   const list = deposits();
   const total = list.reduce((a, d) => a + d.amount, 0);
   const income = list.reduce((a, d) => a + monthly(d), 0);
+  const ending = list.filter((d) => depEnd(d) > Date.now()).sort((a, b) => depEnd(a) - depEnd(b))[0];
+  const daysTo = (ts) => Math.max(0, Math.ceil((ts - Date.now()) / 864e5));
+  const sub = (d) => {
+    const rate = d.rate ? `${String(d.rate).replace('.', ',')}%` : L('без %', 'no interest');
+    if (d.kind !== 'term') return `${L('Накопительный', 'Savings')} · ${rate}`;
+    const end = depEnd(d);
+    return `${rate} · ${d.months ? termLabel(d.months) : ''}${end ? ` · ${end > Date.now() ? `${L('до', 'until')} ${dmy(end)}` : L('срок истёк', 'matured')}` : ''}`;
+  };
+  const prog = (d) => {
+    const end = depEnd(d);
+    if (!end) return '';
+    const p = Math.min(1, Math.max(0, (Date.now() - d.opened) / (end - d.opened)));
+    return `<span class="meter dep-meter"><i style="width:${Math.max(2, p * 100)}%"></i></span>`;
+  };
 
   app.innerHTML = `
     <section class="screen tabbed">
@@ -1234,17 +1388,18 @@ export function renderDeposits() {
         <div class="hero">
           <div class="hero-label">${L('Всего на вкладах', 'Total savings')}</div>
           <div class="month-total">${money(total)}</div>
-          <div class="month-sub">${income ? `<span class="delta down">≈ +${money(income)} / ${L('мес', 'mo')}</span> ${L('оценка', 'estimate')}` : list.length ? `${list.length} ${plural(list.length, 'вклад', 'вклада', 'вкладов')}` : L('Добавьте вклад или накопительный счёт', 'Add a deposit or savings account')}</div>
+          <div class="month-sub">${income ? `<span class="delta down">≈ +${money(income)} / ${L('мес', 'mo')}</span> ${L('в среднем', 'on average')}` : list.length ? `${list.length} ${plural(list.length, 'вклад', 'вклада', 'вкладов')}` : L('Срочные вклады и накопительные счета', 'Term deposits and savings accounts')}</div>
         </div>
+        ${ending ? `<div class="card dep-next"><span class="tr-name">${L('Ближайшее окончание', 'Next maturity')}<small>${esc(ending.name)} · ${dmy(depEnd(ending))}</small></span><span class="tr-right"><b>${daysTo(depEnd(ending))} ${plural(daysTo(depEnd(ending)), 'день', 'дня', 'дней')}</b><small class="plus">+${num(depIncome(ending))}</small></span></div>` : ''}
         ${list.length ? `<div class="card">
           <div class="card-head"><b>${L('Счета', 'Accounts')}</b><span class="chip">${L('по сумме', 'by amount')}</span></div>
-          ${[...list].sort((a, b) => b.amount - a.amount).map((d, n) => `
-          <button class="res" data-id="${d.id}">
-            ${depIcon(d, n)}
-            <span class="tr-name">${esc(d.name)}<small>${d.rate ? `${String(d.rate).replace('.', ',')}% ${L('годовых', 'APR')}` : L('Без процентов', 'No interest')}</small></span>
-            <span class="tr-right"><span class="tr-sum">${num(d.amount)}</span>${d.rate ? `<small class="plus">+${num(monthly(d))} / ${L('мес', 'mo')}</small>` : ''}</span>
+          ${[...list].sort((a, b) => b.amount - a.amount).map((d) => `
+          <button class="res dep-row" data-id="${d.id}">
+            ${depIcon()}
+            <span class="tr-name">${esc(d.name)}<small>${sub(d)}</small>${prog(d)}</span>
+            <span class="tr-right"><span class="tr-sum">${num(d.amount)}</span>${d.rate ? `<small class="plus">+${num(depIncome(d))}${d.kind === 'term' && d.months ? ` ${L('к концу', 'at end')}` : ` / ${L('мес', 'mo')}`}</small>` : ''}</span>
           </button>`).join('')}</div>` : ''}
-        ${income ? `<div class="imp-note dep-note">${L('Доход — примерная оценка: сумма × ставка ÷ 12, без капитализации и налогов', 'Income is a rough estimate: amount × rate ÷ 12, no compounding or taxes')}</div>` : ''}
+        ${income ? `<div class="imp-note dep-note">${L('Расчёт примерный, до налога. Капитализация — проценты добавляются к сумме каждый месяц; «в конце срока» — простые проценты.', 'Estimates before tax. Capitalization adds interest to the balance monthly; “at maturity” uses simple interest.')}</div>` : ''}
         <button class="btn alt add-dep" id="add">${L('Добавить вклад', 'Add account')}</button>
       </div>
       ${tabbar()}
@@ -1253,11 +1408,12 @@ export function renderDeposits() {
   bindTabs();
   countUp(app.querySelector('.month-total'), total);
   const open = (dep) => { haptic(); state.dep = dep; state.flow = 'deposit'; render(); };
-  app.querySelector('#add').onclick = () => open({ name: '', amount: 0, rate: '' });
-  app.querySelector('#add-top').onclick = () => open({ name: '', amount: 0, rate: '' });
+  const blank = () => ({ name: '', amount: 0, rate: '', kind: 'term', months: 6, opened: Date.now(), cap: 'month' });
+  app.querySelector('#add').onclick = () => open(blank());
+  app.querySelector('#add-top').onclick = () => open(blank());
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const id = e.target.closest('[data-id]')?.dataset.id;
-    if (id) open({ ...list.find((d) => d.id === id) });
+    if (id) open({ kind: 'savings', cap: 'month', ...list.find((d) => d.id === id) });
   });
 }
 
@@ -1273,7 +1429,7 @@ export function renderDeposit() {
       </div>
       <div class="cats dep-form">
         ${d.id ? `<div class="info-hero"><div class="info-amount">${money(d.amount)}</div>
-          <div class="month-sub">${d.rate ? `≈ +${money(monthly(d))} ${L('в месяц, примерно', 'per month, roughly')}` : L('Без процентов', 'No interest')}</div></div>
+          <div class="month-sub">${d.rate ? (d.kind === 'term' && d.months ? `≈ +${money(depIncome(d))} ${L('к концу срока', 'at maturity')}` : `≈ +${money(monthly(d))} ${L('в месяц', 'per month')}`) : L('Без процентов', 'No interest')}</div></div>
           <div class="dep-actions">
             <button class="btn alt" id="topup">${icons.plus} ${L('Пополнить', 'Top up')}</button>
             <button class="btn alt" id="take">${L('Снять', 'Withdraw')}</button>
@@ -1283,7 +1439,23 @@ export function renderDeposit() {
         <label class="lbl">${L('Сумма, ₽', 'Amount, ₽')}</label>
         <input class="field" id="damount" inputmode="decimal" placeholder="0" value="${d.amount ? rub(d.amount) : ''}">
         <label class="lbl">${L('Ставка, % годовых', 'Rate, % APR')}</label>
-        <input class="field" id="drate" inputmode="decimal" placeholder="${L('Необязательно', 'Optional')}" value="${d.rate ? String(d.rate).replace('.', ',') : ''}">
+        <input class="field" id="drate" inputmode="decimal" placeholder="${L('Например, 16', 'e.g. 16')}" value="${d.rate ? String(d.rate).replace('.', ',') : ''}">
+        <label class="lbl">${L('Тип', 'Type')}</label>
+        <div class="seg" id="dkind">
+          <button class="${d.kind === 'term' ? 'on' : ''}" data-v="term">${L('Срочный вклад', 'Term deposit')}</button>
+          <button class="${d.kind !== 'term' ? 'on' : ''}" data-v="savings">${L('Накопительный', 'Savings')}</button>
+        </div>
+        ${d.kind === 'term' ? `
+          <label class="lbl">${L('Срок', 'Term')}</label>
+          <div class="term-chips" id="dterm">${TERMS.map((m) => `<button class="${d.months === m ? 'on' : ''}" data-m="${m}">${termLabel(m)}</button>`).join('')}</div>
+          <label class="lbl">${L('Дата открытия', 'Opened on')}</label>
+          <input class="field" type="date" id="dopened" value="${new Date(d.opened || Date.now()).toISOString().slice(0, 10)}" max="${new Date().toISOString().slice(0, 10)}">
+          <label class="lbl">${L('Проценты', 'Interest')}</label>
+          <div class="seg" id="dcap">
+            <button class="${d.cap !== 'end' ? 'on' : ''}" data-v="month">${L('Капитализация', 'Capitalized')}</button>
+            <button class="${d.cap === 'end' ? 'on' : ''}" data-v="end">${L('В конце срока', 'At maturity')}</button>
+          </div>` : `<div class="imp-note dep-hint">${L('Без срока: деньги можно снять в любой момент, проценты обычно начисляются на остаток каждый месяц.', 'No term: withdraw any time; interest is usually paid on the balance monthly.')}</div>`}
+        <div class="dep-calc" id="dcalc"></div>
       </div>
       <div class="bottom">
         <button class="btn" id="save">${d.id ? L('Сохранить', 'Save') : L('Добавить вклад', 'Add account')}</button>
@@ -1301,8 +1473,26 @@ export function renderDeposit() {
     ...d,
     name: app.querySelector('#dname').value.trim(),
     amount: Math.max(0, toKop(app.querySelector('#damount').value) || 0),
-    rate: Math.max(0, parseFloat(app.querySelector('#drate').value.replace(',', '.')) || 0),
+    rate: Math.min(100, Math.max(0, parseFloat(app.querySelector('#drate').value.replace(',', '.')) || 0)),
+    opened: (() => { const v = app.querySelector('#dopened')?.value; if (!v) return d.opened || 0; const [y, m, dd] = v.split('-').map(Number); return +new Date(y, m - 1, dd, 12); })(),
   });
+  // живой расчёт дохода
+  const calc = () => {
+    const x = read();
+    const el = app.querySelector('#dcalc');
+    if (!x.amount || !x.rate) { el.innerHTML = ''; return; }
+    const inc = depIncome(x);
+    const end = depEnd(x);
+    el.innerHTML = x.kind === 'term' && x.months
+      ? `<span>${end ? `${L('К', 'By')} ${dmy(end)}` : L('К концу срока', 'At maturity')}</span><b>${money(x.amount + inc)}</b><small class="plus">+${money(inc)}</small>`
+      : `<span>${L('В месяц', 'Per month')}</span><b class="plus">+${money(inc)}</b><small>${L('в год', 'a year')} ≈ ${money(inc * 12)}</small>`;
+  };
+  ['#damount', '#drate', '#dopened'].forEach((q) => app.querySelector(q)?.addEventListener('input', calc));
+  const keep = (patch) => { state.dep = { ...read(), ...patch }; render(); };
+  app.querySelector('#dkind').onclick = (e) => { const v = e.target.closest('[data-v]')?.dataset.v; if (v) { haptic(); keep({ kind: v, months: v === 'term' ? (d.months || 6) : 0 }); } };
+  app.querySelector('#dcap')?.addEventListener('click', (e) => { const v = e.target.closest('[data-v]')?.dataset.v; if (v) { haptic(); keep({ cap: v }); } });
+  app.querySelector('#dterm')?.addEventListener('click', (e) => { const m = Number(e.target.closest('[data-m]')?.dataset.m); if (m) { haptic(); keep({ months: m }); } });
+  calc();
   app.querySelector('#back').onclick = close;
   app.querySelector('#save').onclick = () => {
     const dep = read();

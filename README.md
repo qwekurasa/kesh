@@ -1,33 +1,38 @@
-<p align="center"><img src="docs/banner.png" alt="Кэш — трекер трат с котом" width="100%"></p>
+<p align="center"><img src="docs/banner.png" alt="Кэш" width="100%"></p>
 
-<p align="center">
-  <a href="https://qwekurasa.github.io/kesh/"><img alt="Открыть приложение" src="https://img.shields.io/badge/▶_открыть-qwekurasa.github.io/kesh-A6F0C0?style=for-the-badge&labelColor=111113"></a>
-</p>
-<p align="center">
-  <img alt="PWA" src="https://img.shields.io/badge/PWA-офлайн-EDEDEF?style=flat-square&labelColor=111113">
-  <img alt="0 зависимостей" src="https://img.shields.io/badge/зависимости-0-EDEDEF?style=flat-square&labelColor=111113">
-  <img alt="RU EN" src="https://img.shields.io/badge/язык-RU_·_EN-EDEDEF?style=flat-square&labelColor=111113">
-  <img alt="MIT" src="https://img.shields.io/badge/лицензия-MIT-EDEDEF?style=flat-square&labelColor=111113">
-</p>
+# Кэш
 
-<p align="center"><img src="docs/screens.png" alt="Экраны приложения" width="100%"></p>
+Трекер трат без регистрации и облака. Все данные хранятся только на телефоне.
 
-|  |  |  |
-|:--|:--|:--|
-| ⚡ **Запись за 2 касания** | 📊 **Аналитика** · динамика, структура | 🎯 **Лимиты** · предупреждение на 80 % |
-| 🏦 **Выписка Т-Банка** · PDF/CSV без дублей | 💾 **Копия и Excel** · JSON, XLSX | 🔒 **Только на телефоне** · без сервера |
+**Приложение:** https://qwekurasa.github.io/kesh/
 
-**Установка:** откройте ссылку → «Поделиться» → «На экран „Домой“» (iPhone) или ⋮ → «Установить» (Android).
+- Расходы и доходы, категории и комментарии
+- Аналитика за любой период
+- Кошелёк и лимиты по категориям
+- Вклады и накопительные счета
+- Импорт выписки Т-Банка (PDF, CSV)
+- Резервная копия и отчёт в Excel
+- Работает офлайн, русский и английский интерфейс
 
-**Запуск у себя** — сборки нет:
+## Установка
+
+iPhone: открыть ссылку в Safari → «Поделиться» → «На экран „Домой“».
+Android: открыть в Chrome → меню → «Установить приложение».
+
+## Запуск у себя
+
 ```bash
-git clone https://github.com/qwekurasa/kesh && cd kesh && python3 -m http.server 8080
+git clone https://github.com/qwekurasa/kesh
+cd kesh
+python3 -m http.server 8080
 ```
 
-**Поддержать:** ⭐ звезда · идея в [Issues](https://github.com/qwekurasa/kesh/issues) · донат <!-- DONATE_LINK -->
+Сборка не нужна. Папка `ios/` — проект Xcode для запуска на iPhone.
 
-<sub>MIT © 2026 qwekurasa · [PDF.js](https://github.com/mozilla/pdf.js) (Apache-2.0) · шрифты Onest, Outfit, JetBrains Mono ([OFL](fonts/LICENSE.txt)) · иконки [Phosphor](https://phosphoricons.com) (MIT)</sub>
+## Поддержать
 
----
+Донат: <!-- DONATE_LINK --> ссылка появится здесь.
 
-<sub>🇬🇧 **Kesh** — an expense tracker with a cat. No account, no cloud, works offline. [Open the app](https://qwekurasa.github.io/kesh/) and switch to English on the first screen. Run locally with the command above.</sub>
+## Лицензия
+
+MIT. Сторонние компоненты: PDF.js (Apache-2.0), шрифты Onest, Outfit, JetBrains Mono (OFL), иконки Phosphor (MIT).
