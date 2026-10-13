@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://qwekurasa.github.io/traty/"><b>Открыть приложение</b></a> ·
+  <a href="https://qwekurasa.github.io/kesh/"><b>Открыть приложение</b></a> ·
   <a href="#установка">Установка</a> ·
   <a href="#поддержать-проект">Поддержать</a> ·
   <a href="#english">English</a>
@@ -26,6 +26,7 @@
 - **Импорт выписки Т-Банка** (PDF и CSV) без дублей: повторно загруженные операции не задваиваются.
 - **Резервная копия и отчёт в Excel.** Восстановление из JSON или XLSX.
 - **Кэш-маскот.** Сидит на краю таббара, реагирует на суммы и лимиты, даёт подсказки. Можно сделать тише, перекрасить или выключить.
+- **Два языка:** русский и английский, переключаются при знакомстве и в профиле.
 - **Работает офлайн** и ставится на домашний экран как приложение.
 
 ## Скриншоты
@@ -47,7 +48,7 @@
 
 ## Установка
 
-Откройте **[qwekurasa.github.io/traty](https://qwekurasa.github.io/traty/)**, затем:
+Откройте **[qwekurasa.github.io/kesh](https://qwekurasa.github.io/kesh/)**, затем:
 
 - **iPhone (Safari):** «Поделиться» → «На экран „Домой“».
 - **Android (Chrome):** меню ⋮ → «Установить приложение».
@@ -58,8 +59,8 @@
 Сборки нет — это статичные файлы.
 
 ```bash
-git clone https://github.com/qwekurasa/traty.git
-cd traty
+git clone https://github.com/qwekurasa/kesh.git
+cd kesh
 python3 -m http.server 8080
 # откройте http://localhost:8080
 ```
@@ -75,6 +76,7 @@ python3 -m http.server 8080
 | `app.js` | Роутер, онбординг, ввод суммы и категории |
 | `screens.js` | Главная, аналитика, бюджет, вклады, профиль, импорт |
 | `ui.js` | Состояние, категории, иконки, диалоги |
+| `i18n.js` | Язык интерфейса (RU/EN) |
 | `kesh.js` | Маскот: позы, реакции, подсказки |
 | `store.js` | IndexedDB |
 | `statement.js` | Разбор выписки PDF/CSV |
@@ -86,7 +88,7 @@ python3 -m http.server 8080
 
 ## Участие
 
-Идеи и ошибки — в [Issues](https://github.com/qwekurasa/traty/issues). Pull request'ы приветствуются: держите код простым, без новых зависимостей, и проверьте изменения на телефоне.
+Идеи и ошибки — в [Issues](https://github.com/qwekurasa/kesh/issues). Pull request'ы приветствуются: держите код простым, без новых зависимостей, и проверьте изменения на телефоне.
 
 ## Поддержать проект
 
@@ -99,7 +101,7 @@ python3 -m http.server 8080
 ## Благодарности
 
 - [PDF.js](https://github.com/mozilla/pdf.js) — Apache-2.0
-- Шрифты [Onest](https://fonts.google.com/specimen/Onest) и [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) — SIL Open Font License 1.1
+- Шрифты [Onest](https://github.com/simpals/onest), [Outfit](https://github.com/Outfitio/Outfit-Fonts) и [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) — SIL Open Font License 1.1, тексты лицензий в [`fonts/LICENSE.txt`](fonts/LICENSE.txt)
 - Иконки категорий — [Phosphor Icons](https://phosphoricons.com), MIT
 
 ## Лицензия
@@ -118,8 +120,9 @@ python3 -m http.server 8080
 - Savings accounts with estimated monthly interest
 - T-Bank statement import (PDF, CSV) with duplicate detection
 - JSON backup and Excel export
+- Russian and English interface
 - Works offline, installable as a PWA
 
-**[Open the app →](https://qwekurasa.github.io/traty/)** The interface is currently in Russian; English is planned.
+**[Open the app →](https://qwekurasa.github.io/kesh/)** Switch to English on the welcome screen or in Profile → Language.
 
 Run locally: `python3 -m http.server 8080` in the repo folder. No build step, no dependencies. Licensed under [MIT](LICENSE).

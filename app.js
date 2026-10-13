@@ -1,4 +1,5 @@
 import * as store from './store.js';
+import { L, LANG, setLang } from './i18n.js';
 import * as auth from './auth.js';
 import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, limitHint } from './screens.js';
 import {
@@ -35,20 +36,21 @@ function renderWelcome() {
   app.innerHTML = `
     <section class="screen auth welcome" data-phase="empty">
       <div class="grain"></div>
+      <div class="lang-pick seg">${['ru', 'en'].map((l) => `<button class="${LANG === l ? 'on' : ''}" data-l="${l}">${l.toUpperCase()}</button>`).join('')}</div>
       <div class="stage">
         <div class="peek">${keshSVG('Ждёт')}</div>
         <div class="horizon"></div>
         <p class="hello" aria-live="polite"></p>
       </div>
       <div class="auth-body">
-        <button class="btn trap" id="reg"><span class="trap-kesh">${keshSVG('Переживает', true)}</span><span class="tuk l">тук</span><span class="tuk r">тук</span><span class="trap-label">Начать</span></button>
+        <button class="btn trap" id="reg"><span class="trap-kesh">${keshSVG('Переживает', true)}</span><span class="tuk l">${L('тук', 'knock')}</span><span class="tuk r">${L('тук', 'knock')}</span><span class="trap-label">${L('Начать', 'Start')}</span></button>
       </div>
     </section>`;
   const scr = app.querySelector('.welcome');
   const btn = app.querySelector('#reg');
   const peek = app.querySelector('.peek');
   const hello = app.querySelector('.hello');
-  const TEXT = 'Привет! Я Кэш.';
+  const TEXT = L('Привет! Я Кэш.', 'Hi! I’m Kesh.');
   const timers = [];
   const at = (ms, fn) => timers.push(setTimeout(() => scr.isConnected && fn(), ms));
   const phase = (p) => { scr.dataset.phase = p; };
@@ -96,13 +98,17 @@ function renderWelcome() {
   }
   // всё пропускается тапом по экрану
   scr.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('#reg') || scr.dataset.phase === 'trap') return;
+    if (e.target.closest('#reg, .lang-pick') || scr.dataset.phase === 'trap') return;
     timers.forEach(clearTimeout);
     hello.classList.remove('typing');
     hello.textContent = TEXT;
     pose('Привет');
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) phase('button'); else caught();
   });
+  app.querySelector('.lang-pick').onclick = (e) => {
+    const l = e.target.closest('[data-l]')?.dataset.l;
+    if (l && l !== LANG) setLang(l);
+  };
   btn.onclick = () => {
     timers.forEach(clearTimeout);
     haptic();
@@ -121,26 +127,26 @@ function renderOnboarding() {
 
   app.innerHTML = `
     <section class="screen auth onb">
-      <div class="brand">Кэш</div>
+      <div class="brand">${L('Кэш', 'Kesh')}</div>
       <div class="dots">${[0, 1].map((i) => `<i class="${i === step ? 'on' : ''}"></i>`).join('')}</div>
       <div class="auth-body">
         ${step === 0 ? `
-          <h1>Как тебя зовут?</h1>
-          <p>Имя видно только на этом устройстве</p>
+          <h1>${L('Как тебя зовут?', 'What’s your name?')}</h1>
+          <p>${L('Имя видно только на этом устройстве', 'Your name stays on this device')}</p>
           <div class="field-wrap">
             <div class="field-kesh${jumped ? ' jump' : ''}">${keshSVG(name.trim().length >= 2 ? 'Рад' : 'Ждёт')}</div>
-            <input class="field big" id="name" placeholder="Например, Артём" maxlength="32" value="${esc(name)}" autocapitalize="words" spellcheck="false">
+            <input class="field big" id="name" placeholder="${L('Например, Артём', 'e.g. Alex')}" maxlength="32" value="${esc(name)}" autocapitalize="words" spellcheck="false">
           </div>
           <div class="error" id="err"></div>
-          <button class="btn" id="next" ${name.trim().length >= 2 ? '' : 'disabled'}>Дальше <span class="arr">→</span></button>
+          <button class="btn" id="next" ${name.trim().length >= 2 ? '' : 'disabled'}>${L('Дальше', 'Next')} <span class="arr">→</span></button>
         ` : `
           <div class="onb-ava"><span class="ava xl" style="${skinStyle(pick ?? 0)}"></span></div>
-          <h1>Выберите аватар</h1>
-          <p>Потом можно поставить своё фото</p>
+          <h1>${L('Выберите аватар', 'Pick an avatar')}</h1>
+          <p>${L('Потом можно поставить своё фото', 'You can set a photo later')}</p>
           <div class="ava-grid">
             ${SKINS.map((_, i) => `<button class="ava-pick${pick === i ? ' on' : ''}" data-e="${i}" style="--i:${i};${skinStyle(i)}"></button>`).join('')}
           </div>
-          <button class="btn" id="done">Поехали <span class="arr">→</span></button>
+          <button class="btn" id="done">${L('Поехали', 'Let’s go')} <span class="arr">→</span></button>
         `}
       </div>
     </section>`;
@@ -156,13 +162,13 @@ function renderOnboarding() {
       if (fk.dataset.pose !== pose) {
         fk.dataset.pose = pose; fk.innerHTML = keshSVG(pose);
         app.querySelector('.praise')?.remove();
-        if (pose === 'Рад') fk.insertAdjacentHTML('afterend', '<span class="praise">Красивое имя!</span>');
+        if (pose === 'Рад') fk.insertAdjacentHTML('afterend', `<span class="praise">${L('Красивое имя!', 'Nice name!')}</span>`);
       }
     };
     input.onkeydown = (e) => { if (e.key === 'Enter' && !next.disabled) next.click(); };
     next.onclick = () => {
       if (!/^[\p{L}\d _.-]{2,32}$/u.test(input.value.trim())) {
-        app.querySelector('#err').textContent = 'Имя: 2–32 символа';
+        app.querySelector('#err').textContent = L('Имя: 2–32 символа', 'Name: 2–32 characters');
         return;
       }
       state.draft.name = input.value.trim();
@@ -188,19 +194,19 @@ function renderOnboarding() {
     state.authMode = null;
     state.flow = 'add';
     render();
-    toast(`Привет, ${state.draft.name}!`);
+    toast(`${L('Привет', 'Hi')}, ${state.draft.name}!`);
   };
 }
 
 /* ---------- amount ---------- */
-const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const MONTHS_GEN = L(['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'], ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const dateLabel = (ts) => {
   const d = new Date(ts);
   const k = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(ts).setHours(0, 0, 0, 0)) / 864e5);
-  return `${k === 0 ? 'Сегодня · ' : k === 1 ? 'Вчера · ' : ''}${d.getDate()} ${MONTHS_GEN[d.getMonth()]}`;
+  return `${k === 0 ? L('Сегодня · ', 'Today · ') : k === 1 ? L('Вчера · ', 'Yesterday · ') : ''}${d.getDate()} ${MONTHS_GEN[d.getMonth()]}`;
 };
-const dateInput = () => `<label class="icon-btn date-pick" aria-label="Дата операции">${icons.calendar}
+const dateInput = () => `<label class="icon-btn date-pick" aria-label="${L('Дата операции', 'Date')}">${icons.calendar}
   <input type="date" id="date" value="${isoDay(new Date(state.date))}" max="${isoDay(new Date())}"></label>`;
 function bindDate() {
   app.querySelector('#date').onchange = (e) => {
@@ -229,26 +235,26 @@ async function renderAmount() {
   app.innerHTML = `
     <section class="screen add-screen">
       <div class="topbar">
-        <button class="icon-btn" id="close" aria-label="Закрыть">${icons.back}</button>
+        <button class="icon-btn" id="close" aria-label="${L('Закрыть', 'Close')}">${icons.back}</button>
         <div class="seg kind" id="kind">
-          <button class="${income ? '' : 'on'}" data-k="out">Расход</button>
-          <button class="${income ? 'on' : ''}" data-k="in">Доход</button>
+          <button class="${income ? '' : 'on'}" data-k="out">${L('Расход', 'Expense')}</button>
+          <button class="${income ? 'on' : ''}" data-k="in">${L('Доход', 'Income')}</button>
         </div>
-        ${editing ? `<button class="icon-btn" id="del" aria-label="Удалить операцию">${icons.trash}</button>` : dateInput()}
+        ${editing ? `<button class="icon-btn" id="del" aria-label="${L('Удалить операцию', 'Delete')}">${icons.trash}</button>` : dateInput()}
       </div>
       <div class="amount-wrap${income ? ' income' : ''}">
         <div class="amount" id="amount"><span class="val"></span><span class="cur">₽</span></div>
         <div class="amount-kesh" id="kesh-amt" aria-hidden="true"></div>
         <div class="amount-hint" id="hint"></div>
       </div>
-      <div class="quick-head"><span class="section-label">Частые</span><button class="link" id="all">Все категории</button></div>
+      <div class="quick-head"><span class="section-label">${L('Частые', 'Frequent')}</span><button class="link" id="all">${L('Все категории', 'All categories')}</button></div>
       <div class="quick">${top.map((id) => `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${esc(CAT[id].name)}</span></button>`).join('')}</div>
-      <input class="field" id="note" placeholder="Комментарий" maxlength="200" value="${esc(state.note)}">
+      <input class="field" id="note" placeholder="${L('Комментарий', 'Note')}" maxlength="200" value="${esc(state.note)}">
       <div class="pad">
         ${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map((k) =>
-          `<button class="key" data-k="${k}" aria-label="${k === 'del' ? 'Стереть' : k}">${k === 'del' ? icons.del : k}</button>`).join('')}
+          `<button class="key" data-k="${k}" aria-label="${k === 'del' ? L('Стереть', 'Erase') : k}">${k === 'del' ? icons.del : k}</button>`).join('')}
       </div>
-      <button class="btn" id="next">Сохранить</button>
+      <button class="btn" id="next">${L('Сохранить', 'Save')}</button>
     </section>`;
 
   updateAmount();
@@ -288,12 +294,12 @@ async function renderAmount() {
 }
 
 async function removeEdited() {
-  if (!(await ask('Удалить операцию?', '', 'Удалить'))) return;
+  if (!(await ask(L('Удалить операцию?', 'Delete this transaction?'), ''))) return;
   const { id } = state.edit;
   Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '' });
   await store.removeExpense(id);
   render();
-  toast('Операция удалена');
+  toast(L('Операция удалена', 'Transaction deleted'));
 }
 
 function press(k) {
@@ -331,7 +337,7 @@ function updateAmount() {
   const btn = app.querySelector('#next');
   const kop = kopecks();
   btn.disabled = kop <= 0;
-  btn.textContent = kop > 0 ? `${state.cat ? 'Сохранить' : 'Выбрать категорию'} · ${state.kind === 'in' ? '+' : '−'}${money(kop)}` : 'Сохранить';
+  btn.textContent = kop > 0 ? `${state.cat ? L('Сохранить', 'Save') : L('Выбрать категорию', 'Pick category')} · ${state.kind === 'in' ? '+' : '−'}${money(kop)}` : L('Сохранить', 'Save');
 }
 
 function goCategory() {
@@ -354,22 +360,22 @@ async function renderCategory() {
   app.innerHTML = `
     <section class="screen">
       <div class="topbar cat-bar">
-        <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
+        <button class="icon-btn" id="back" aria-label="${L('Назад', 'Back')}">${icons.back}</button>
         <button class="amount-chip center${income ? ' income' : ''}" id="edit">${income ? '+' : ''}${money(kopecks())} ${icons.edit}</button>
         ${dateInput()}
       </div>
-      <h2 class="cat-title">${income ? 'Откуда пришли деньги?' : 'На что потратили?'}</h2>
-      <label class="search-bar sm">${icons.search}<input id="cq" placeholder="Поиск категории" value="${esc(state.catQuery)}" autocapitalize="none" spellcheck="false"></label>
+      <h2 class="cat-title">${income ? L('Откуда пришли деньги?', 'Where did it come from?') : L('На что потратили?', 'What was it for?')}</h2>
+      <label class="search-bar sm">${icons.search}<input id="cq" placeholder="${L('Поиск категории', 'Search categories')}" value="${esc(state.catQuery)}" autocapitalize="none" spellcheck="false"></label>
       <div class="cats">
-        ${!q && recent.length ? `<div class="section-label">Недавние</div><div class="grid">${recent.map((id) => tile([id, CAT[id].name])).join('')}</div>` : ''}
-        <div class="section-label">${q ? `Найдено: ${found.length}` : 'Все категории'}</div>
-        <div class="grid">${found.map(tile).join('')}${q ? '' : `<button class="cat new" id="newcat"><div class="ico">${icons.plus}</div><span>Своя</span></button>`}</div>
-        ${q && !found.length ? '<div class="empty sm">Такой категории нет</div>' : ''}
+        ${!q && recent.length ? `<div class="section-label">${L('Недавние', 'Recent')}</div><div class="grid">${recent.map((id) => tile([id, CAT[id].name])).join('')}</div>` : ''}
+        <div class="section-label">${q ? `${L('Найдено', 'Found')}: ${found.length}` : L('Все категории', 'All categories')}</div>
+        <div class="grid">${found.map(tile).join('')}${q ? '' : `<button class="cat new" id="newcat"><div class="ico">${icons.plus}</div><span>${L('Своя', 'Custom')}</span></button>`}</div>
+        ${q && !found.length ? `<div class="empty sm">${L('Такой категории нет', 'No such category')}</div>` : ''}
       </div>
       <div class="bottom">
-        <input class="field" id="note" placeholder="Комментарий (необязательно)" maxlength="200" value="${esc(state.note)}">
-        <button class="btn" id="save" ${state.cat ? '' : 'disabled'}>Сохранить</button>
-        ${state.edit ? '<button class="btn ghost danger" id="del">Удалить операцию</button>' : ''}
+        <input class="field" id="note" placeholder="${L('Комментарий (необязательно)', 'Note (optional)')}" maxlength="200" value="${esc(state.note)}">
+        <button class="btn" id="save" ${state.cat ? '' : 'disabled'}>${L('Сохранить', 'Save')}</button>
+        ${state.edit ? `<button class="btn ghost danger" id="del">${L('Удалить операцию', 'Delete transaction')}</button>` : ''}
       </div>
     </section>`;
 
@@ -411,7 +417,7 @@ async function save() {
     Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '', catQuery: '' });
     await store.updateExpense(id, { amount, category, note, ts: state.date, type });
     render();
-    return toast('Изменения сохранены');
+    return toast(L('Изменения сохранены', 'Changes saved'));
   }
   const item = await store.addExpense({ amount, category, note, ts: state.date, type });
   Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(state.date)), date: Date.now(), kind: 'out' });
@@ -419,10 +425,10 @@ async function save() {
   const month = (await store.expensesBetween(Date.now() - 30 * 864e5, Date.now())).filter((i) => i.type !== 'in' && i.id !== item.id);
   const avg = month.length >= 5 ? month.reduce((x, i) => x + i.amount, 0) / month.length : Infinity;
   Promise.resolve(render()).then(async () => {
-    if (type) return keshSay(`+${money(item.amount)} — отмечу в статистике.`, item.amount >= 500000 ? 'Ликует' : 'Рад');
+    if (type) return keshSay(`+${money(item.amount)} — ${L('отмечу в статистике.', 'noted in your stats.')}`, item.amount >= 500000 ? 'Ликует' : 'Рад');
     keshReact('Рад');
     if (await limitHint(item.category, item.amount)) return;
-    if (item.amount > avg * 3) keshSay('Ого, крупная трата. Запомню.', 'Удивлён');
+    if (item.amount > avg * 3) keshSay(L('Ого, крупная трата. Запомню.', 'Whoa, a big one. Noted.'), 'Удивлён');
   });
   toast(`${type ? '+' : ''}${money(item.amount)} · ${CAT[item.category].name}`, async () => {
     await store.removeExpense(item.id);
@@ -443,26 +449,26 @@ function renderNewCategory() {
   app.innerHTML = `
     <section class="screen">
       <div class="topbar">
-        <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
-        <div class="pill">${id ? 'Категория' : 'Новая категория'}</div>
+        <button class="icon-btn" id="back" aria-label="${L('Назад', 'Back')}">${icons.back}</button>
+        <div class="pill">${id ? L('Категория', 'Category') : L('Новая категория', 'New category')}</div>
         <div style="width:40px"></div>
       </div>
       <div class="newcat-head">
         <div class="ico preview" style="--cc:${color}">${rawIcon(icon)}</div>
-        <input class="field big" id="cname" placeholder="Название" maxlength="24" value="${esc(name)}" autocapitalize="words">
+        <input class="field big" id="cname" placeholder="${L('Название', 'Name')}" maxlength="24" value="${esc(name)}" autocapitalize="words">
       </div>
       <div class="cats">
-        <div class="section-label">Цвет</div>
+        <div class="section-label">${L('Цвет', 'Color')}</div>
         <div class="color-grid">
-          ${PALETTE.map((c) => `<button class="color-pick${c === color ? ' on' : ''}" data-c="${c}" style="--cc:${c}" aria-label="Цвет"></button>`).join('')}
+          ${PALETTE.map((c) => `<button class="color-pick${c === color ? ' on' : ''}" data-c="${c}" style="--cc:${c}" aria-label="${L('Цвет', 'Color')}"></button>`).join('')}
         </div>
-        <div class="section-label">Иконка</div>
+        <div class="section-label">${L('Иконка', 'Icon')}</div>
         <div class="emoji-grid">
           ${PICKABLE.map((e, i) => `<button class="emoji-pick${e === icon ? ' on' : ''}" data-e="${e}" style="--i:${i}">${rawIcon(e)}</button>`).join('')}
         </div>
       </div>
       <div class="bottom">
-        <button class="btn" id="create" ${name.trim().length >= 2 ? '' : 'disabled'}>${id ? 'Сохранить' : 'Создать категорию'}</button>
+        <button class="btn" id="create" ${name.trim().length >= 2 ? '' : 'disabled'}>${id ? L('Сохранить', 'Save') : L('Создать категорию', 'Create category')}</button>
       </div>
     </section>`;
 
@@ -496,12 +502,12 @@ function renderNewCategory() {
       updateCategory(d.id, { name: d.name.trim(), icon: d.icon, color: d.color });
       state.flow = d.from;
       render();
-      return toast('Категория сохранена');
+      return toast(L('Категория сохранена', 'Category saved'));
     }
     state.cat = addCategory(d.name.trim(), d.icon, d.color, d.kind);
     state.flow = 'category';
     render();
-    toast(`Категория «${d.name.trim()}» создана`);
+    toast(L(`Категория «${d.name.trim()}» создана`, `Category “${d.name.trim()}” created`));
   };
 }
 
@@ -529,10 +535,10 @@ function fail(err) {
   console.error(err);
   const quota = err?.name === 'QuotaExceededError';
   if (!app.querySelector('.screen')) {
-    app.innerHTML = `<section class="screen"><div class="empty">Не удалось открыть экран.<br><br>
-      <button class="btn" id="retry">Перезапустить</button></div></section>`;
+    app.innerHTML = `<section class="screen"><div class="empty">${L('Не удалось открыть экран.', 'Couldn’t open this screen.')}<br><br>
+      <button class="btn" id="retry">${L('Перезапустить', 'Restart')}</button></div></section>`;
     app.querySelector('#retry').onclick = () => location.reload();
-  } else toast(quota ? 'Нет места в хранилище браузера — освободите память и повторите' : 'Что-то пошло не так, попробуйте ещё раз');
+  } else toast(quota ? L('Нет места в хранилище браузера — освободите память и повторите', 'Browser storage is full — free some space and retry') : L('Что-то пошло не так, попробуйте ещё раз', 'Something went wrong, please try again'));
 }
 window.addEventListener('error', (e) => fail(e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => fail(e.reason));

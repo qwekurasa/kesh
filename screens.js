@@ -8,16 +8,17 @@ import {
 import { writeXlsx, readXlsx } from './xlsx.js';
 import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCalm, keshCoat, setCoat } from './kesh.js';
 
-const REPO = 'https://github.com/qwekurasa/traty';
+const REPO = 'https://github.com/qwekurasa/kesh';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
+import { L, LANG, setLang, plural as pl } from './i18n.js';
 
-export const BUILD = 'v30';
+export const BUILD = 'v31';
 
 
-const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-const MONTHS_LOW = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
-const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
+const MONTHS_LOW = L(['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'], MONTHS);
+const MONTHS_SHORT = L(['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'], ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
+const WEEKDAYS = L(['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
 
 const dayKey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 const sum = (items) => items.reduce((a, i) => a + i.amount, 0);
@@ -34,8 +35,8 @@ function groupByDay(items) {
 }
 
 /* ---------- home ---------- */
-const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-const MONTHS_DAT = ['январю', 'февралю', 'марту', 'апрелю', 'маю', 'июню', 'июлю', 'августу', 'сентябрю', 'октябрю', 'ноябрю', 'декабрю'];
+const MONTHS_GEN = L(['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'], MONTHS);
+const MONTHS_DAT = L(['январю', 'февралю', 'марту', 'апрелю', 'маю', 'июню', 'июлю', 'августу', 'сентябрю', 'октябрю', 'ноябрю', 'декабрю'], MONTHS);
 const hhmm = (ts) => { const d = new Date(ts); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
 export async function renderHome() {
@@ -78,7 +79,7 @@ export async function renderHome() {
   const day = (d, n) => {
     const date = new Date(d.ts);
     const open = !state.collapsed.has(d.key);
-    const label = d.key === todayKey ? 'Сегодня · ' : d.key === yKey ? 'Вчера · ' : `${WEEKDAYS[date.getDay()]} · `;
+    const label = d.key === todayKey ? L('Сегодня · ', 'Today · ') : d.key === yKey ? L('Вчера · ', 'Yesterday · ') : `${WEEKDAYS[date.getDay()]} · `;
     const out = sum(spent(d.items));
     const inc = sum(d.items.filter(isIncome));
     return `
@@ -95,32 +96,32 @@ export async function renderHome() {
   app.innerHTML = `
     <section class="screen tabbed">
       <header class="home-head">
-        <button class="who" id="me" aria-label="Профиль">${avatarHTML()}</button>
+        <button class="who" id="me" aria-label="${L('Профиль', 'Profile')}">${avatarHTML()}</button>
         <div class="who-text"><b>${esc(acc?.login || '')}</b>
           <label class="month-name">${MONTHS[m.getMonth()]} ${m.getFullYear()}
             <input type="month" id="mpick" value="${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}" max="${new Date().toISOString().slice(0, 7)}">
           </label>
         </div>
-        <button class="icon-btn sm" id="prev" aria-label="Предыдущий месяц">${icons.left}</button>
-        <button class="icon-btn sm" id="next" aria-label="Следующий месяц" ${isCurrent ? 'disabled' : ''}>${icons.right}</button>
+        <button class="icon-btn sm" id="prev" aria-label="${L('Предыдущий месяц', 'Previous month')}">${icons.left}</button>
+        <button class="icon-btn sm" id="next" aria-label="${L('Следующий месяц', 'Next month')}" ${isCurrent ? 'disabled' : ''}>${icons.right}</button>
       </header>
       <div class="scroll" id="list">
         <div class="hero">
-          <div class="hero-label">Расходы за месяц</div>
+          <div class="hero-label">${L('Расходы за месяц', 'Spent this month')}</div>
           <div class="hero-row"><div class="month-total">${money(total)}</div>${deltaChip(total, prevTotal)}</div>
-          <div class="month-sub">${prevTotal ? (isCurrent ? `к тому же ${passed} дню ${MONTHS_GEN[prevFrom.getMonth()]}` : `к ${MONTHS_DAT[prevFrom.getMonth()]}`) : items.length ? '' : 'Трат пока нет'}</div>
+          <div class="month-sub">${prevTotal ? (isCurrent ? L(`к тому же ${passed} дню ${MONTHS_GEN[prevFrom.getMonth()]}`, `vs. ${MONTHS[prevFrom.getMonth()]} 1–${passed}`) : L(`к ${MONTHS_DAT[prevFrom.getMonth()]}`, `vs. ${MONTHS[prevFrom.getMonth()]}`)) : items.length ? '' : L('Трат пока нет', 'No expenses yet')}</div>
         </div>
         <div class="metrics">
-          <div><small>Сегодня</small><b>${isCurrent ? money(today) : '—'}</b>${isCurrent ? deltaChip(today, yesterday) : ''}</div>
-          <div><small>Доходы</small><b class="${income ? 'plus' : ''}">${income ? '+' : ''}${money(income)}</b>${deltaChip(income, prevIncome, true)}</div>
-          <div><small>В день</small><b>${money(Math.round(total / passed))}</b>${deltaChip(total / passed, prevTotal / prevPassed)}</div>
+          <div><small>${L('Сегодня', 'Today')}</small><b>${isCurrent ? money(today) : '—'}</b>${isCurrent ? deltaChip(today, yesterday) : ''}</div>
+          <div><small>${L('Доходы', 'Income')}</small><b class="${income ? 'plus' : ''}">${income ? '+' : ''}${money(income)}</b>${deltaChip(income, prevIncome, true)}</div>
+          <div><small>${L('В день', 'Per day')}</small><b>${money(Math.round(total / passed))}</b>${deltaChip(total / passed, prevTotal / prevPassed)}</div>
         </div>
         ${total ? `<button class="card mini-chart" id="to-charts">
-          <span class="card-head"><b>По дням</b><span class="chip">1М</span></span>
+          <span class="card-head"><b>${L('По дням', 'Daily')}</b><span class="chip">${L('1М', '1M')}</span></span>
           <span class="mini-bars">${perDay.map((v, i) => `<i class="${isCurrent && i === passed - 1 ? 'today' : ''}" style="height:${v ? Math.max(6, (v / peak) * 100) : 2}%"></i>`).join('')}</span>
           <span class="mini-axis">${[1, 8, 15, 22, nDays].map((d) => `<small>${d}</small>`).join('')}</span>
         </button>` : ''}
-        ${days.length ? days.map(day).join('') : `<div class="empty">Нажмите <b>＋</b>, чтобы добавить первую трату</div>`}
+        ${days.length ? days.map(day).join('') : `<div class="empty">${L('Нажмите <b>＋</b>, чтобы добавить первую трату', 'Tap <b>＋</b> to add your first expense')}</div>`}
       </div>
       ${tabbar()}
     </section>`;
@@ -134,7 +135,7 @@ export async function renderHome() {
   app.querySelector('#me').onclick = () => { haptic(); go('profile'); };
   app.querySelector('#to-charts')?.addEventListener('click', () => { haptic(); state.period = 'month'; go('charts'); });
   restoreScroll(app.querySelector('#list'));
-  if (!items.length && isCurrent) keshHint('home-first', 'Это твой месяц. Жми «＋» — запишем первую трату.');
+  if (!items.length && isCurrent) keshHint('home-first', L('Это твой месяц. Жми «＋» — запишем первую трату.', 'This is your month. Tap “＋” to log your first expense.'));
   app.querySelector('#prev').onclick = () => { shiftMonth(-1); };
   app.querySelector('#next').onclick = () => { shiftMonth(1); };
   app.querySelector('#list').addEventListener('click', (e) => {
@@ -165,15 +166,15 @@ function shiftMonth(delta) {
   render();
 }
 
-function plural(n, one, few, many) {
-  const m10 = n % 10, m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
-  return many;
-}
+const PL_EN = {
+  операция: ['transaction', 'transactions'], операцию: ['transaction', 'transactions'], трата: ['expense', 'expenses'], трату: ['expense', 'expenses'],
+  поступление: ['income', 'incomes'], день: ['day', 'days'], вклад: ['account', 'accounts'], лимит: ['limit', 'limits'], категория: ['category', 'categories'],
+  строка: ['row', 'rows'], новую: ['new', 'new'], была: ['was', 'were'], 'операция перенесена': ['transaction moved', 'transactions moved'],
+};
+const plural = (n, one, few, many) => pl(n, [one, few, many], PL_EN[one] || [one, few]);
 
 /* ---------- charts ---------- */
-const PERIODS = [['week', 'Нед'], ['month', 'Мес'], ['year', 'Год']];
+const PERIODS = [['week', L('Нед', 'Wk')], ['month', L('Мес', 'Mo')], ['year', L('Год', 'Yr')]];
 
 function periodRange(period) {
   const now = new Date();
@@ -184,7 +185,7 @@ function periodRange(period) {
   if (period === 'week') {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    return { from: d, to: new Date(+d + 7 * 864e5), label: 'Эта неделя', bars: 7, step: 'day' };
+    return { from: d, to: new Date(+d + 7 * 864e5), label: L('Эта неделя', 'This week'), bars: 7, step: 'day' };
   }
   if (period === 'year') {
     const from = new Date(now.getFullYear(), 0, 1);
@@ -200,8 +201,8 @@ function periodRange(period) {
 function prevRange(r, elapsed) {
   let from, label;
   if (r.step === 'month') { from = new Date(r.from.getFullYear() - 1, 0, 1); label = String(from.getFullYear()); }
-  else if (r.step === 'hour') { from = new Date(+r.from - 864e5); label = 'Вчера'; }
-  else if (r.bars === 7) { from = new Date(+r.from - 7 * 864e5); label = 'Прошлая неделя'; }
+  else if (r.step === 'hour') { from = new Date(+r.from - 864e5); label = L('Вчера', 'Yesterday'); }
+  else if (r.bars === 7) { from = new Date(+r.from - 7 * 864e5); label = L('Прошлая неделя', 'Last week'); }
   else { from = new Date(r.from.getFullYear(), r.from.getMonth() - 1, 1); label = MONTHS[from.getMonth()]; }
   const full = new Date(r.from);
   const to = new Date(Math.min(+full, +from + elapsed));
@@ -268,7 +269,7 @@ export async function renderCharts() {
 
   const slices = cats.slice(0, 5);
   const restSum = sum(items) - slices.reduce((a, [, v]) => a + v, 0);
-  const pie = [...slices.map(([id, v]) => [CAT[id]?.name || id, v, catColor(id), id]), ...(restSum > 0 ? [['Прочее', restSum, '#55535e', null]] : [])];
+  const pie = [...slices.map(([id, v]) => [CAT[id]?.name || id, v, catColor(id), id]), ...(restSum > 0 ? [[L('Прочее', 'Other'), restSum, '#55535e', null]] : [])];
   // вафля 10×10: каждая клетка — 1 % суммы, оттенки серого по убыванию доли
   pie.forEach((p, n) => { p[2] = WAFFLE[n]; });
   let acc = 0;
@@ -281,19 +282,19 @@ export async function renderCharts() {
   app.innerHTML = `
     <section class="screen tabbed">
       <header class="appbar">
-        <h1>Аналитика</h1>
+        <h1>${L('Аналитика', 'Analytics')}</h1>
         <div class="seg">${PERIODS.map(([id, name]) =>
           `<button class="${state.period === id ? 'on' : ''}" data-p="${id}">${name}</button>`).join('')}</div>
       </header>
       <div class="scroll">
         <div class="flow-card">
-          <button class="flow${inc ? '' : ' on'}" data-k="out"><small>Расходы</small><b>${money(outSum)}</b>${deltaChip(outSum, prevOut)}</button>
-          <button class="flow${inc ? ' on' : ''}" data-k="in"><small>Доходы</small><b class="plus">+${money(inSum)}</b>${deltaChip(inSum, prevIn, true)}</button>
-          <div class="flow"><small>Разница</small><b class="${diff >= 0 ? 'plus' : 'minus'}">${diff >= 0 ? '+' : '−'}${money(Math.abs(diff))}</b>${deltaChip(diff, prevIn - prevOut, true)}</div>
+          <button class="flow${inc ? '' : ' on'}" data-k="out"><small>${L('Расходы', 'Expenses')}</small><b>${money(outSum)}</b>${deltaChip(outSum, prevOut)}</button>
+          <button class="flow${inc ? ' on' : ''}" data-k="in"><small>${L('Доходы', 'Income')}</small><b class="plus">+${money(inSum)}</b>${deltaChip(inSum, prevIn, true)}</button>
+          <div class="flow"><small>${L('Разница', 'Net')}</small><b class="${diff >= 0 ? 'plus' : 'minus'}">${diff >= 0 ? '+' : '−'}${money(Math.abs(diff))}</b>${deltaChip(diff, prevIn - prevOut, true)}</div>
         </div>
         <div class="month-total" hidden>${money(total)}</div>
         <div class="card chart">
-          <div class="card-head"><b>Динамика</b><span class="chip">${short(r.label)} / ${short(prev.label)}</span></div>
+          <div class="card-head"><b>${L('Динамика', 'Trend')}</b><span class="chip">${short(r.label)} / ${short(prev.label)}</span></div>
           <div class="bar-tip" id="tip"></div>
           <div class="bars${inc ? ' income' : ''}" style="--n:${r.bars}">
             ${buckets.map((v, i) => `
@@ -307,7 +308,7 @@ export async function renderCharts() {
 
         ${total ? `
         <div class="card">
-          <div class="card-head"><b>${inc ? 'Откуда пришли деньги' : 'Куда ушли деньги'}</b><span class="chip">100 = ${money(total)}</span></div>
+          <div class="card-head"><b>${inc ? L('Откуда пришли деньги', 'Where money came from') : L('Куда ушли деньги', 'Where money went')}</b><span class="chip">100 = ${money(total)}</span></div>
           <div class="donut-wrap">
             <div class="waffle" aria-hidden="true">${cells.map((c, n) => `<i style="background:${c};--i:${n}"></i>`).join('')}</div>
             <div class="legend">
@@ -319,15 +320,15 @@ export async function renderCharts() {
         </div>
 
         <div class="card">
-          <div class="card-head"><b>Тепловая карта</b><span class="chip">13 нед</span></div>
+          <div class="card-head"><b>${L('Тепловая карта', 'Heatmap')}</b><span class="chip">${L('13 нед', '13 wk')}</span></div>
           <div class="heat-grid" aria-hidden="true">${heat.map((v, k) => `<i class="${k > heatToday ? 'future' : v ? `l${Math.min(4, Math.ceil((v / heatPeak) * 4))}` : ''}"></i>`).join('')}</div>
         </div>
 
-        ${inc ? '' : `<div class="section-label">Что заметно</div>
+        ${inc ? '' : `<div class="section-label">${L('Что заметно', 'Insights')}</div>
         <div class="tips">${tips(items, cats, prevCats, total, prevTotal, r, days).map((t, n) =>
           `<div class="tip" style="--i:${n}"><span class="tip-ico">${t[0]}</span><p>${t[1]}</p></div>`).join('')}</div>`}
 
-        <div class="section-label">По категориям</div>
+        <div class="section-label">${L('По категориям', 'By category')}</div>
         <div class="card">
           ${cats.map(([id, v]) => {
             const pv = prevCats[id] || 0;
@@ -342,7 +343,7 @@ export async function renderCharts() {
               <span class="chev sm">${icons.right}</span>
             </button>`;
           }).join('')}
-        </div>` : `<div class="empty">${inc ? 'За этот период поступлений нет' : 'За этот период трат нет'}</div>`}
+        </div>` : `<div class="empty">${inc ? L('За этот период поступлений нет', 'No income in this period') : L('За этот период трат нет', 'No expenses in this period')}</div>`}
       </div>
       ${tabbar()}
     </section>`;
@@ -350,7 +351,7 @@ export async function renderCharts() {
   bindTabs();
   countUp(app.querySelector('.month-total'), total);
   scrubBars(buckets, r);
-  if (total) keshHint('charts-scrub', 'Проведи пальцем по графику — покажу каждый день.');
+  if (total) keshHint('charts-scrub', L('Проведи пальцем по графику — покажу каждый день.', 'Slide your finger across the chart to see each day.'));
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const row = e.target.closest('[data-cat]');
     if (row) { haptic(); openCategory(row.dataset.cat); }
@@ -441,7 +442,7 @@ function tips(items, cats, prevCats, total, prevTotal, r, days) {
     .filter(([, v, pv]) => pv > 0 && v > pv * 1.25 && v - pv >= 30000)
     .sort((a, b) => (b[1] - b[2]) - (a[1] - a[2]))[0];
   if (grown) {
-    out.push(['📈', `На категорию <b>${esc(CAT[grown[0]]?.name || grown[0])}</b> ушло на <b>${money(grown[1] - grown[2])}</b> больше, чем в прошлый период. Это главный источник роста трат.`]);
+    out.push(['📈', L(`На категорию <b>${esc(CAT[grown[0]]?.name || grown[0])}</b> ушло на <b>${money(grown[1] - grown[2])}</b> больше, чем в прошлый период. Это главный источник роста трат.`, `<b>${esc(CAT[grown[0]]?.name || grown[0])}</b> took <b>${money(grown[1] - grown[2])}</b> more than last period — the main driver of higher spending.`)]);
   }
 
   const saved = cats
@@ -449,18 +450,18 @@ function tips(items, cats, prevCats, total, prevTotal, r, days) {
     .filter(([, v, pv]) => pv > v * 1.25 && pv - v >= 30000)
     .sort((a, b) => (b[2] - b[1]) - (a[2] - a[1]))[0];
   if (saved) {
-    out.push(['👏', `На категории <b>${esc(CAT[saved[0]]?.name || saved[0])}</b> вы сэкономили <b>${money(saved[2] - saved[1])}</b> по сравнению с прошлым периодом.`]);
+    out.push(['👏', L(`На категории <b>${esc(CAT[saved[0]]?.name || saved[0])}</b> вы сэкономили <b>${money(saved[2] - saved[1])}</b> по сравнению с прошлым периодом.`, `You saved <b>${money(saved[2] - saved[1])}</b> on <b>${esc(CAT[saved[0]]?.name || saved[0])}</b> compared to last period.`)]);
   }
 
   const [topId, topV] = cats[0];
   const share = Math.round((topV / total) * 100);
   if (share >= 30) {
-    out.push(['🎯', `<b>${esc(CAT[topId]?.name || topId)}</b> забирает <b>${share}%</b> всех трат. Сократив эту категорию на 10%, вы сбережёте <b>${money(Math.round(topV * 0.1))}</b> за период.`]);
+    out.push(['🎯', L(`<b>${esc(CAT[topId]?.name || topId)}</b> забирает <b>${share}%</b> всех трат. Сократив эту категорию на 10%, вы сбережёте <b>${money(Math.round(topV * 0.1))}</b> за период.`, `<b>${esc(CAT[topId]?.name || topId)}</b> takes <b>${share}%</b> of spending. Cutting it by 10% saves <b>${money(Math.round(topV * 0.1))}</b> per period.`)]);
   }
 
   const small = items.filter((i) => i.amount <= 50000);
   if (small.length >= 8) {
-    out.push(['☕', `<b>${small.length}</b> мелких покупок до 500 ₽ сложились в <b>${money(sum(small))}</b> — это ${Math.round((sum(small) / total) * 100)}% всех трат за период.`]);
+    out.push(['☕', L(`<b>${small.length}</b> мелких покупок до 500 ₽ сложились в <b>${money(sum(small))}</b> — это ${Math.round((sum(small) / total) * 100)}% всех трат за период.`, `<b>${small.length}</b> small purchases under 500 ₽ added up to <b>${money(sum(small))}</b> — ${Math.round((sum(small) / total) * 100)}% of the period’s spending.`)]);
   }
 
   const byDay = new Map();
@@ -468,15 +469,15 @@ function tips(items, cats, prevCats, total, prevTotal, r, days) {
   const worst = [...byDay.entries()].sort((a, b) => b[1] - a[1])[0];
   if (worst && byDay.size > 2) {
     const d = new Date(items.find((i) => dayKey(i.ts) === worst[0]).ts);
-    out.push(['📅', `Самый дорогой день — <b>${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</b>: <b>${money(worst[1])}</b>.`]);
+    out.push(['📅', L(`Самый дорогой день — <b>${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</b>: <b>${money(worst[1])}</b>.`, `Priciest day — <b>${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}</b>: <b>${money(worst[1])}</b>.`)]);
     const free = days - byDay.size;
-    if (free > 0) out.push(['🧘', `<b>${free}</b> ${plural(free, 'день', 'дня', 'дней')} без единой траты из ${days}. Так держать.`]);
+    if (free > 0) out.push(['🧘', L(`<b>${free}</b> ${plural(free, 'день', 'дня', 'дней')} без единой траты из ${days}. Так держать.`, `<b>${free}</b> of ${days} days with no spending at all. Keep it up.`)]);
   }
 
   if (state.period === 'month') {
     const inMonth = new Date(r.to - 1).getDate();
     const forecast = Math.round((total / days) * inMonth / 100) * 100;
-    out.push(['🔮', `При таком темпе за месяц выйдет около <b>${money(forecast)}</b>${prevTotal ? `, за те же ${days} ${plural(days, 'день', 'дня', 'дней')} прошлого месяца было ${money(prevTotal)}` : ''}.`]);
+    out.push(['🔮', L(`При таком темпе за месяц выйдет около <b>${money(forecast)}</b>${prevTotal ? `, за те же ${days} ${plural(days, 'день', 'дня', 'дней')} прошлого месяца было ${money(prevTotal)}` : ''}.`, `At this pace the month will come to about <b>${money(forecast)}</b>${prevTotal ? `; the same ${days} days last month were ${money(prevTotal)}` : ''}.`)]);
   }
 
   return out.slice(0, 5);
@@ -493,7 +494,7 @@ export async function renderCategoryDetail() {
   const periodTotal = sum(all.filter((i) => isIncome(i) === (CAT[id]?.kind === 'in')));
   const merchants = new Map();
   items.forEach((i) => {
-    const k = i.note || 'Без описания';
+    const k = i.note || L('Без описания', 'No description');
     merchants.set(k, (merchants.get(k) || 0) + i.amount);
   });
   const top = [...merchants.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
@@ -503,7 +504,7 @@ export async function renderCategoryDetail() {
     <section class="screen tabbed">
       <header class="month-head">
         <div class="topbar">
-          <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
+          <button class="icon-btn" id="back" aria-label="${L('Назад', 'Back')}">${icons.back}</button>
           <div class="pill">${r.label}</div>
           <div style="width:40px"></div>
         </div>
@@ -511,12 +512,12 @@ export async function renderCategoryDetail() {
           <span class="tr-ico lg">${catIcon(id)}</span>
           <div>
             <div class="month-total sm">${money(total)}</div>
-            <div class="month-sub">${esc(CAT[id]?.name || id)} · ${Math.round((total / (periodTotal || 1)) * 100)}% ${CAT[id]?.kind === 'in' ? 'поступлений' : 'трат'} периода</div>
+            <div class="month-sub">${esc(CAT[id]?.name || id)} · ${Math.round((total / (periodTotal || 1)) * 100)}% ${CAT[id]?.kind === 'in' ? L('поступлений', 'of income') : L('трат', 'of spending')} ${L('периода', '')}</div>
           </div>
         </div>
       </header>
       <div class="scroll">
-        ${top.length > 1 ? `<div class="section-label">Куда уходит</div>
+        ${top.length > 1 ? `<div class="section-label">${L('Куда уходит', 'Where it goes')}</div>
         <div class="card">
           ${top.map(([name, v]) => `<div class="cat-row">
             <span class="cat-info"><span class="cat-top">${esc(name)}<b>${money(v)}</b></span>
@@ -532,7 +533,7 @@ export async function renderCategoryDetail() {
               <span class="tr-name">${esc(i.note || CAT[i.category]?.name || '')}<small>${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</small></span>
               ${sumCell(i)}
             </button>`;
-          }).join('') || '<div class="empty sm">Операций нет</div>'}
+          }).join('') || `<div class="empty sm">${L('Операций нет', 'No transactions')}</div>`}
         </div>
       </div>
       ${tabbar()}
@@ -550,7 +551,7 @@ export async function renderCategoryDetail() {
 }
 
 /* ---------- карточка траты ---------- */
-const WD_FULL = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+const WD_FULL = L(['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'], ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
 
 export function renderInfo() {
   const i = state.info;
@@ -560,8 +561,8 @@ export function renderInfo() {
   app.innerHTML = `
     <section class="screen sheet-screen">
       <div class="topbar">
-        <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
-        <div class="pill">${isIncome(i) ? 'Пополнение' : 'Трата'}</div>
+        <button class="icon-btn" id="back" aria-label="${L('Назад', 'Back')}">${icons.back}</button>
+        <div class="pill">${isIncome(i) ? L('Доход', 'Income') : L('Трата', 'Expense')}</div>
         <div style="width:40px"></div>
       </div>
       <div class="info-hero">
@@ -571,18 +572,18 @@ export function renderInfo() {
       </div>
       <div class="cats">
         <div class="card rows">
-          <div class="row"><span>Дата</span><span class="row-extra">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}, ${WD_FULL[d.getDay()]}</span></div>
-          <div class="row"><span>Время</span><span class="row-extra">${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</span></div>
-          ${i.note ? `<div class="row"><span>Описание</span><span class="row-extra">${esc(i.note)}</span></div>` : ''}
-          <div class="row"><span>Источник</span><span class="row-extra">${i.id.startsWith('imp') ? 'Выписка банка' : 'Добавлено вручную'}</span></div>
+          <div class="row"><span>${L('Дата', 'Date')}</span><span class="row-extra">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}, ${WD_FULL[d.getDay()]}</span></div>
+          <div class="row"><span>${L('Время', 'Time')}</span><span class="row-extra">${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</span></div>
+          ${i.note ? `<div class="row"><span>${L('Описание', 'Note')}</span><span class="row-extra">${esc(i.note)}</span></div>` : ''}
+          <div class="row"><span>${L('Источник', 'Source')}</span><span class="row-extra">${i.id.startsWith('imp') ? L('Выписка банка', 'Bank statement') : L('Добавлено вручную', 'Added manually')}</span></div>
         </div>
       </div>
       <div class="bottom">
         <div class="dep-actions">
-          <button class="btn alt" id="repeat">Повторить</button>
-          <button class="btn alt" id="edit">Изменить</button>
+          <button class="btn alt" id="repeat">${L('Повторить', 'Repeat')}</button>
+          <button class="btn alt" id="edit">${L('Изменить', 'Edit')}</button>
         </div>
-        <button class="btn ghost danger" id="del">Удалить операцию</button>
+        <button class="btn ghost danger" id="del">${L('Удалить операцию', 'Delete transaction')}</button>
       </div>
     </section>`;
 
@@ -590,11 +591,11 @@ export function renderInfo() {
   app.querySelector('#edit').onclick = () => openEdit(i);
   app.querySelector('#repeat').onclick = () => { haptic(); openRepeat(i); };
   app.querySelector('#del').onclick = async () => {
-    if (!(await ask('Удалить операцию?', `${money(i.amount)} · ${CAT[i.category]?.name || ''}`))) return;
+    if (!(await ask(L('Удалить операцию?', 'Delete this transaction?'), `${money(i.amount)} · ${CAT[i.category]?.name || ''}`))) return;
     state.info = null;
     await store.removeExpense(i.id);
     render();
-    toast('Операция удалена');
+    toast(L('Операция удалена', 'Transaction deleted'));
   };
 }
 
@@ -609,43 +610,44 @@ export async function renderProfile() {
     `<button class="row" data-a="${id}">${icon}<span>${label}</span><span class="row-extra">${extra}</span></button>`;
 
   const first = all.length ? Math.min(...all.map((i) => i.ts)) : 0;
-  const coat = keshOn() ? `${keshCoat() === 'black' ? 'чёрный' : 'белый'} · вкл` : 'выкл';
+  const coat = keshOn() ? `${keshCoat() === 'black' ? L('чёрный', 'black') : L('белый', 'white')} · ${L('вкл', 'on')}` : L('выкл', 'off');
   const link = (href, icon, label, extra = '') =>
     `<a class="row" href="${href}" target="_blank" rel="noopener">${icon}<span>${label}</span><span class="row-extra">${extra}</span></a>`;
 
   if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>Профиль</h1></button></header>
+      <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>${L('Профиль', 'Profile')}</h1></button></header>
       <div class="scroll">
         <div class="card profile-card">
-          <button class="ava-wrap" id="pick-ava" aria-label="Сменить фото">${avatarHTML()}</button>
-          <span class="tr-name"><span class="profile-name">${esc(acc.login)}</span><small>${all.length} ${plural(all.length, 'операция', 'операции', 'операций')}${first ? ` · с ${new Date(first).getDate()} ${MONTHS_SHORT[new Date(first).getMonth()]}` : ''}</small></span>
+          <button class="ava-wrap" id="pick-ava" aria-label="${L('Сменить фото', 'Change photo')}">${avatarHTML()}</button>
+          <span class="tr-name"><span class="profile-name">${esc(acc.login)}</span><small>${all.length} ${plural(all.length, 'операция', 'операции', 'операций')}${first ? ` · ${L('с', 'since')} ${new Date(first).getDate()} ${MONTHS_SHORT[new Date(first).getMonth()]}` : ''}</small></span>
         </div>
-        <div class="section-label">Данные</div>
+        <div class="section-label">${L('Данные', 'Data')}</div>
         <div class="card rows group">
-          ${item('backup', icons.down_file, 'Резервная копия', lastBackupLabel())}
-          ${item('import', icons.sync, 'Восстановить из копии', 'JSON · XLSX')}
-          ${item('export', icons.chart, 'Отчёт в Excel')}
-          ${item('statement', icons.bank, 'Импорт выписки банка', 'PDF · CSV')}
-          ${item('cats', icons.tag, 'Свои категории', String(customCategories().length))}
-          ${imported ? item('clear-imported', icons.trash, 'Удалить импортированные', String(imported)) : ''}
+          ${item('backup', icons.down_file, L('Резервная копия', 'Backup'), lastBackupLabel())}
+          ${item('import', icons.sync, L('Восстановить из копии', 'Restore from backup'), 'JSON · XLSX')}
+          ${item('export', icons.chart, L('Отчёт в Excel', 'Excel report'))}
+          ${item('statement', icons.bank, L('Импорт выписки банка', 'Import bank statement'), 'PDF · CSV')}
+          ${item('cats', icons.tag, L('Свои категории', 'Custom categories'), String(customCategories().length))}
+          ${imported ? item('clear-imported', icons.trash, L('Удалить импортированные', 'Delete imported'), String(imported)) : ''}
         </div>
-        <div class="section-label">Кэш и интерфейс</div>
+        <div class="section-label">${L('Кэш и интерфейс', 'Kesh & interface')}</div>
         <div class="card rows group">
-          ${item('kesh', icons.paw, 'Кэш', coat)}
-          ${item('hints', icons.bell, 'Подсказки Кэша', hintsOn() ? 'умеренно' : 'выкл')}
-          ${item('calm', icons.moon, 'Спокойный режим', calmMode() ? 'вкл' : 'выкл')}
+          ${item('kesh', icons.paw, L('Кэш', 'Kesh'), coat)}
+          ${item('hints', icons.bell, L('Подсказки Кэша', 'Kesh tips'), hintsOn() ? L('умеренно', 'moderate') : L('выкл', 'off'))}
+          ${item('calm', icons.moon, L('Спокойный режим', 'Calm mode'), calmMode() ? L('вкл', 'on') : L('выкл', 'off'))}
+          ${item('lang', icons.globe, L('Язык', 'Language'), LANG === 'en' ? 'English' : 'Русский')}
         </div>
-        <div class="section-label">О проекте</div>
+        <div class="section-label">${L('О проекте', 'About')}</div>
         <div class="card rows group">
-          ${link(`${REPO}#поддержать-проект`, icons.heart, 'Поддержать проект')}
-          ${link(REPO, icons.code, 'Исходный код', 'GitHub')}
+          ${link(`${REPO}#поддержать-проект`, icons.heart, L('Поддержать проект', 'Support the project'))}
+          ${link(REPO, icons.code, L('Исходный код', 'Source code'), 'GitHub')}
         </div>
         <div class="card rows group">
-          ${item('wipe', icons.trash, 'Сбросить все данные')}
+          ${item('wipe', icons.trash, L('Сбросить все данные', 'Erase all data'))}
         </div>
-        <div class="version">Кэш ${BUILD} · данные хранятся на этом устройстве</div>
+        <div class="version">${L('Кэш', 'Kesh')} ${BUILD} · ${L('данные хранятся на этом устройстве', 'data stays on this device')}</div>
       </div>
       ${tabbar()}
     </section>`;
@@ -660,14 +662,15 @@ export async function renderProfile() {
     if (a === 'kesh') { haptic(); if (!keshOn()) { setKesh(true); setCoat('white'); } else if (keshCoat() === 'white') setCoat('black'); else setKesh(false); return render(); }
     if (a === 'hints') { setHints(!hintsOn()); haptic(); return render(); }
     if (a === 'calm') { setCalm(!calmMode()); haptic(); return render(); }
+    if (a === 'lang') return setLang(LANG === 'en' ? 'ru' : 'en');
     if (a === 'cats') { state.flow = 'cats'; return render(); }
     if (a === 'statement') return pickStatement();
     if (a === 'export') return exportData();
     if (a === 'backup') return downloadBackup().then(render);
     if (a === 'import') return importData();
     if (a === 'clear-imported') {
-      return ask(`Удалить ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`, 'Это траты из выписок. Внесённые вручную останутся.')
-        .then(async (yes) => { if (yes) { toast(`Удалено трат: ${await store.removeImported()}`); render(); } });
+      return ask(L(`Удалить ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`, `Delete ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`), L('Это траты из выписок. Внесённые вручную останутся.', 'These came from statements. Manual entries stay.'))
+        .then(async (yes) => { if (yes) { toast(`${L('Удалено трат', 'Deleted')}: ${await store.removeImported()}`); render(); } });
     }
     if (a === 'wipe') return wipeAll();
   });
@@ -675,7 +678,7 @@ export async function renderProfile() {
 
 async function pickAvatar() {
   if (localStorage.getItem('avatar')) {
-    if (await ask('Убрать фото?', 'Вернётся градиентный аватар.', 'Убрать')) {
+    if (await ask(L('Убрать фото?', 'Remove photo?'), L('Вернётся градиентный аватар.', 'The gradient avatar will return.'), L('Убрать', 'Remove'))) {
       localStorage.removeItem('avatar');
       return render();
     }
@@ -694,7 +697,7 @@ async function pickAvatar() {
       localStorage.setItem('avatar', canvas.toDataURL('image/jpeg', 0.85));
       render();
     } catch {
-      toast('Не удалось открыть изображение');
+      toast(L('Не удалось открыть изображение', 'Couldn’t open the image'));
     }
   };
   input.click();
@@ -706,17 +709,17 @@ export function renderCustomCats() {
     <section class="screen tabbed">
       <header class="month-head">
         <div class="topbar">
-          <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
-          <div class="pill">Свои категории</div>
+          <button class="icon-btn" id="back" aria-label="${L('Назад', 'Back')}">${icons.back}</button>
+          <div class="pill">${L('Свои категории', 'Custom categories')}</div>
           <div style="width:40px"></div>
         </div>
       </header>
       <div class="scroll">
         ${list.length ? `<div class="card rows">${list.map((c) => `
-          <div class="row" data-edit="${c.id}"><span class="tr-ico">${catIcon(c.id)}</span><span>${esc(c.name)}<small class="row-sub">${c.kind === 'in' ? 'Пополнение' : 'Расход'}</small></span>
-            <button class="icon-btn sm" data-edit="${c.id}" aria-label="Изменить">${icons.edit}</button>
-            <button class="icon-btn sm" data-del="${c.id}" aria-label="Удалить">${icons.trash}</button></div>`).join('')}</div>`
-          : '<div class="empty">Своих категорий пока нет.<br>Их можно добавить при создании траты.</div>'}
+          <div class="row" data-edit="${c.id}"><span class="tr-ico">${catIcon(c.id)}</span><span>${esc(c.name)}<small class="row-sub">${c.kind === 'in' ? L('Доход', 'Income') : L('Расход', 'Expense')}</small></span>
+            <button class="icon-btn sm" data-edit="${c.id}" aria-label="${L('Изменить', 'Edit')}">${icons.edit}</button>
+            <button class="icon-btn sm" data-del="${c.id}" aria-label="${L('Удалить', 'Delete')}">${icons.trash}</button></div>`).join('')}</div>`
+          : `<div class="empty">${L('Своих категорий пока нет.<br>Их можно добавить при создании траты.', 'No custom categories yet.<br>Add one while logging an expense.')}</div>`}
       </div>
       ${tabbar()}
     </section>`;
@@ -735,14 +738,14 @@ export function renderCustomCats() {
     if (!id) return;
     const cat = list.find((x) => x.id === id);
     const to = cat.kind === 'in' ? 'in_other' : 'other';
-    ask(`Удалить «${cat.name}»?`, 'Операции из неё перейдут в «Другое», лимит категории будет снят.').then(async (yes) => {
+    ask(L(`Удалить «${cat.name}»?`, `Delete “${cat.name}”?`), L('Операции из неё перейдут в «Другое», лимит категории будет снят.', 'Its transactions move to “Other”, and its limit is removed.')).then(async (yes) => {
       if (!yes) return;
       const n = await store.recategorize(id, to);
       const b = budgets();
       if (b[id]) { delete b[id]; saveBudgets(b); }
       removeCategory(id);
       render();
-      toast(n ? `Категория удалена, ${n} ${plural(n, 'операция перенесена', 'операции перенесены', 'операций перенесено')} в «Другое»` : 'Категория удалена');
+      toast(n ? L(`Категория удалена, ${n} ${plural(n, 'операция перенесена', 'операции перенесены', 'операций перенесено')} в «Другое»`, `Category deleted, ${n} ${plural(n, 'операция перенесена', 'операции перенесены', 'операций перенесено')} to “Other”`) : L('Категория удалена', 'Category deleted'));
     });
   });
 }
@@ -750,9 +753,9 @@ export function renderCustomCats() {
 /* ---------- резервная копия ---------- */
 function lastBackupLabel() {
   const t = Number(localStorage.getItem('lastBackup'));
-  if (!t) return 'ещё нет';
+  if (!t) return L('ещё нет', 'never');
   const d = new Date(t);
-  return new Date().toDateString() === d.toDateString() ? 'сегодня' : `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+  return new Date().toDateString() === d.toDateString() ? L('сегодня', 'today') : `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
 }
 
 function saveFile(file) {
@@ -770,29 +773,29 @@ async function downloadBackup() {
   const name = `nota-backup-${new Date().toISOString().slice(0, 10)}.json`;
   await saveFile(new File([JSON.stringify(data)], name, { type: 'application/json' }));
   localStorage.setItem('lastBackup', String(Date.now()));
-  toast(`Копия сохранена: ${data.transactions.length} ${plural(data.transactions.length, 'операция', 'операции', 'операций')}`);
+  toast(`${L('Копия сохранена', 'Backup saved')}: ${data.transactions.length} ${plural(data.transactions.length, 'операция', 'операции', 'операций')}`);
 }
 
 const importSummary = (r) => [
-  `Добавлено ${r.added}`,
-  r.updated && `обновлено ${r.updated}`,
-  r.unchanged && `уже были ${r.unchanged}`,
-  r.skipped && `ваши правки сохранены: ${r.skipped}`,
-  r.invalid && `отброшено ${r.invalid}`,
+  `${L('Добавлено', 'Added')} ${r.added}`,
+  r.updated && `${L('обновлено', 'updated')} ${r.updated}`,
+  r.unchanged && `${L('уже были', 'already there')} ${r.unchanged}`,
+  r.skipped && `${L('ваши правки сохранены', 'your edits kept')}: ${r.skipped}`,
+  r.invalid && `${L('отброшено', 'dropped')} ${r.invalid}`,
 ].filter(Boolean).join(' · ');
 
 async function wipeAll() {
   const fresh = Date.now() - Number(localStorage.getItem('lastBackup') || 0) < 10 * 6e4;
   if (!fresh) {
-    const want = await dialog({ title: 'Сначала сохранить копию?', text: 'Данные хранятся только на этом устройстве. После сброса их не вернуть без копии.', ok: 'Скачать копию', cancel: 'Без копии' });
+    const want = await dialog({ title: L('Сначала сохранить копию?', 'Save a backup first?'), text: L('Данные хранятся только на этом устройстве. После сброса их не вернуть без копии.', 'Data lives only on this device. Without a backup it can’t be recovered.'), ok: L('Скачать копию', 'Download backup'), cancel: L('Без копии', 'No backup') });
     if (want === null) return;
     if (want) await downloadBackup();
   }
-  if (!(await ask('Сбросить все данные?', 'Имя, настройки, категории, лимиты, вклады и все операции на этом устройстве будут удалены.', 'Сбросить'))) return;
+  if (!(await ask(L('Сбросить все данные?', 'Erase all data?'), L('Имя, настройки, категории, лимиты, вклады и все операции на этом устройстве будут удалены.', 'Name, settings, categories, limits, savings and all transactions on this device will be deleted.'), L('Сбросить', 'Erase')))) return;
   try {
     await store.wipe();
   } catch (e) {
-    return toast(e.message === 'blocked' ? 'Кэш открыт в другой вкладке — закройте её и повторите' : 'Не удалось удалить данные');
+    return toast(e.message === 'blocked' ? L('Кэш открыт в другой вкладке — закройте её и повторите', 'Kesh is open in another tab — close it and retry') : L('Не удалось удалить данные', 'Couldn’t delete data'));
   }
   auth.reset();
   ['loggedIn', 'avatar', 'avatarSkin', 'customCats', 'budgets', 'deposits', 'lastBackup', 'kitty', 'kittyCoat', 'kesh', 'keshHints', 'keshSeen'].forEach((k) => localStorage.removeItem(k));
@@ -881,10 +884,10 @@ function pickStatement() {
       const { parseStatement } = await import('./statement.js');
       state.imp.items = await parseStatement(files);
       state.imp.loading = false;
-      if (!state.imp.items.length) state.imp.error = 'В файлах не нашлось операций списания';
+      if (!state.imp.items.length) state.imp.error = L('В файлах не нашлось операций списания', 'No expenses found in the files');
     } catch {
       state.imp.loading = false;
-      state.imp.error = 'Не удалось разобрать файл. Подойдёт PDF «Справка о движении средств» или CSV-выписка.';
+      state.imp.error = L('Не удалось разобрать файл. Подойдёт PDF «Справка о движении средств» или CSV-выписка.', 'Couldn’t read the file. Use a T-Bank PDF statement (“Справка о движении средств”) or a CSV export.');
     }
     render();
   };
@@ -924,24 +927,24 @@ export async function renderImport() {
   app.innerHTML = `
     <section class="screen">
       <div class="topbar">
-        <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
+        <button class="icon-btn" id="back" aria-label="${L('Назад', 'Back')}">${icons.back}</button>
         <div class="pill">${esc(imp.name)}</div>
         <div style="width:40px"></div>
       </div>
-      ${imp.loading ? '<div class="spinner"></div><div class="empty">Читаем выписку…</div>' : imp.error ? `<div class="empty">${esc(imp.error)}</div>` : `
+      ${imp.loading ? `<div class="spinner"></div><div class="empty">${L('Читаем выписку…', 'Reading the statement…')}</div>` : imp.error ? `<div class="empty">${esc(imp.error)}</div>` : `
       <div class="imp-head">
-        <h2 class="cat-title">Найдено ${items.length} ${plural(items.length, 'трата', 'траты', 'трат')}</h2>
-        <div class="month-sub">${from ? `${from.getDate()} ${MONTHS_SHORT[from.getMonth()]} — ${to.getDate()} ${MONTHS_SHORT[to.getMonth()]}` : ''}${imp.extra > 0 ? ` · взяли первые 5 файлов` : ''}</div>
+        <h2 class="cat-title">${L('Найдено', 'Found')} ${items.length} ${plural(items.length, 'трата', 'траты', 'трат')}</h2>
+        <div class="month-sub">${from ? `${from.getDate()} ${MONTHS_SHORT[from.getMonth()]} — ${to.getDate()} ${MONTHS_SHORT[to.getMonth()]}` : ''}${imp.extra > 0 ? L(' · взяли первые 5 файлов', ' · first 5 files used') : ''}</div>
         <div class="imp-sum">
-          <div><b>${money(sum(items))}</b><small>Сумма</small></div>
-          <div><b>${cats.length}</b><small>Категорий</small></div>
+          <div><b>${money(sum(items))}</b><small>${L('Сумма', 'Total')}</small></div>
+          <div><b>${cats.length}</b><small>${L('Категорий', 'Categories')}</small></div>
         </div>
       </div>
       <div class="cats">
-        ${ext.length ? `<div class="switch-row" data-sw="external"><span>Переводы людям<small>${ext.length} · ${money(sum(ext))}</small></span><span class="sw${imp.external ? ' on' : ''}"></span></div>` : ''}
-        ${twins.size ? `<div class="switch-row" data-sw="manual"><span>Похожи на внесённые вручную<small>${twins.size} · та же сумма в тот же день — по умолчанию не добавляются</small></span><span class="sw${imp.manual ? ' on' : ''}"></span></div>` : ''}
-        ${int.length ? `<div class="switch-row" data-sw="internal"><span>Между своими счетами<small>${int.length} · ${money(sum(int))}</small></span><span class="sw${imp.internal ? ' on' : ''}"></span></div>` : ''}
-        <div class="section-label">Распределение</div>
+        ${ext.length ? `<div class="switch-row" data-sw="external"><span>${L('Переводы людям', 'Transfers to people')}<small>${ext.length} · ${money(sum(ext))}</small></span><span class="sw${imp.external ? ' on' : ''}"></span></div>` : ''}
+        ${twins.size ? `<div class="switch-row" data-sw="manual"><span>${L('Похожи на внесённые вручную', 'Look like manual entries')}<small>${twins.size} · ${L('та же сумма в тот же день — по умолчанию не добавляются', 'same amount, same day — skipped by default')}</small></span><span class="sw${imp.manual ? ' on' : ''}"></span></div>` : ''}
+        ${int.length ? `<div class="switch-row" data-sw="internal"><span>${L('Между своими счетами', 'Between own accounts')}<small>${int.length} · ${money(sum(int))}</small></span><span class="sw${imp.internal ? ' on' : ''}"></span></div>` : ''}
+        <div class="section-label">${L('Распределение', 'Breakdown')}</div>
         <div class="card">
           ${cats.map(([id, v]) => `<div class="cat-row">
             <span class="tr-ico">${catIcon(id)}</span>
@@ -949,7 +952,7 @@ export async function renderImport() {
             <span class="meter"><i style="width:${pct(v, sum(items))}%"></i></span></span>
           </div>`).join('')}
         </div>
-        <div class="section-label">Операции</div>
+        <div class="section-label">${L('Операции', 'Transactions')}</div>
         <div class="card">
           ${(imp.expanded ? items : items.slice(0, 10)).map((i) => {
             const d = new Date(i.ts);
@@ -959,12 +962,12 @@ export async function renderImport() {
               <span class="tr-sum">${money(i.amount)}</span>
             </div>`;
           }).join('')}
-          ${items.length > 10 ? `<button class="more" id="more">${imp.expanded ? 'Свернуть' : `Ещё ${items.length - 10} ${plural(items.length - 10, 'операция', 'операции', 'операций')}`}<span class="chev${imp.expanded ? ' up' : ''}">${icons.down}</span></button>` : ''}
+          ${items.length > 10 ? `<button class="more" id="more">${imp.expanded ? L('Свернуть', 'Collapse') : `${L('Ещё', 'More')} ${items.length - 10} ${plural(items.length - 10, 'операция', 'операции', 'операций')}`}<span class="chev${imp.expanded ? ' up' : ''}">${icons.down}</span></button>` : ''}
         </div>
       </div>
       <div class="bottom">
-        ${known.size ? `<div class="imp-note">Уже в приложении: ${items.filter(isKnown).length} — повторно не добавятся</div>` : ''}
-        <button class="btn" id="add" ${fresh ? '' : 'disabled'}>${fresh ? `Добавить ${fresh} ${plural(fresh, 'новую', 'новые', 'новых')}` : 'Новых операций нет'}</button>
+        ${known.size ? `<div class="imp-note">${L('Уже в приложении', 'Already in the app')}: ${items.filter(isKnown).length} — ${L('повторно не добавятся', 'won’t be added again')}</div>` : ''}
+        <button class="btn" id="add" ${fresh ? '' : 'disabled'}>${fresh ? `${L('Добавить', 'Add')} ${fresh} ${plural(fresh, 'новую', 'новые', 'новых')}` : L('Новых операций нет', 'Nothing new')}</button>
       </div>`}
     </section>`;
 
@@ -980,7 +983,7 @@ export async function renderImport() {
     const res = await store.importExpenses(imp.add);
     state.flow = null; state.imp = null; state.tab = 'home';
     const already = items.filter(isKnown).length;
-    Promise.resolve(render()).then(() => keshSay(`Нашёл ${res.added} ${plural(res.added, 'операцию', 'операции', 'операций')}${already ? `, ${already} уже ${plural(already, 'была', 'были', 'было')} — не дублирую` : ''}.`, 'Думает'));
+    Promise.resolve(render()).then(() => keshSay(L(`Нашёл ${res.added} ${plural(res.added, 'операцию', 'операции', 'операций')}${already ? `, ${already} уже ${plural(already, 'была', 'были', 'было')} — не дублирую` : ''}.`, `Found ${res.added} ${plural(res.added, 'операцию', 'операции', 'операций')}${already ? `, ${already} already there — no duplicates` : ''}.`), 'Думает'));
     toast(importSummary(res));
   });
 }
@@ -992,12 +995,12 @@ function importData() {
   input.onchange = async () => {
     const file = input.files[0];
     if (!file) return;
-    if (file.size > MAX_FILE) return toast('Файл больше 20 МБ');
+    if (file.size > MAX_FILE) return toast(L('Файл больше 20 МБ', 'File is larger than 20 MB'));
     try {
       if (/\.xlsx$/i.test(file.name)) {
         const book = await readXlsx(await file.arrayBuffer());
         const n = Math.max(0, (book['Операции'] || []).length - 1);
-        if (!(await dialog({ title: 'Загрузить из Excel?', text: `В файле ${n} ${plural(n, 'строка', 'строки', 'строк')} операций. Текущие данные не удаляются, повторы не дублируются.`, ok: 'Загрузить' }))) return;
+        if (!(await dialog({ title: L('Загрузить из Excel?', 'Import from Excel?'), text: L(`В файле ${n} ${plural(n, 'строка', 'строки', 'строк')} операций. Текущие данные не удаляются, повторы не дублируются.`, `The file has ${n} transaction ${plural(n, 'строка', 'строки', 'строк')}. Current data stays; duplicates are skipped.`), ok: L('Загрузить', 'Import') }))) return;
         toast(importSummary(await importXlsx(book)));
         return render();
       }
@@ -1010,15 +1013,15 @@ function importData() {
         Object.keys(check.budgets).length && `${Object.keys(check.budgets).length} ${plural(Object.keys(check.budgets).length, 'лимит', 'лимита', 'лимитов')}`,
         check.deposits.length && `${check.deposits.length} ${plural(check.deposits.length, 'вклад', 'вклада', 'вкладов')}`,
       ].filter(Boolean).join(', ');
-      const text = `${d && !Number.isNaN(+d) ? `Копия от ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}: ` : 'В копии: '}${what}.`
-        + `${check.dropped ? ` Повреждённых записей: ${check.dropped} — они будут пропущены.` : ''} Текущие данные не удаляются.`;
-      if (!(await dialog({ title: 'Восстановить копию?', text, ok: 'Восстановить' }))) return;
+      const text = `${d && !Number.isNaN(+d) ? `${L('Копия от', 'Backup from')} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}: ` : L('В копии: ', 'Backup contains: ')}${what}.`
+        + `${check.dropped ? L(` Повреждённых записей: ${check.dropped} — они будут пропущены.`, ` Damaged records: ${check.dropped} — they’ll be skipped.`) : ''} ${L('Текущие данные не удаляются.', 'Current data stays.')}`;
+      if (!(await dialog({ title: L('Восстановить копию?', 'Restore backup?'), text, ok: L('Восстановить', 'Restore') }))) return;
       const res = await restoreBackup(check);
       applySkin();
       render();
       toast(importSummary(res));
     } catch {
-      toast('Не удалось прочитать файл');
+      toast(L('Не удалось прочитать файл', 'Couldn’t read the file'));
     }
   };
   input.click();
@@ -1039,14 +1042,14 @@ export async function limitHint(cat, added) {
   const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate() + 1;
   if (used > lim && before <= lim) {
     const up = Math.ceil(used / 100000) * 100000;
-    return keshHint(null, `${name} вышли за лимит на ${money(used - lim)}. Поднять лимит или оставить?`, `Поднять до ${money(up)}`, () => {
+    return keshHint(null, L(`${name} вышли за лимит на ${money(used - lim)}. Поднять лимит или оставить?`, `${name} is over the limit by ${money(used - lim)}. Raise it or leave it?`), `${L('Поднять до', 'Raise to')} ${money(up)}`, () => {
       saveBudgets({ ...budgets(), [cat]: up });
-      toast(`Лимит ${money(up)} в месяц`);
+      toast(L(`Лимит ${money(up)} в месяц`, `Limit ${money(up)} per month`));
       if (state.tab === 'budget') render();
     }, 'Переживает');
   }
   if (used >= lim * 0.8 && before < lim * 0.8) {
-    return keshHint(null, `${name} — ${Math.round((used / lim) * 100)} % лимита. Осталось ${money(lim - used)} на ${days} ${plural(days, 'день', 'дня', 'дней')}.`, null, null, 'Думает');
+    return keshHint(null, L(`${name} — ${Math.round((used / lim) * 100)} % лимита. Осталось ${money(lim - used)} на ${days} ${plural(days, 'день', 'дня', 'дней')}.`, `${name} — ${Math.round((used / lim) * 100)}% of the limit. ${money(lim - used)} left for ${days} ${plural(days, 'день', 'дня', 'дней')}.`), null, null, 'Думает');
   }
   return false;
 }
@@ -1074,22 +1077,22 @@ export async function renderBudget() {
   if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="appbar"><h1>Бюджет · ${MONTHS_LOW[now.getMonth()]}</h1></header>
+      <header class="appbar"><h1>${L('Бюджет', 'Budget')} · ${MONTHS_LOW[now.getMonth()]}</h1></header>
       <div class="scroll">
         <div class="card budget-card">
           ${limit ? `
-            <div class="hero-label">${left < 0 ? 'Перерасход' : 'Осталось на месяц'}</div>
-            <div class="hero-row"><div class="month-total${left < 0 ? ' over' : ''}">${money(Math.abs(left))}</div><small class="of">из ${money(limit)}</small></div>
+            <div class="hero-label">${left < 0 ? L('Перерасход', 'Overspent') : L('Осталось на месяц', 'Left this month')}</div>
+            <div class="hero-row"><div class="month-total${left < 0 ? ' over' : ''}">${money(Math.abs(left))}</div><small class="of">${L('из', 'of')} ${money(limit)}</small></div>
             <div class="days-bar${left < 0 ? ' over' : ''}" aria-hidden="true">${Array.from({ length: monthDays }, (_, n) =>
               `<i class="${n < Math.round(Math.min(1, used / limit) * monthDays) ? 'on' : ''}"></i>`).join('')}</div>
-            <div class="budget-foot"><span class="month-sub">Потрачено ${Math.round((used / limit) * 100)}%</span>${left > 0 ? `<b class="plus">≈ ${money(Math.floor(left / daysLeft / 100) * 100)} в день</b>` : ''}</div>`
-          : `<div class="hero-label">Потрачено в этом месяце</div>
+            <div class="budget-foot"><span class="month-sub">${L('Потрачено', 'Spent')} ${Math.round((used / limit) * 100)}%</span>${left > 0 ? `<b class="plus">≈ ${money(Math.floor(left / daysLeft / 100) * 100)} ${L('в день', 'a day')}</b>` : ''}</div>`
+          : `<div class="hero-label">${L('Потрачено в этом месяце', 'Spent this month')}</div>
             <div class="month-total">${money(sum(items))}</div>
-            <div class="month-sub">Задайте лимит категории — предупрежу на 80 %</div>`}
+            <div class="month-sub">${L('Задайте лимит категории — предупрежу на 80 %', 'Set a category limit — I’ll warn you at 80%')}</div>`}
         </div>
         ${limited.length ? `
         <div class="card">
-          <div class="card-head"><b>Лимиты категорий</b><span class="chip">${limited.length}</span></div>
+          <div class="card-head"><b>${L('Лимиты категорий', 'Category limits')}</b><span class="chip">${limited.length}</span></div>
           ${limited.map(([id, name], n) => {
             const v = bySpent[id] || 0;
             const rest = b[id] - v;
@@ -1102,7 +1105,7 @@ export async function renderBudget() {
             </button>`;
           }).join('')}
         </div>` : ''}
-        <div class="section-label">${limited.length ? 'Без лимита' : 'Категории'}</div>
+        <div class="section-label">${limited.length ? L('Без лимита', 'No limit') : L('Категории', 'Categories')}</div>
         <div class="card rows">${free.map(([id, name]) => `
           <button class="row" data-b="${id}"><span class="tr-ico">${catIcon(id)}</span><span>${esc(name)}</span>
             <span class="row-extra">${bySpent[id] ? money(bySpent[id]) : ''}</span>${icons.plus}</button>`).join('')}
@@ -1113,19 +1116,19 @@ export async function renderBudget() {
 
   bindTabs();
   countUp(app.querySelector('.month-total'), limit ? Math.abs(left) : sum(items));
-  if (!limit) keshHint('budget-first', 'Задай лимит категории — предупрежу на 80 %.');
+  if (!limit) keshHint('budget-first', L('Задай лимит категории — предупрежу на 80 %.', 'Set a category limit — I’ll warn you at 80%.'));
   app.querySelector('.scroll').addEventListener('click', async (e) => {
     const id = e.target.closest('[data-b]')?.dataset.b;
     if (!id) return;
     haptic();
-    const val = await askText(`Лимит: ${CAT[id].name}`, { mode: 'decimal', placeholder: 'Сумма в месяц, ₽', value: b[id] ? rub(b[id]) : '' });
+    const val = await askText(`${L('Лимит', 'Limit')}: ${CAT[id].name}`, { mode: 'decimal', placeholder: L('Сумма в месяц, ₽', 'Monthly amount, ₽'), value: b[id] ? rub(b[id]) : '' });
     if (val === null) return;
     const next = budgets();
     const kop = toKop(val);
     if (kop > 0) next[id] = kop; else delete next[id];
     saveBudgets(next);
     render();
-    toast(kop > 0 ? `Лимит ${money(kop)} в месяц` : 'Лимит убран');
+    toast(kop > 0 ? L(`Лимит ${money(kop)} в месяц`, `Limit ${money(kop)} per month`) : L('Лимит убран', 'Limit removed'));
   });
 }
 
@@ -1144,23 +1147,23 @@ export function renderDeposits() {
 
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="appbar"><h1>Вклады</h1><button class="icon-btn sm" id="add-top" aria-label="Добавить вклад">${icons.plus}</button></header>
+      <header class="appbar"><h1>${L('Вклады', 'Savings')}</h1><button class="icon-btn sm" id="add-top" aria-label="${L('Добавить вклад', 'Add account')}">${icons.plus}</button></header>
       <div class="scroll">
         <div class="hero">
-          <div class="hero-label">Всего на вкладах</div>
+          <div class="hero-label">${L('Всего на вкладах', 'Total savings')}</div>
           <div class="month-total">${money(total)}</div>
-          <div class="month-sub">${income ? `<span class="delta down">≈ +${money(income)} / мес</span> оценка` : list.length ? `${list.length} ${plural(list.length, 'вклад', 'вклада', 'вкладов')}` : 'Добавьте вклад или накопительный счёт'}</div>
+          <div class="month-sub">${income ? `<span class="delta down">≈ +${money(income)} / ${L('мес', 'mo')}</span> ${L('оценка', 'estimate')}` : list.length ? `${list.length} ${plural(list.length, 'вклад', 'вклада', 'вкладов')}` : L('Добавьте вклад или накопительный счёт', 'Add a deposit or savings account')}</div>
         </div>
         ${list.length ? `<div class="card">
-          <div class="card-head"><b>Счета</b><span class="chip">по сумме</span></div>
+          <div class="card-head"><b>${L('Счета', 'Accounts')}</b><span class="chip">${L('по сумме', 'by amount')}</span></div>
           ${[...list].sort((a, b) => b.amount - a.amount).map((d, n) => `
           <button class="res" data-id="${d.id}">
             ${depIcon(d, n)}
-            <span class="tr-name">${esc(d.name)}<small>${d.rate ? `${String(d.rate).replace('.', ',')}% годовых` : 'Без процентов'}</small></span>
-            <span class="tr-right"><span class="tr-sum">${num(d.amount)}</span>${d.rate ? `<small class="plus">+${num(monthly(d))} / мес</small>` : ''}</span>
+            <span class="tr-name">${esc(d.name)}<small>${d.rate ? `${String(d.rate).replace('.', ',')}% ${L('годовых', 'APR')}` : L('Без процентов', 'No interest')}</small></span>
+            <span class="tr-right"><span class="tr-sum">${num(d.amount)}</span>${d.rate ? `<small class="plus">+${num(monthly(d))} / ${L('мес', 'mo')}</small>` : ''}</span>
           </button>`).join('')}</div>` : ''}
-        ${income ? '<div class="imp-note dep-note">Доход — примерная оценка: сумма × ставка ÷ 12, без капитализации и налогов</div>' : ''}
-        <button class="btn alt add-dep" id="add">Добавить вклад</button>
+        ${income ? `<div class="imp-note dep-note">${L('Доход — примерная оценка: сумма × ставка ÷ 12, без капитализации и налогов', 'Income is a rough estimate: amount × rate ÷ 12, no compounding or taxes')}</div>` : ''}
+        <button class="btn alt add-dep" id="add">${L('Добавить вклад', 'Add account')}</button>
       </div>
       ${tabbar()}
     </section>`;
@@ -1182,27 +1185,27 @@ export function renderDeposit() {
   app.innerHTML = `
     <section class="screen">
       <div class="topbar">
-        <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
-        <div class="pill">${d.id ? 'Вклад' : 'Новый вклад'}</div>
+        <button class="icon-btn" id="back" aria-label="${L('Назад', 'Back')}">${icons.back}</button>
+        <div class="pill">${d.id ? L('Вклад', 'Account') : L('Новый вклад', 'New account')}</div>
         <div style="width:40px"></div>
       </div>
       <div class="cats dep-form">
         ${d.id ? `<div class="info-hero"><div class="info-amount">${money(d.amount)}</div>
-          <div class="month-sub">${d.rate ? `≈ +${money(monthly(d))} в месяц, примерно` : 'Без процентов'}</div></div>
+          <div class="month-sub">${d.rate ? `≈ +${money(monthly(d))} ${L('в месяц, примерно', 'per month, roughly')}` : L('Без процентов', 'No interest')}</div></div>
           <div class="dep-actions">
-            <button class="btn alt" id="topup">${icons.plus} Пополнить</button>
-            <button class="btn alt" id="take">Снять</button>
+            <button class="btn alt" id="topup">${icons.plus} ${L('Пополнить', 'Top up')}</button>
+            <button class="btn alt" id="take">${L('Снять', 'Withdraw')}</button>
           </div>` : ''}
-        <label class="lbl">Название</label>
-        <input class="field" id="dname" placeholder="Например, Накопительный Т-Банк" maxlength="40" value="${esc(d.name)}">
-        <label class="lbl">Сумма, ₽</label>
+        <label class="lbl">${L('Название', 'Name')}</label>
+        <input class="field" id="dname" placeholder="${L('Например, Накопительный Т-Банк', 'e.g. High-yield savings')}" maxlength="40" value="${esc(d.name)}">
+        <label class="lbl">${L('Сумма, ₽', 'Amount, ₽')}</label>
         <input class="field" id="damount" inputmode="decimal" placeholder="0" value="${d.amount ? rub(d.amount) : ''}">
-        <label class="lbl">Ставка, % годовых</label>
-        <input class="field" id="drate" inputmode="decimal" placeholder="Необязательно" value="${d.rate ? String(d.rate).replace('.', ',') : ''}">
+        <label class="lbl">${L('Ставка, % годовых', 'Rate, % APR')}</label>
+        <input class="field" id="drate" inputmode="decimal" placeholder="${L('Необязательно', 'Optional')}" value="${d.rate ? String(d.rate).replace('.', ',') : ''}">
       </div>
       <div class="bottom">
-        <button class="btn" id="save">${d.id ? 'Сохранить' : 'Добавить вклад'}</button>
-        ${d.id ? '<button class="btn ghost danger" id="del">Удалить вклад</button>' : ''}
+        <button class="btn" id="save">${d.id ? L('Сохранить', 'Save') : L('Добавить вклад', 'Add account')}</button>
+        ${d.id ? `<button class="btn ghost danger" id="del">${L('Удалить вклад', 'Delete account')}</button>` : ''}
       </div>
     </section>`;
 
@@ -1221,14 +1224,14 @@ export function renderDeposit() {
   app.querySelector('#back').onclick = close;
   app.querySelector('#save').onclick = () => {
     const dep = read();
-    if (!dep.name) return toast('Введите название');
+    if (!dep.name) return toast(L('Введите название', 'Enter a name'));
     persist({ ...dep, id: dep.id || `d${Date.now().toString(36)}` });
     haptic();
     close();
-    toast(d.id ? 'Вклад сохранён' : 'Вклад добавлен');
+    toast(d.id ? L('Вклад сохранён', 'Account saved') : L('Вклад добавлен', 'Account added'));
   };
   const move = async (sign) => {
-    const val = await askText(sign > 0 ? 'Пополнить вклад' : 'Снять со вклада', { mode: 'decimal', placeholder: 'Сумма, ₽' });
+    const val = await askText(sign > 0 ? L('Пополнить вклад', 'Top up') : L('Снять со вклада', 'Withdraw'), { mode: 'decimal', placeholder: L('Сумма, ₽', 'Amount, ₽') });
     const kop = toKop(val || '');
     if (!(kop > 0)) return;
     const dep = { ...read(), name: read().name || d.name };
@@ -1241,9 +1244,9 @@ export function renderDeposit() {
   app.querySelector('#topup')?.addEventListener('click', () => move(1));
   app.querySelector('#take')?.addEventListener('click', () => move(-1));
   app.querySelector('#del')?.addEventListener('click', async () => {
-    if (!(await ask('Удалить вклад?', d.name))) return;
+    if (!(await ask(L('Удалить вклад?', 'Delete account?'), d.name))) return;
     saveDeposits(deposits().filter((x) => x.id !== d.id));
     close();
-    toast('Вклад удалён');
+    toast(L('Вклад удалён', 'Account deleted'));
   });
 }

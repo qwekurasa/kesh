@@ -1,3 +1,4 @@
+import { L, EN } from './i18n.js';
 const BASE = [
   ['groceries', 'Продукты'], ['cafe', 'Рестораны'], ['fastfood', 'Фастфуд'], ['coffee', 'Кофе'],
   ['delivery', 'Доставка'], ['transport', 'Транспорт'], ['taxi', 'Такси'], ['car', 'Авто'],
@@ -7,6 +8,15 @@ const BASE = [
   ['kids', 'Дети'], ['tech', 'Техника'], ['household', 'Хозтовары'], ['transfers', 'Переводы'],
   ['marketplace', 'Маркетплейсы'], ['finance', 'Финансы'], ['cash', 'Наличные'], ['other', 'Другое'],
 ];
+
+const NAMES_EN = {
+  groceries: 'Groceries', cafe: 'Restaurants', fastfood: 'Fast food', coffee: 'Coffee', delivery: 'Delivery', transport: 'Transit',
+  taxi: 'Taxi', car: 'Car', home: 'Home & bills', mobile: 'Phone & internet', subs: 'Subscriptions', clothes: 'Clothes',
+  health: 'Health', beauty: 'Beauty', sport: 'Sport', fun: 'Fun', travel: 'Travel', education: 'Education', gifts: 'Gifts',
+  pets: 'Pets', kids: 'Kids', tech: 'Tech', household: 'Household', transfers: 'Transfers', marketplace: 'Marketplaces',
+  finance: 'Finance', cash: 'Cash', other: 'Other', salary: 'Salary', in_transfer: 'Transfers', cashback: 'Cashback',
+  interest: 'Interest', side: 'Side income', in_gift: 'Gifts', sale: 'Sales', in_other: 'Other',
+};
 
 const COLORS = {
   groceries: '#6fd08c', cafe: '#ff9f5a', fastfood: '#ffb547', coffee: '#c8a27a', delivery: '#ff7a6b',
@@ -28,6 +38,7 @@ const INCOME = [
   ['interest', 'Проценты', 'wallet'], ['side', 'Подработка', 'wrench'], ['in_gift', 'Подарки', 'gifts'],
   ['sale', 'Продажа', 'receipt'], ['in_other', 'Другое', 'other'],
 ];
+if (EN) [BASE, INCOME].forEach((list) => list.forEach((c) => { c[1] = NAMES_EN[c[0]] || c[1]; }));
 
 const KEYWORDS = {
   groceries: 'еда магазин супермаркет пятёрочка магнит лента',
@@ -234,7 +245,7 @@ export const money = (kop) => `${nf.format(kop / 100)} ₽`;
 export const moneyShort = (kop) => {
   const r = Math.round(kop / 100);
   if (Math.abs(r) >= 1000000) return `${nf.format(Math.round(r / 100000) / 10)}M`;
-  if (Math.abs(r) >= 10000) return `${nf.format(Math.round(r / 1000))}к`;
+  if (Math.abs(r) >= 10000) return `${nf.format(Math.round(r / 1000))}${L('к', 'k')}`;
   return nf.format(r);
 };
 export const isIncome = (i) => i.type === 'in';
@@ -273,6 +284,7 @@ export const icons = {
   moon: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>'),
   heart: svg('<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.6 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10Z"/>'),
   code: svg('<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/>'),
+  globe: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3Z"/>'),
   calendar: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>'),
 };
 
@@ -330,7 +342,7 @@ export function openAdd() {
 }
 
 // Свои диалоги: в PWA на iOS нативные confirm/prompt не работают
-export function dialog({ title, text = '', ok = 'ОК', cancel = 'Отмена', danger = false, input = null }) {
+export function dialog({ title, text = '', ok = 'OK', cancel = L('Отмена', 'Cancel'), danger = false, input = null }) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'modal-wrap';
@@ -376,13 +388,13 @@ export function dialog({ title, text = '', ok = 'ОК', cancel = 'Отмена',
   });
 }
 
-export const ask = (title, text, ok = 'Удалить') => dialog({ title, text, ok, danger: true });
-export const askText = (title, opts = {}) => dialog({ title, ok: 'Готово', input: { ...opts } });
+export const ask = (title, text, ok = L('Удалить', 'Delete')) => dialog({ title, text, ok, danger: true });
+export const askText = (title, opts = {}) => dialog({ title, ok: L('Готово', 'Done'), input: { ...opts } });
 
 let toastTimer;
 export function toast(text, undo) {
   const el = document.getElementById('toast');
-  el.innerHTML = `<span>${esc(text)}</span>${undo ? '<button>Отменить</button>' : ''}`;
+  el.innerHTML = `<span>${esc(text)}</span>${undo ? `<button>${L('Отменить', 'Undo')}</button>` : ''}`;
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (el.hidden = true), 4000);
@@ -393,11 +405,11 @@ export function tabbar() {
   const item = (id, label, icon) =>
     `<button class="tab${state.tab === id && !state.flow ? ' on' : ''}" data-tab="${id}" aria-label="${label}">${icon}</button>`;
   return `<nav class="tabbar">
-    ${item('home', 'Главная', icons.home)}
-    ${item('charts', 'Графики', icons.chart)}
-    <button class="tab add" data-tab="add" aria-label="Добавить операцию">${icons.plus}</button>
-    ${item('budget', 'Бюджет', icons.budget)}
-    ${item('deposits', 'Вклады', icons.safe)}
+    ${item('home', L('Главная', 'Home'), icons.home)}
+    ${item('charts', L('Аналитика', 'Analytics'), icons.chart)}
+    <button class="tab add" data-tab="add" aria-label="${L('Добавить операцию', 'Add transaction')}">${icons.plus}</button>
+    ${item('budget', L('Бюджет', 'Budget'), icons.budget)}
+    ${item('deposits', L('Вклады', 'Savings'), icons.safe)}
   </nav>`;
 }
 
