@@ -37,7 +37,7 @@ struct WebView: UIViewRepresentable {
         // Внешние ссылки (GitHub и т. п.) открываем в Safari
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             if action.shouldPerformDownload { return decisionHandler(.download) }
-            if let url = action.request.url, let host = url.host, host != "qwekurasa.github.io", url.scheme?.hasPrefix("http") == true {
+            if let url = action.request.url, let host = url.host, host != "kesh-money.vercel.app", url.scheme?.hasPrefix("http") == true {
                 UIApplication.shared.open(url)
                 return decisionHandler(.cancel)
             }

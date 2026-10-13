@@ -17,8 +17,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           mkdir Payload && cp -R ios/build/Release-iphoneos/Kesh.app Payload/
           zip -qr Kesh.ipa Payload
-      - name: Release
-        env: { GH_TOKEN: '${{ github.token }}' }
+      - name: Publish to site
         run: |
-          gh release delete ipa --yes --cleanup-tag || true
-          gh release create ipa Kesh.ipa --title "Кэш для iPhone (неподписанный)" --notes "Установка с Windows через Sideloadly. Сборка ${{ github.run_number }}."
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          mkdir -p dl && cp Kesh.ipa dl/Kesh.ipa
+          git add dl/Kesh.ipa
+          git commit -m "Build Kesh.ipa ${{ github.run_number }}" || exit 0
+          for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done

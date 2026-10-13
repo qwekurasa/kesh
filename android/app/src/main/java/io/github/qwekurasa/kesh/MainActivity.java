@@ -20,8 +20,8 @@ import java.io.FileOutputStream;
 
 // Оболочка над PWA: данные живут внутри WebView (IndexedDB, localStorage)
 public class MainActivity extends Activity {
-    private static final String URL = "https://qwekurasa.github.io/kesh/";
-    private static final String HOST = "qwekurasa.github.io";
+    private static final String URL = "https://kesh-money.vercel.app/";
+    private static final String HOST = "kesh-money.vercel.app";
     private static final int PICK = 1;
     private WebView web;
     private ValueCallback<Uri[]> pick;

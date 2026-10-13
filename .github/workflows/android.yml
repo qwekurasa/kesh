@@ -21,8 +21,11 @@ jobs:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: 1.${{ github.run_number }}
         run: gradle --no-daemon assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../Kesh.apk
-      - name: Release
-        env: { GH_TOKEN: '${{ github.token }}' }
+      - name: Publish to site
         run: |
-          gh release delete apk --yes --cleanup-tag || true
-          gh release create apk Kesh.apk --title "Кэш для Android" --notes "Сборка ${{ github.run_number }}. Установка: скачать Kesh.apk и открыть на телефоне."
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          mkdir -p dl && cp Kesh.apk dl/Kesh.apk
+          git add dl/Kesh.apk
+          git commit -m "Build Kesh.apk ${{ github.run_number }}" || exit 0
+          for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done

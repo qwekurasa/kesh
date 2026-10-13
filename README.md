@@ -4,7 +4,7 @@
 
 Трекер трат без регистрации и облака. Все данные хранятся только на телефоне.
 
-**Приложение:** https://qwekurasa.github.io/kesh/
+**Приложение:** https://kesh-money.vercel.app/
 
 - Расходы и доходы, категории и комментарии
 - Аналитика за любой период
@@ -22,12 +22,12 @@ Android: Chrome → меню → «Установить приложение».
 
 ### Android-приложение
 
-Скачать [Kesh.apk](https://github.com/qwekurasa/kesh/releases/download/apk/Kesh.apk), открыть на телефоне, разрешить установку.
+Скачать [Kesh.apk](https://kesh-money.vercel.app/dl/Kesh.apk), открыть на телефоне, разрешить установку.
 
 ### iPhone-приложение через Windows
 
 1. Установить iTunes и iCloud с сайта Apple (не из Microsoft Store) и [Sideloadly](https://sideloadly.io/).
-2. Скачать [Kesh.ipa](https://github.com/qwekurasa/kesh/releases/download/ipa/Kesh.ipa).
+2. Скачать [Kesh.ipa](https://kesh-money.vercel.app/dl/Kesh.ipa).
 3. Подключить iPhone кабелем, нажать «Доверять».
 4. В Sideloadly перетащить Kesh.ipa, ввести Apple ID, нажать Start.
 5. На iPhone: Настройки → Основные → VPN и управление устройством → свой Apple ID → Доверять.
@@ -63,4 +63,4 @@ python3 -m http.server 8080
 
 ## Лицензия
 
-MIT. Сторонние компоненты: PDF.js (Apache-2.0), Air Datepicker (MIT), шрифты Onest, Outfit, JetBrains Mono (OFL), иконки Phosphor (MIT).
+Все права защищены. Сторонние компоненты: PDF.js (Apache-2.0), Air Datepicker (MIT), шрифты Onest, Outfit, JetBrains Mono (OFL), иконки Phosphor (MIT).

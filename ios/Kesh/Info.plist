@@ -5,7 +5,7 @@
 	<!-- Домен приложения: с ним в WKWebView работает Service Worker, то есть офлайн-режим -->
 	<key>WKAppBoundDomains</key>
 	<array>
-		<string>qwekurasa.github.io</string>
+		<string>kesh-money.vercel.app</string>
 	</array>
 </dict>
 </plist>

@@ -8,12 +8,12 @@ import {
 import { writeXlsx, readXlsx } from './xlsx.js';
 import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCalm, keshCoat, setCoat, keshSVG, catAvatar } from './kesh.js';
 
-const REPO = 'https://github.com/qwekurasa/kesh';
+const DONATE = [['Solana', '64kwY5adPeQVfzvsyvEpke5wsJuVEPXAY3bm6VuFBZf'], ['Ethereum', '0xad4a06e063d0e83e783f9fb17efc6524a83a40f2'], ['USDT TRC20', 'TERWLLYABDAvMQTKPkpXwdKpU4AS5k8ff3']];
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { TYPES, accounts, balances, ownTotal, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v45';
+export const BUILD = 'v46';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -717,8 +717,6 @@ export async function renderProfile() {
 
   const first = all.length ? Math.min(...all.map((i) => i.ts)) : 0;
   const coat = keshOn() ? `${keshCoat() === 'black' ? L('чёрный', 'black') : L('белый', 'white')} · ${L('вкл', 'on')}` : L('выкл', 'off');
-  const link = (href, icon, label, extra = '') =>
-    `<a class="row" href="${href}" target="_blank" rel="noopener">${icon}<span>${label}</span><span class="row-extra">${extra}</span></a>`;
 
   if (!live()) return;
   app.innerHTML = `
@@ -747,8 +745,7 @@ export async function renderProfile() {
         </div>
         <div class="section-label">${L('О проекте', 'About')}</div>
         <div class="card rows group">
-          ${link(REPO + '#поддержать', icons.heart, L('Поддержать проект', 'Support the project'))}
-          ${link(REPO, icons.code, L('Исходный код', 'Source code'), 'GitHub')}
+          ${item('donate', icons.heart, L('Поддержать проект', 'Support the project'))}
         </div>
         <div class="card rows group">
           ${item('wipe', icons.trash, L('Сбросить все данные', 'Erase all data'))}
@@ -775,6 +772,7 @@ export async function renderProfile() {
     // белый → чёрный → выкл → белый
     if (a === 'kesh') { haptic(); state.flow = 'keshset'; return render(); }
     if (a === 'currency') return pickCurrency();
+    if (a === 'donate') return openDonate();
     if (a === 'lang') return flipLang(e.target.closest('.row').querySelector('.lswitch'));
     if (a === 'cats') { state.flow = 'cats'; return render(); }
     if (a === 'statement') return pickStatement();
@@ -800,6 +798,18 @@ export function flipLang(sw) {
 /* ---------- настройки Кэша ---------- */
 const PREVIEW = ['Ждёт', 'Привет', 'Рад', 'Думает', 'Удивлён', 'Ликует', 'Сомневается', 'Спит'];
 // Выбор валюты: меняется знак во всём приложении, суммы не пересчитываются
+function openDonate() {
+  const { panel } = bottomSheet(L('Поддержать проект', 'Support the project'), `
+    <p class="bs-sub">${L('Нажмите на адрес, чтобы скопировать.', 'Tap an address to copy it.')}</p>
+    <div class="acc-list">${DONATE.map(([n, a]) => `<button class="acc-opt" data-addr="${a}"><span class="tr-name">${n}<small class="addr">${a}</small></span></button>`).join('')}</div>`);
+  panel.querySelector('.acc-list').onclick = (e) => {
+    const a = e.target.closest('[data-addr]')?.dataset.addr;
+    if (!a) return;
+    haptic();
+    navigator.clipboard?.writeText(a).then(() => toast(L('Адрес скопирован', 'Address copied')), () => {});
+  };
+}
+
 function pickCurrency() {
   const { panel, close } = bottomSheet(L('Валюта', 'Currency'), `
     <p class="bs-sub">${L('Меняется только знак — суммы не пересчитываются по курсу.', 'Only the symbol changes — amounts are not converted.')}</p>

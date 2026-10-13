@@ -661,7 +661,7 @@ button.switch-row { width: 100%; text-align: left; }
 .ava-row::-webkit-scrollbar { display: none; }
 .ava-row .ava-pick { flex: none; width: 46px; height: 46px; border-radius: 50%; border: 2px solid transparent; }
 .ava-row .ava-pick.on { border-color: var(--text); }
-.row .row-kesh { flex: none; }
+.row span.row-kesh { flex: none; }
 .row .row-kesh + span { flex: 1; }
 
 /* выбор аватара: без фона и рамок — коты, выбранный крупнее и ярче */
@@ -924,3 +924,4 @@ button.switch-row { width: 100%; text-align: left; }
 html[data-lang="en"] .amount .cur { order: -1; }
 .row span.row-sym { width: 18px; text-align: center; font: 600 15px var(--mono); color: var(--text-2); flex: none; }
 .row .row-sym + span { flex: 1; }
+.acc-opt .addr { font: 400 11px var(--mono); word-break: break-all; }
