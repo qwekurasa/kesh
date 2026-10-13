@@ -1,3 +1,4 @@
+import './guard.js';
 import * as store from './store.js';
 import { L, LANG, setLang, EN, SYM } from './i18n.js';
 import * as auth from './auth.js';
