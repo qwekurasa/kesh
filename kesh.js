@@ -24,56 +24,69 @@ const POSES = {
 };
 
 // Белый Кэш для тёмного интерфейса: тело светлое, глаза тёмные
-// dark — тёмный Кэш для светлого фона (внутри кнопки)
-export const keshSVG = (pose = 'Ждёт', dark = false) => {
+POSES['Показывает'] = eyes(6, 5) + [91, 159].map((x) => `<rect x="${x - 22}" y="128" width="44" height="19" fill="B"/>`).join('') + NOSE + paw(88)
+  + '<path d="M182 178L228 214" stroke="B" stroke-width="26" stroke-linecap="round"/><circle cx="232" cy="218" r="15" fill="B"/><path d="M252 206l10 8M246 236l10 6" stroke="B" stroke-width="3" stroke-linecap="round" opacity=".7"/>';
+
+// dark — тёмный Кэш (для светлой кнопки или чёрный окрас); outline — тонкий контур, чтобы чёрный был виден на тёмном
+export const keshSVG = (pose = 'Ждёт', dark = false, outline = false) => {
   const [B, E] = dark ? ['#0B0B0C', '#ECECEE'] : ['#ECECEE', '#0B0B0C'];
-  return `<svg viewBox="-6 -4 276 256" aria-hidden="true"><path d="${HEAD}" fill="${B}"/>${(POSES[pose] || POSES['Ждёт']).replaceAll('"B"', `"${B}"`).replaceAll('"E"', `"${E}"`)}</svg>`;
+  const edge = outline ? ' stroke="rgba(255,255,255,.28)" stroke-width="5"' : '';
+  return `<svg viewBox="-6 -4 276 256" aria-hidden="true"><path d="${HEAD}" fill="${B}"${edge}/>${(POSES[pose] || POSES['Ждёт']).replaceAll('"B"', `"${B}"`).replaceAll('"E"', `"${E}"`)}</svg>`;
 };
+// Кэш в выбранном окрасе — для тёмного интерфейса
+export const coatSVG = (pose) => keshSVG(pose, keshCoat() === 'black', keshCoat() === 'black');
 
-export const keshOn = () => localStorage.getItem('kesh') !== '0';
-export const hintsOn = () => localStorage.getItem('keshHints') !== '0';
-export const setKesh = (on) => { localStorage.setItem('kesh', on ? '1' : '0'); place(); };
-export const setHints = (on) => localStorage.setItem('keshHints', on ? '1' : '0');
-const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const get = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const put = (k, v) => { try { localStorage.setItem(k, v); } catch { /* хранилище недоступно */ } };
+export const keshOn = () => get('kesh') !== '0';
+export const hintsOn = () => get('keshHints') !== '0';
+export const calmMode = () => get('keshCalm') === '1';
+export const keshCoat = () => (get('keshCoat') === 'black' ? 'black' : 'white');
+export const setKesh = (on) => { put('kesh', on ? '1' : '0'); place(); };
+export const setHints = (on) => put('keshHints', on ? '1' : '0');
+export const setCalm = (on) => { put('keshCalm', on ? '1' : '0'); pose = ''; draw(restPose()); };
+export const setCoat = (c) => { put('keshCoat', c); pose = ''; draw(restPose()); };
+const hiddenToday = () => Number(get('keshHideUntil')) > Date.now();
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-let el, bubble, bubbleScreen, pose = '', revertTimer, idleTimer, bubbleTimer, curled = false;
+let el, menu, bubble, bubbleScreen, pose = '', revertTimer, idleTimer, bubbleTimer, curled = false;
 const night = () => { const h = new Date().getHours(); return h >= 23 || h < 7; };
-const restPose = () => (night() ? 'Спит' : 'Ждёт');
+const restPose = () => (night() || calmMode() ? 'Спит' : 'Ждёт');
 
 function draw(p) {
   if (!el || p === pose) return;
   pose = p;
-  el.innerHTML = keshSVG(p);
+  el.innerHTML = coatSVG(p);
   el.dataset.pose = p;
-  if (!calm()) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+  if (!reduced() && !calmMode()) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
 }
 
 function resetIdle() {
   clearTimeout(idleTimer);
   if (curled) return;
-  if (pose === 'Спит' && !night()) draw('Ждёт');
+  if (pose === 'Спит' && !night() && !calmMode()) draw('Ждёт');
   idleTimer = setTimeout(() => { if (!revertTimer) draw('Спит'); }, 30000);
 }
 
 // Реакция на событие: поза на время, потом обратно в покой
 export function keshReact(p, ms = 1600) {
-  if (!el || curled) return;
+  if (!el || curled || calmMode()) return;
   clearTimeout(revertTimer);
   draw(p);
   revertTimer = setTimeout(() => { revertTimer = null; draw(restPose()); }, ms);
   resetIdle();
 }
 
-const seen = () => { try { return new Set(JSON.parse(localStorage.getItem('keshSeen')) || []); } catch { return new Set(); } };
+const seen = () => { try { return new Set(JSON.parse(get('keshSeen')) || []); } catch { return new Set(); } };
 
-// Разовая подсказка: одна на экран, закрывается тапом или через 6 с
+// Реплика Кэша: одна на экран, закрывается тапом или сама. key — показать один раз за всё время
 export function keshHint(key, text, action, onAction, p = 'Показывает') {
   if (el) place(); // экран мог смениться только что
-  if (!el || !keshOn() || !hintsOn() || el.hidden || bubble) return false;
+  if (!el || !keshOn() || !hintsOn() || calmMode() || el.hidden || bubble) return false;
   const s = seen();
   if (key && s.has(key)) return false;
-  if (key) { s.add(key); localStorage.setItem('keshSeen', JSON.stringify([...s].slice(-200))); }
-  keshReact(p === 'Показывает' ? 'Думает' : p, 6000);
+  if (key) put('keshSeen', JSON.stringify([...s, key].slice(-200)));
+  keshReact(p, 6000);
   bubble = document.createElement('div');
   bubble.className = 'kesh-bubble';
   bubble.setAttribute('role', 'status');
@@ -88,6 +101,7 @@ export function keshHint(key, text, action, onAction, p = 'Показывает'
   bubbleTimer = setTimeout(close, action ? 9000 : 6000);
   return true;
 }
+export const keshSay = (text, p = 'Рад') => keshHint(null, text, null, null, p);
 
 function positionBubble() {
   if (!bubble || !el) return;
@@ -99,10 +113,11 @@ function positionBubble() {
 function place() {
   if (!el) return;
   const bar = document.querySelector('#app .tabbar');
-  const show = keshOn() && !!bar;
+  const show = keshOn() && !hiddenToday() && !!bar;
   el.hidden = !show;
-  // подсказка относится к своему экрану — при смене экрана убираем
+  // реплика и меню относятся к своему экрану — при смене экрана убираем
   if (bubble && (!show || !bubbleScreen?.isConnected)) { clearTimeout(bubbleTimer); bubble.remove(); bubble = null; }
+  if (menu && !show) closeMenu();
   if (!show) return;
   const b = bar.getBoundingClientRect();
   const h = el.offsetHeight || 48;
@@ -111,8 +126,7 @@ function place() {
   positionBubble();
 }
 
-function poke(e) {
-  e.stopPropagation();
+function poke() {
   haptic();
   clearTimeout(revertTimer); revertTimer = null;
   if (curled) { curled = false; draw('Рад'); revertTimer = setTimeout(() => { revertTimer = null; draw(restPose()); }, 1200); resetIdle(); return; }
@@ -120,12 +134,38 @@ function poke(e) {
   setTimeout(() => { if (curled) { curled = false; draw(restPose()); resetIdle(); } }, 5000);
 }
 
-export function startKesh(appEl) {
+function closeMenu() { menu?.remove(); menu = null; }
+
+// Долгое нажатие: меню Кэша
+function openMenu(onSettings) {
+  closeMenu();
+  haptic();
+  menu = document.createElement('div');
+  menu.className = 'kesh-menu';
+  menu.innerHTML = `<button data-m="hide">Спрятать на сегодня</button><button data-m="quiet">${hintsOn() ? 'Тише подсказки' : 'Включить подсказки'}</button><button data-m="settings">Настройки Кэша</button>`;
+  menu.style.bottom = `${window.innerHeight - el.getBoundingClientRect().top + 8}px`;
+  document.body.appendChild(menu);
+  menu.onclick = (e) => {
+    const m = e.target.closest('[data-m]')?.dataset.m;
+    if (!m) return;
+    closeMenu();
+    if (m === 'hide') { const d = new Date(); d.setHours(24, 0, 0, 0); put('keshHideUntil', String(+d)); place(); }
+    if (m === 'quiet') setHints(!hintsOn());
+    if (m === 'settings') onSettings();
+  };
+  setTimeout(() => document.addEventListener('pointerdown', (e) => { if (!menu?.contains(e.target)) closeMenu(); }, { once: true }), 0);
+}
+
+export function startKesh(appEl, onSettings) {
   el = document.createElement('button');
   el.id = 'kesh';
   el.type = 'button';
   el.setAttribute('aria-label', 'Кэш');
-  el.addEventListener('click', poke);
+  let press, long = false;
+  el.addEventListener('pointerdown', () => { long = false; press = setTimeout(() => { long = true; openMenu(onSettings); }, 550); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => el.addEventListener(ev, () => clearTimeout(press)));
+  el.addEventListener('click', (e) => { e.stopPropagation(); if (!long) poke(); });
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
   document.body.appendChild(el);
   draw(restPose());
   new MutationObserver(() => requestAnimationFrame(place)).observe(appEl, { childList: true });
@@ -133,6 +173,10 @@ export function startKesh(appEl) {
   document.addEventListener('pointerdown', resetIdle, { passive: true });
   place();
   resetIdle();
+  // «О, давно не виделись!» — если не заходили 14+ дней
+  const last = Number(get('keshLast'));
+  put('keshLast', String(Date.now()));
+  if (last && Date.now() - last > 14 * 864e5) setTimeout(() => keshSay('О, давно не виделись!', 'Привет'), 900);
 }
 
 // Кэш на экране ввода: поза зависит от суммы

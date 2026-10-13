@@ -5,7 +5,7 @@ import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
   setRender, render, ticket, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
 } from './ui.js';
-import { startKesh, keshSVG, keshOn, keshReact, amountPose } from './kesh.js';
+import { startKesh, keshSVG, keshOn, keshReact, amountPose, calmMode, keshHint, keshSay } from './kesh.js';
 
 const kopecks = () => Math.round(parseFloat(state.amt.replace(',', '.') || '0') * 100);
 
@@ -33,34 +33,83 @@ function main() {
 /* ---------- приветствие и онбординг ---------- */
 function renderWelcome() {
   app.innerHTML = `
-    <section class="screen auth welcome">
+    <section class="screen auth welcome" data-phase="empty">
       <div class="grain"></div>
-      <div class="brand">Кэш</div>
-      <div class="kesh-stage"><div class="kesh-fly">${keshSVG('Ждёт')}</div></div>
+      <div class="stage">
+        <div class="peek">${keshSVG('Ждёт')}</div>
+        <div class="horizon"></div>
+        <p class="hello" aria-live="polite"></p>
+      </div>
       <div class="auth-body">
-        <h1>Привет, я Кэш.<br>Буду считать твои траты.</h1>
-        <button class="btn trap" id="reg"><span class="trap-kesh">${keshSVG('Переживает', true)}</span><span class="trap-label">Начать</span></button>
+        <button class="btn trap" id="reg"><span class="trap-kesh">${keshSVG('Переживает', true)}</span><span class="tuk l">тук</span><span class="tuk r">тук</span><span class="trap-label">Начать</span></button>
       </div>
     </section>`;
+  const scr = app.querySelector('.welcome');
   const btn = app.querySelector('#reg');
-  const fly = app.querySelector('.kesh-fly');
-  btn.onclick = () => { state.authMode = 'register'; state.step = 0; state.draft = {}; state.jumpOut = true; render(); };
-  // Кэш выходит из темноты, затем перелетает в кнопку и бегает там «взаперти»
-  const catch_ = () => { btn.classList.add('caught'); btn.style.setProperty('--w', `${btn.offsetWidth}px`); fly.style.visibility = 'hidden'; };
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return catch_();
-  setTimeout(() => {
-    if (!fly.isConnected) return;
-    const a = fly.getBoundingClientRect();
+  const peek = app.querySelector('.peek');
+  const hello = app.querySelector('.hello');
+  const TEXT = 'Привет! Я Кэш.';
+  const timers = [];
+  const at = (ms, fn) => timers.push(setTimeout(() => scr.isConnected && fn(), ms));
+  const phase = (p) => { scr.dataset.phase = p; };
+  const pose = (p) => { peek.innerHTML = keshSVG(p); };
+  const caught = () => { btn.classList.add('caught'); btn.style.setProperty('--w', `${btn.offsetWidth}px`); phase('trap'); };
+
+  // 5. Кэш прыгает по дуге в кнопку, кнопка проминается
+  const jumpIn = () => {
+    const a = peek.querySelector('svg').getBoundingClientRect();
     const b = btn.getBoundingClientRect();
-    const dx = b.left + 34 - (a.left + a.width / 2);
-    const dy = b.top + b.height / 2 - (a.top + a.height / 2);
-    const s = 44 / a.width;
+    const fly = document.createElement('div');
+    fly.className = 'flyer';
+    fly.innerHTML = keshSVG('Рад');
+    Object.assign(fly.style, { left: `${a.left}px`, top: `${a.top}px`, width: `${a.width}px` });
+    document.body.appendChild(fly);
+    phase('trap');
+    const s = 36 / a.width;
+    const dx = b.left + 10 - a.left - (a.width - 36) / 2;
+    const dy = b.bottom - 6 - a.bottom + (a.height * (1 - s)) / 2;
     fly.animate([
       { transform: 'none' },
-      { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 90}px) scale(${(1 + s) / 2}) rotate(-8deg)`, offset: 0.55 },
-      { transform: `translate(${dx}px, ${dy}px) scale(${s})`, opacity: 0.2 },
-    ], { duration: 900, easing: 'cubic-bezier(.5,0,.3,1)', fill: 'forwards' }).onfinish = catch_;
-  }, 2600);
+      { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 70}px) scale(${(1 + s) / 2}) rotate(-10deg)`, offset: 0.5 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${s})` },
+    ], { duration: 360, easing: 'cubic-bezier(.4,0,.4,1)', fill: 'forwards' }).onfinish = () => {
+      fly.remove();
+      btn.classList.add('landed');
+      caught();
+      haptic();
+    };
+  };
+
+  const typeHello = () => {
+    hello.classList.add('typing');
+    [...TEXT].forEach((_, n) => at(60 * n, () => { hello.textContent = TEXT.slice(0, n + 1); }));
+    at(60 * TEXT.length + 200, () => hello.classList.remove('typing'));
+  };
+
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    pose('Привет'); hello.textContent = TEXT; phase('button');
+  } else {
+    at(250, () => phase('ears'));                       // 1. из-за горизонта поднимаются уши
+    at(900, () => { phase('hello'); pose('Привет'); typeHello(); }); // 2. машет лапой, текст по буквам
+    at(2000, () => { phase('button'); pose('Показывает'); });       // 3. снизу выезжает кнопка, лапа на «Начать»
+    at(3300, jumpIn);                                    // 4. прыгает в кнопку и оказывается заперт
+  }
+  // всё пропускается тапом по экрану
+  scr.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('#reg') || scr.dataset.phase === 'trap') return;
+    timers.forEach(clearTimeout);
+    hello.classList.remove('typing');
+    hello.textContent = TEXT;
+    pose('Привет');
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) phase('button'); else caught();
+  });
+  btn.onclick = () => {
+    timers.forEach(clearTimeout);
+    haptic();
+    btn.classList.add('free');
+    btn.querySelector('.trap-kesh').innerHTML = keshSVG('Рад', true);
+    setTimeout(() => { state.authMode = 'register'; state.step = 0; state.draft = {}; state.jumpOut = true; render(); }, 220);
+  };
 }
 
 function renderOnboarding() {
@@ -76,7 +125,7 @@ function renderOnboarding() {
       <div class="dots">${[0, 1].map((i) => `<i class="${i === step ? 'on' : ''}"></i>`).join('')}</div>
       <div class="auth-body">
         ${step === 0 ? `
-          <h1>Как вас зовут?</h1>
+          <h1>Как тебя зовут?</h1>
           <p>Имя видно только на этом устройстве</p>
           <div class="field-wrap">
             <div class="field-kesh${jumped ? ' jump' : ''}">${keshSVG(name.trim().length >= 2 ? 'Рад' : 'Ждёт')}</div>
@@ -104,7 +153,11 @@ function renderOnboarding() {
       next.disabled = input.value.trim().length < 2;
       const pose = next.disabled ? 'Ждёт' : 'Рад';
       const fk = app.querySelector('.field-kesh');
-      if (fk.dataset.pose !== pose) { fk.dataset.pose = pose; fk.innerHTML = keshSVG(pose); }
+      if (fk.dataset.pose !== pose) {
+        fk.dataset.pose = pose; fk.innerHTML = keshSVG(pose);
+        app.querySelector('.praise')?.remove();
+        if (pose === 'Рад') fk.insertAdjacentHTML('afterend', '<span class="praise">Красивое имя!</span>');
+      }
     };
     input.onkeydown = (e) => { if (e.key === 'Enter' && !next.disabled) next.click(); };
     next.onclick = () => {
@@ -140,45 +193,86 @@ function renderOnboarding() {
 }
 
 /* ---------- amount ---------- */
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const dateLabel = (ts) => {
+  const d = new Date(ts);
+  const k = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(ts).setHours(0, 0, 0, 0)) / 864e5);
+  return `${k === 0 ? 'Сегодня · ' : k === 1 ? 'Вчера · ' : ''}${d.getDate()} ${MONTHS_GEN[d.getMonth()]}`;
+};
+const dateInput = () => `<label class="icon-btn date-pick" aria-label="Дата операции">${icons.calendar}
+  <input type="date" id="date" value="${isoDay(new Date(state.date))}" max="${isoDay(new Date())}"></label>`;
+function bindDate() {
+  app.querySelector('#date').onchange = (e) => {
+    const [y, m, dd] = e.target.value.split('-').map(Number);
+    if (!y) return;
+    const picked = new Date(y, m - 1, dd);
+    state.date = picked.toDateString() === new Date().toDateString() ? Date.now() : new Date(y, m - 1, dd, 12, 0).getTime();
+    render();
+  };
+}
+
+// Частые категории: по последним операциям, добиваем первыми из списка
+async function frequent(income) {
+  const list = (income ? INCOME_CATEGORIES : CATEGORIES).map(([id]) => id);
+  const recent = (await store.recentCategories(16)).filter((id) => CAT[id] && (CAT[id].kind === 'in') === income);
+  const out = [...new Set([...(state.cat && list.includes(state.cat) ? [state.cat] : []), ...recent, ...list])];
+  return out.slice(0, 4);
+}
+
 async function renderAmount() {
   const live = ticket();
-  const today = await store.todayTotal();
   const editing = !!state.edit;
+  const income = state.kind === 'in';
+  const top = await frequent(income);
   if (!live()) return;
   app.innerHTML = `
     <section class="screen add-screen">
       <div class="topbar">
-        <div class="pill">${editing ? 'Изменение' : `Сегодня <b>${money(today)}</b>`}</div>
         <button class="icon-btn" id="close" aria-label="Закрыть">${icons.back}</button>
+        <div class="seg kind" id="kind">
+          <button class="${income ? '' : 'on'}" data-k="out">Расход</button>
+          <button class="${income ? 'on' : ''}" data-k="in">Доход</button>
+        </div>
+        ${editing ? `<button class="icon-btn" id="del" aria-label="Удалить операцию">${icons.trash}</button>` : dateInput()}
       </div>
-      <div class="seg kind" id="kind">
-        <button class="${state.kind === 'out' ? 'on' : ''}" data-k="out">Расход</button>
-        <button class="${state.kind === 'in' ? 'on' : ''}" data-k="in">Пополнение</button>
-      </div>
-      <div class="amount-wrap${state.kind === 'in' ? ' income' : ''}">
-        <div class="amount-kesh" id="kesh-amt" aria-hidden="true"></div>
+      <div class="amount-wrap${income ? ' income' : ''}">
         <div class="amount" id="amount"><span class="val"></span><span class="cur">₽</span></div>
+        <div class="amount-kesh" id="kesh-amt" aria-hidden="true"></div>
         <div class="amount-hint" id="hint"></div>
       </div>
+      <div class="quick-head"><span class="section-label">Частые</span><button class="link" id="all">Все категории</button></div>
+      <div class="quick">${top.map((id) => `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${esc(CAT[id].name)}</span></button>`).join('')}</div>
+      <input class="field" id="note" placeholder="Комментарий" maxlength="200" value="${esc(state.note)}">
       <div class="pad">
         ${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map((k) =>
           `<button class="key" data-k="${k}" aria-label="${k === 'del' ? 'Стереть' : k}">${k === 'del' ? icons.del : k}</button>`).join('')}
       </div>
-      <button class="btn" id="next">${editing ? 'Далее' : 'Продолжить'}</button>
+      <button class="btn" id="next">Сохранить</button>
     </section>`;
 
   updateAmount();
+  if (!editing) bindDate();
   app.querySelector('#close').onclick = () => { state.edit = null; go(state.tab || 'home'); };
-  app.querySelector('#next').onclick = goCategory;
+  app.querySelector('#next').onclick = () => (state.cat && kopecks() > 0 ? save() : goCategory());
+  app.querySelector('#all').onclick = () => { state.flow = 'category'; render(); };
+  app.querySelector('#note').oninput = (e) => { state.note = e.target.value; };
+  app.querySelector('.quick').onclick = (e) => {
+    const b = e.target.closest('.cat');
+    if (!b) return;
+    haptic();
+    state.cat = state.cat === b.dataset.id ? null : b.dataset.id;
+    app.querySelectorAll('.quick .cat').forEach((c) => c.classList.toggle('on', c.dataset.id === state.cat));
+    updateAmount();
+  };
+  app.querySelector('#del')?.addEventListener('click', removeEdited);
   app.querySelector('#kind').onclick = (e) => {
     const b = e.target.closest('[data-k]');
     if (!b || b.dataset.k === state.kind) return;
     haptic();
     state.kind = b.dataset.k;
     state.cat = null;
-    app.querySelectorAll('#kind button').forEach((n) => n.classList.toggle('on', n === b));
-    app.querySelector('.amount-wrap').classList.toggle('income', state.kind === 'in');
-    updateAmount();
+    render();
   };
 
   let holdTimer;
@@ -191,6 +285,15 @@ async function renderAmount() {
     if (key.dataset.k === 'del') holdTimer = setTimeout(() => { state.amt = ''; updateAmount(); haptic(); }, 450);
   });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => pad.addEventListener(ev, () => clearTimeout(holdTimer)));
+}
+
+async function removeEdited() {
+  if (!(await ask('Удалить операцию?', '', 'Удалить'))) return;
+  const { id } = state.edit;
+  Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '' });
+  await store.removeExpense(id);
+  render();
+  toast('Операция удалена');
 }
 
 function press(k) {
@@ -220,12 +323,15 @@ function updateAmount() {
   const text = state.amt ? (int || '0').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (dec !== undefined ? `,${dec}` : '') : '0';
   el.querySelector('.val').textContent = text;
   el.classList.toggle('empty', !state.amt);
-  el.style.setProperty('--size', `${Math.max(44, 88 - Math.max(0, text.length - 5) * 7)}px`);
+  el.style.setProperty('--size', `${Math.max(40, 72 - Math.max(0, text.length - 5) * 6)}px`);
   const [pose, line] = amountPose(state.kind, kopecks());
   const k = app.querySelector('#kesh-amt');
-  if (k.dataset.pose !== pose) { k.dataset.pose = pose; k.innerHTML = keshOn() ? keshSVG(pose) : ''; }
-  app.querySelector('#hint').textContent = state.amt ? line : (state.kind === 'in' ? 'Сколько пришло?' : 'Сколько потратили?');
-  app.querySelector('#next').disabled = kopecks() <= 0;
+  if (k.dataset.pose !== pose) { k.dataset.pose = pose; k.innerHTML = keshOn() && !calmMode() ? keshSVG(pose) : ''; }
+  app.querySelector('#hint').textContent = (state.amt && line) || dateLabel(state.date);
+  const btn = app.querySelector('#next');
+  const kop = kopecks();
+  btn.disabled = kop <= 0;
+  btn.textContent = kop > 0 ? `${state.cat ? 'Сохранить' : 'Выбрать категорию'} · ${state.kind === 'in' ? '+' : '−'}${money(kop)}` : 'Сохранить';
 }
 
 function goCategory() {
@@ -244,19 +350,13 @@ async function renderCategory() {
   const found = q ? list.filter(([id, name]) => matchCategory(id, name, q)) : list;
   const tile = ([id, name]) =>
     `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${esc(name)}</span></button>`;
-  const d = new Date(state.date);
-  const today = new Date().toDateString() === d.toDateString();
-  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   if (!live()) return;
   app.innerHTML = `
     <section class="screen">
       <div class="topbar cat-bar">
         <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
         <button class="amount-chip center${income ? ' income' : ''}" id="edit">${income ? '+' : ''}${money(kopecks())} ${icons.edit}</button>
-        <label class="icon-btn date-chip${today ? '' : ' set'}" aria-label="Дата траты">
-          ${icons.calendar}${today ? '' : `<b>${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}</b>`}
-          <input type="date" id="date" value="${iso}" max="${new Date().toISOString().slice(0, 10)}">
-        </label>
+        ${dateInput()}
       </div>
       <h2 class="cat-title">${income ? 'Откуда пришли деньги?' : 'На что потратили?'}</h2>
       <label class="search-bar sm">${icons.search}<input id="cq" placeholder="Поиск категории" value="${esc(state.catQuery)}" autocapitalize="none" spellcheck="false"></label>
@@ -277,15 +377,7 @@ async function renderCategory() {
   app.querySelector('#back').onclick = back;
   app.querySelector('#edit').onclick = back;
   app.querySelector('#note').oninput = (e) => { state.note = e.target.value; };
-  app.querySelector('#date').onchange = (e) => {
-    const [y, m, dd] = e.target.value.split('-').map(Number);
-    if (!y) return;
-    const now = new Date();
-    const picked = new Date(y, m - 1, dd);
-    const isToday = picked.toDateString() === now.toDateString();
-    state.date = isToday ? Date.now() : new Date(y, m - 1, dd, 12, 0).getTime();
-    render();
-  };
+  bindDate();
   const cq = app.querySelector('#cq');
   cq.oninput = () => { state.catQuery = cq.value; render(); };
   if (q) { cq.focus(); cq.setSelectionRange(q.length, q.length); }
@@ -303,14 +395,7 @@ async function renderCategory() {
     app.querySelector('#save').disabled = false;
   };
   app.querySelector('#save').onclick = save;
-  app.querySelector('#del')?.addEventListener('click', async () => {
-    if (!(await ask('Удалить операцию?', '', 'Удалить'))) return;
-    const { id } = state.edit;
-    Object.assign(state, { flow: null, edit: null, amt: '', cat: null, note: '' });
-    await store.removeExpense(id);
-    render();
-    toast('Операция удалена');
-  });
+  app.querySelector('#del')?.addEventListener('click', removeEdited);
 }
 
 const customCount = () => CATEGORIES.length + INCOME_CATEGORIES.length; // для чередования цвета новой категории
@@ -330,9 +415,14 @@ async function save() {
   }
   const item = await store.addExpense({ amount, category, note, ts: state.date, type });
   Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(state.date)), date: Date.now(), kind: 'out' });
-  Promise.resolve(render()).then(() => {
-    keshReact(type && item.amount >= 500000 ? 'Ликует' : 'Рад');
-    if (!type) limitHint(item.category, item.amount);
+  // средняя трата за 30 дней — для реакции «Ого, крупная»
+  const month = (await store.expensesBetween(Date.now() - 30 * 864e5, Date.now())).filter((i) => i.type !== 'in' && i.id !== item.id);
+  const avg = month.length >= 5 ? month.reduce((x, i) => x + i.amount, 0) / month.length : Infinity;
+  Promise.resolve(render()).then(async () => {
+    if (type) return keshSay(`+${money(item.amount)} — отмечу в статистике.`, item.amount >= 500000 ? 'Ликует' : 'Рад');
+    keshReact('Рад');
+    if (await limitHint(item.category, item.amount)) return;
+    if (item.amount > avg * 3) keshSay('Ого, крупная трата. Запомню.', 'Удивлён');
   });
   toast(`${type ? '+' : ''}${money(item.amount)} · ${CAT[item.category].name}`, async () => {
     await store.removeExpense(item.id);
@@ -479,7 +569,7 @@ document.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 applySkin();
-startKesh(app);
+startKesh(app, () => go('profile'));
 store.fixOrphans(new Set(Object.keys(CAT))).catch(() => {});
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 render();

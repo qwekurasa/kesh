@@ -6,10 +6,12 @@ import {
   CATEGORIES, catColor, isIncome, sumCell, reloadCategories, addCategory, ticket,
 } from './ui.js';
 import { writeXlsx, readXlsx } from './xlsx.js';
-import { keshOn, setKesh, hintsOn, setHints, keshHint } from './kesh.js';
+import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCalm, keshCoat, setCoat } from './kesh.js';
+
+const REPO = 'https://github.com/qwekurasa/traty';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 
-export const BUILD = 'v29';
+export const BUILD = 'v30';
 
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -32,37 +34,58 @@ function groupByDay(items) {
 }
 
 /* ---------- home ---------- */
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const MONTHS_DAT = ['январю', 'февралю', 'марту', 'апрелю', 'маю', 'июню', 'июлю', 'августу', 'сентябрю', 'октябрю', 'ноябрю', 'декабрю'];
+const hhmm = (ts) => { const d = new Date(ts); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
 export async function renderHome() {
   const live = ticket();
-  const from = state.month.getTime();
-  const next = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1);
-  const items = await store.expensesBetween(from, next.getTime() - 1);
+  const m = state.month;
+  const from = m.getTime();
+  const next = new Date(m.getFullYear(), m.getMonth() + 1, 1);
+  const isCurrent = next > new Date();
+  const prevFrom = new Date(m.getFullYear(), m.getMonth() - 1, 1);
+  // прошлый месяц сравниваем на тот же день, иначе текущий всегда «дешевле»
+  const prevTo = isCurrent ? Math.min(from, +prevFrom + (Date.now() - from)) : from;
+  const [items, before] = await Promise.all([
+    store.expensesBetween(from, next.getTime() - 1),
+    store.expensesBetween(+prevFrom, prevTo - 1),
+  ]);
   const days = groupByDay(items);
   const total = sum(spent(items));
   const income = sum(items.filter(isIncome));
-  const isCurrent = next > new Date();
-  const prevFrom = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1).getTime();
-  const prevTotal = sum(spent(await store.expensesBetween(prevFrom, from - 1)));
+  const prevTotal = sum(spent(before));
+  const prevIncome = sum(before.filter(isIncome));
+  const nDays = new Date(next - 1).getDate();
+  const passed = isCurrent ? new Date().getDate() : nDays;
+  const prevPassed = isCurrent ? passed : new Date(from - 1).getDate();
   const todayKey = dayKey(Date.now());
+  const yKey = dayKey(Date.now() - 864e5);
   const today = sum(spent(items.filter((i) => dayKey(i.ts) === todayKey)));
-  const passed = isCurrent ? new Date().getDate() : new Date(next - 1).getDate();
+  const yesterday = sum(spent([...items, ...before].filter((i) => dayKey(i.ts) === yKey)));
+  const perDay = Array(nDays).fill(0);
+  spent(items).forEach((i) => { perDay[new Date(i.ts).getDate() - 1] += i.amount; });
+  const peak = Math.max(...perDay, 1);
+  const acc = auth.account();
 
   const row = (i) => `
     <div class="tr" data-id="${i.id}">
       <span class="tr-ico">${catIcon(i.category)}</span>
       <span class="tr-name">${esc(CAT[i.category]?.name || i.category)}${i.note ? `<small>${esc(i.note)}</small>` : ''}</span>
-      ${sumCell(i)}
+      <span class="tr-right">${sumCell(i)}<small>${hhmm(i.ts)}</small></span>
     </div>`;
 
-  const day = (d) => {
+  const day = (d, n) => {
     const date = new Date(d.ts);
     const open = !state.collapsed.has(d.key);
+    const label = d.key === todayKey ? 'Сегодня · ' : d.key === yKey ? 'Вчера · ' : `${WEEKDAYS[date.getDay()]} · `;
+    const out = sum(spent(d.items));
+    const inc = sum(d.items.filter(isIncome));
     return `
-      <section class="day${open ? ' open' : ''}" data-key="${d.key}" style="--i:${days.indexOf(d)}">
+      <section class="day${open ? ' open' : ''}" data-key="${d.key}" style="--i:${n}">
         <button class="day-head">
-          <span class="day-date"><b>${date.getDate()}</b><small>${WEEKDAYS[date.getDay()]}</small></span>
-          <span class="day-meta"><b>${money(sum(spent(d.items)))}</b><small>${d.items.length} ${plural(d.items.length, 'операция', 'операции', 'операций')}${d.items.some(isIncome) ? ` · <span class="plus">+${money(sum(d.items.filter(isIncome)))}</span>` : ''}</small></span>
-          <span class="chev">${icons.down}</span>
+          <span class="day-title">${label}${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}</span>
+          <span class="day-sum">${out ? `−${money(out)}` : ''}${inc ? ` <span class="plus">+${money(inc)}</span>` : ''}</span>
         </button>
         <div class="day-items">${d.items.map(row).join('')}</div>
       </section>`;
@@ -71,24 +94,32 @@ export async function renderHome() {
   if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="month-head">
-        <div class="month-nav">
-          <button class="icon-btn sm" id="prev" aria-label="Предыдущий месяц">${icons.left}</button>
-          <label class="month-name">${MONTHS[state.month.getMonth()]} ${state.month.getFullYear()}
-            <input type="month" id="mpick" value="${state.month.getFullYear()}-${String(state.month.getMonth() + 1).padStart(2, '0')}" max="${new Date().toISOString().slice(0, 7)}">
+      <header class="home-head">
+        <button class="who" id="me" aria-label="Профиль">${avatarHTML()}</button>
+        <div class="who-text"><b>${esc(acc?.login || '')}</b>
+          <label class="month-name">${MONTHS[m.getMonth()]} ${m.getFullYear()}
+            <input type="month" id="mpick" value="${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}" max="${new Date().toISOString().slice(0, 7)}">
           </label>
-          <button class="icon-btn sm" id="next" aria-label="Следующий месяц" ${isCurrent ? 'disabled' : ''}>${icons.right}</button>
-          <button class="home-ava" id="me" aria-label="Профиль">${avatarHTML()}</button>
         </div>
-        <div class="hero-label">Расходы за ${MONTHS_LOW[state.month.getMonth()]}</div>
-        <div class="hero-row"><div class="month-total">${money(total)}</div>${deltaChip(total, prevTotal)}</div>
-        <div class="metrics">
-          <div><small>Сегодня</small><b>${isCurrent ? money(today) : '—'}</b></div>
-          <div><small>Доходы</small><b class="${income ? 'plus' : ''}">${income ? `+${money(income)}` : money(0)}</b></div>
-          <div><small>В день</small><b>${money(Math.round(total / passed))}</b></div>
-        </div>
+        <button class="icon-btn sm" id="prev" aria-label="Предыдущий месяц">${icons.left}</button>
+        <button class="icon-btn sm" id="next" aria-label="Следующий месяц" ${isCurrent ? 'disabled' : ''}>${icons.right}</button>
       </header>
       <div class="scroll" id="list">
+        <div class="hero">
+          <div class="hero-label">Расходы за месяц</div>
+          <div class="hero-row"><div class="month-total">${money(total)}</div>${deltaChip(total, prevTotal)}</div>
+          <div class="month-sub">${prevTotal ? (isCurrent ? `к тому же ${passed} дню ${MONTHS_GEN[prevFrom.getMonth()]}` : `к ${MONTHS_DAT[prevFrom.getMonth()]}`) : items.length ? '' : 'Трат пока нет'}</div>
+        </div>
+        <div class="metrics">
+          <div><small>Сегодня</small><b>${isCurrent ? money(today) : '—'}</b>${isCurrent ? deltaChip(today, yesterday) : ''}</div>
+          <div><small>Доходы</small><b class="${income ? 'plus' : ''}">${income ? '+' : ''}${money(income)}</b>${deltaChip(income, prevIncome, true)}</div>
+          <div><small>В день</small><b>${money(Math.round(total / passed))}</b>${deltaChip(total / passed, prevTotal / prevPassed)}</div>
+        </div>
+        ${total ? `<button class="card mini-chart" id="to-charts">
+          <span class="card-head"><b>По дням</b><span class="chip">1М</span></span>
+          <span class="mini-bars">${perDay.map((v, i) => `<i class="${isCurrent && i === passed - 1 ? 'today' : ''}" style="height:${v ? Math.max(6, (v / peak) * 100) : 2}%"></i>`).join('')}</span>
+          <span class="mini-axis">${[1, 8, 15, 22, nDays].map((d) => `<small>${d}</small>`).join('')}</span>
+        </button>` : ''}
         ${days.length ? days.map(day).join('') : `<div class="empty">Нажмите <b>＋</b>, чтобы добавить первую трату</div>`}
       </div>
       ${tabbar()}
@@ -96,21 +127,22 @@ export async function renderHome() {
 
   bindTabs();
   app.querySelector('#mpick').onchange = (e) => {
-    const [y, m] = e.target.value.split('-').map(Number);
-    if (y) { state.month = new Date(y, m - 1, 1); render(); }
+    const [y, mm] = e.target.value.split('-').map(Number);
+    if (y) { state.month = new Date(y, mm - 1, 1); render(); }
   };
   countUp(app.querySelector('.month-total'), total);
   app.querySelector('#me').onclick = () => { haptic(); go('profile'); };
+  app.querySelector('#to-charts')?.addEventListener('click', () => { haptic(); state.period = 'month'; go('charts'); });
   restoreScroll(app.querySelector('#list'));
-  if (!items.length) keshHint('home-first', 'Это твой месяц. Жми «＋» — запишем первую трату.');
+  if (!items.length && isCurrent) keshHint('home-first', 'Это твой месяц. Жми «＋» — запишем первую трату.');
   app.querySelector('#prev').onclick = () => { shiftMonth(-1); };
   app.querySelector('#next').onclick = () => { shiftMonth(1); };
   app.querySelector('#list').addEventListener('click', (e) => {
     const head = e.target.closest('.day-head');
     if (head) {
-      const s = head.parentElement;
-      state.collapsed.has(s.dataset.key) ? state.collapsed.delete(s.dataset.key) : state.collapsed.add(s.dataset.key);
-      s.classList.toggle('open');
+      const sec = head.parentElement;
+      state.collapsed.has(sec.dataset.key) ? state.collapsed.delete(sec.dataset.key) : state.collapsed.add(sec.dataset.key);
+      sec.classList.toggle('open');
       haptic();
       return;
     }
@@ -141,7 +173,7 @@ function plural(n, one, few, many) {
 }
 
 /* ---------- charts ---------- */
-const PERIODS = [['day', 'День'], ['week', 'Неделя'], ['month', 'Месяц'], ['year', 'Год']];
+const PERIODS = [['week', 'Нед'], ['month', 'Мес'], ['year', 'Год']];
 
 function periodRange(period) {
   const now = new Date();
@@ -193,12 +225,17 @@ function barLabel(i, r) {
 
 export async function renderCharts() {
   const live = ticket();
+  if (!PERIODS.some(([id]) => id === state.period)) state.period = 'month';
   const r = periodRange(state.period);
   const elapsed = Math.min(Date.now(), +r.to) - +r.from;
   const prev = prevRange(r, elapsed);
-  const [now, before] = await Promise.all([
+  // тепловая карта: 13 недель, начиная с понедельника
+  const heatFrom = new Date(); heatFrom.setHours(0, 0, 0, 0);
+  heatFrom.setDate(heatFrom.getDate() - ((heatFrom.getDay() + 6) % 7) - 12 * 7);
+  const [now, before, heatItems] = await Promise.all([
     store.expensesBetween(r.from.getTime(), r.to.getTime() - 1),
     store.expensesBetween(prev.from.getTime(), prev.to.getTime() - 1),
+    store.expensesBetween(+heatFrom, Date.now()),
   ]);
   // Расходы или поступления — одна и та же аналитика по выбранному типу
   const inc = state.statKind === 'in';
@@ -213,7 +250,17 @@ export async function renderCharts() {
 
   const buckets = Array(r.bars).fill(0);
   items.forEach((i) => { buckets[bucketOf(i.ts, r)] += i.amount; });
-  const peak = Math.max(...buckets, 1);
+  const prevBuckets = Array(r.bars).fill(0);
+  prevItems.forEach((i) => { const b = bucketOf(i.ts, r); if (b < r.bars) prevBuckets[b] += i.amount; });
+  const peak = Math.max(...buckets, ...prevBuckets, 1);
+  const nowBucket = Date.now() < +r.to ? bucketOf(Date.now(), r) : -1;
+  const heat = Array(91).fill(0);
+  pick(heatItems).forEach((i) => { const k = Math.floor((i.ts - heatFrom) / 864e5); if (k >= 0 && k < 91) heat[k] += i.amount; });
+  const heatPeak = Math.max(...heat, 1);
+  const heatToday = Math.floor((Date.now() - heatFrom) / 864e5);
+  const prevOut = sum(spent(before));
+  const prevIn = sum(before.filter(isIncome));
+  const short = (lbl) => lbl.slice(0, 3).toUpperCase();
 
   const cats = byCategory(items);
   const prevCats = Object.fromEntries(byCategory(prevItems));
@@ -233,37 +280,34 @@ export async function renderCharts() {
   if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="month-head">
+      <header class="appbar">
+        <h1>Аналитика</h1>
         <div class="seg">${PERIODS.map(([id, name]) =>
           `<button class="${state.period === id ? 'on' : ''}" data-p="${id}">${name}</button>`).join('')}</div>
-        <div class="month-total${inc ? ' plus' : ''}">${money(total)}</div>
-        <div class="month-sub">${inc
-          ? `${r.label} · ${items.length} ${plural(items.length, 'поступление', 'поступления', 'поступлений')}`
-          : `${r.label} · ${money(Math.round(total / days))} в день ${deltaChip(total, prevTotal)}`}</div>
       </header>
       <div class="scroll">
         <div class="flow-card">
-          <button class="flow${inc ? '' : ' on'}" data-k="out"><small>Расходы</small><b>${money(outSum)}</b></button>
-          <button class="flow${inc ? ' on' : ''}" data-k="in"><small>Поступления</small><b class="plus">+${money(inSum)}</b></button>
-          ${inSum || outSum ? `<div class="flow-diff">
-            <span class="flow-bar"><i style="width:${pct(outSum, Math.max(outSum, inSum))}%"></i><i class="in" style="width:${pct(inSum, Math.max(outSum, inSum))}%"></i></span>
-            <span>Разница за период</span><b class="${diff >= 0 ? 'plus' : 'minus'}">${diff >= 0 ? '+' : '−'}${money(Math.abs(diff))}</b>
-          </div>` : ''}
+          <button class="flow${inc ? '' : ' on'}" data-k="out"><small>Расходы</small><b>${money(outSum)}</b>${deltaChip(outSum, prevOut)}</button>
+          <button class="flow${inc ? ' on' : ''}" data-k="in"><small>Доходы</small><b class="plus">+${money(inSum)}</b>${deltaChip(inSum, prevIn, true)}</button>
+          <div class="flow"><small>Разница</small><b class="${diff >= 0 ? 'plus' : 'minus'}">${diff >= 0 ? '+' : '−'}${money(Math.abs(diff))}</b>${deltaChip(diff, prevIn - prevOut, true)}</div>
         </div>
+        <div class="month-total" hidden>${money(total)}</div>
         <div class="card chart">
+          <div class="card-head"><b>Динамика</b><span class="chip">${short(r.label)} / ${short(prev.label)}</span></div>
           <div class="bar-tip" id="tip"></div>
           <div class="bars${inc ? ' income' : ''}" style="--n:${r.bars}">
             ${buckets.map((v, i) => `
-              <div class="bar-col" title="${money(v)}">
-                <div class="bar" style="height:${Math.max(v ? 4 : 0, (v / peak) * 100)}%;--i:${i}"></div>
+              <div class="bar-col${i === nowBucket ? ' now' : ''}" title="${money(v)}">
+                <div class="pair"><div class="bar" style="height:${Math.max(v ? 4 : 0, (v / peak) * 100)}%;--i:${i}"></div><div class="bar-prev" style="height:${Math.max(prevBuckets[i] ? 4 : 0, (prevBuckets[i] / peak) * 100)}%"></div></div>
                 <span>${barLabel(i, r)}</span>
               </div>`).join('')}
           </div>
+          <div class="chart-legend"><span><i></i>${r.label}</span><span><i class="prev"></i>${prev.label}</span></div>
         </div>
 
         ${total ? `
-        <div class="section-label">${inc ? 'Откуда поступления' : 'Структура трат'}</div>
         <div class="card">
+          <div class="card-head"><b>${inc ? 'Откуда пришли деньги' : 'Куда ушли деньги'}</b><span class="chip">100 = ${money(total)}</span></div>
           <div class="donut-wrap">
             <div class="waffle" aria-hidden="true">${cells.map((c, n) => `<i style="background:${c};--i:${n}"></i>`).join('')}</div>
             <div class="legend">
@@ -272,6 +316,11 @@ export async function renderCharts() {
                 : `<div><i style="background:${c}"></i><span>${esc(name)}</span><b>${Math.round((v / total) * 100)}%</b></div>`).join('')}
             </div>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><b>Тепловая карта</b><span class="chip">13 нед</span></div>
+          <div class="heat-grid" aria-hidden="true">${heat.map((v, k) => `<i class="${k > heatToday ? 'future' : v ? `l${Math.min(4, Math.ceil((v / heatPeak) * 4))}` : ''}"></i>`).join('')}</div>
         </div>
 
         ${inc ? '' : `<div class="section-label">Что заметно</div>
@@ -322,6 +371,7 @@ export async function renderCharts() {
   };
 }
 
+const num = (kop) => money(kop).replace(/\s?₽$/, '');
 const WAFFLE = ['#EDEDEF', '#B4B4BB', '#85858D', '#606068', '#45454B', '#2E2E33'];
 const pct = (v, max) => (max ? Math.max(2, (v / max) * 100) : 0);
 
@@ -374,11 +424,12 @@ function byCategory(items) {
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-function deltaChip(now, before) {
+// good — рост это хорошо (доходы): зелёный вверх
+function deltaChip(now, before, good = false) {
   if (!before) return '';
   const d = Math.round(((now - before) / before) * 100);
-  if (!d) return '<span class="delta">как раньше</span>';
-  return `<span class="delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '↑' : '↓'} ${Math.abs(d)}%</span>`;
+  if (!d) return '<span class="delta">0%</span>';
+  return `<span class="delta ${(d > 0) !== good ? 'up' : 'down'}">${d > 0 ? '↑' : '↓'} ${Math.abs(d)}%</span>`;
 }
 
 function tips(items, cats, prevCats, total, prevTotal, r, days) {
@@ -557,35 +608,41 @@ export async function renderProfile() {
   const item = (id, icon, label, extra = '') =>
     `<button class="row" data-a="${id}">${icon}<span>${label}</span><span class="row-extra">${extra}</span></button>`;
 
+  const first = all.length ? Math.min(...all.map((i) => i.ts)) : 0;
+  const coat = keshOn() ? `${keshCoat() === 'black' ? 'чёрный' : 'белый'} · вкл` : 'выкл';
+  const link = (href, icon, label, extra = '') =>
+    `<a class="row" href="${href}" target="_blank" rel="noopener">${icon}<span>${label}</span><span class="row-extra">${extra}</span></a>`;
+
   if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="profile-head">
-        <button class="ava-wrap" id="pick-ava" aria-label="Сменить фото">
-          ${avatarHTML('lg')}
-          <span class="ava-edit">${icons.camera}</span>
-        </button>
-        <div class="profile-name">${esc(acc.login)}</div>
-        <div class="month-sub">${spent(all).length} ${plural(spent(all).length, 'трата', 'траты', 'трат')} · ${money(sum(spent(all)))}</div>
-        <div class="skins">${SKINS.map((_, n) =>
-          `<button class="skin${avatarSkin() === n ? ' on' : ''}" data-skin="${n}" style="${skinStyle(n)}" aria-label="Цвет ${n + 1}"></button>`).join('')}</div>
-      </header>
+      <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>Профиль</h1></button></header>
       <div class="scroll">
-        <div class="section-label">Настройки</div>
-        <div class="card rows">
-          ${item('cats', icons.tag, 'Свои категории', String(customCategories().length))}
-          ${item('kesh', icons.paw, 'Кэш', keshOn() ? 'Вкл' : 'Выкл')}
-          ${keshOn() ? item('hints', icons.paw, 'Подсказки Кэша', hintsOn() ? 'Вкл' : 'Выкл') : ''}
+        <div class="card profile-card">
+          <button class="ava-wrap" id="pick-ava" aria-label="Сменить фото">${avatarHTML()}</button>
+          <span class="tr-name"><span class="profile-name">${esc(acc.login)}</span><small>${all.length} ${plural(all.length, 'операция', 'операции', 'операций')}${first ? ` · с ${new Date(first).getDate()} ${MONTHS_SHORT[new Date(first).getMonth()]}` : ''}</small></span>
         </div>
         <div class="section-label">Данные</div>
-        <div class="card rows">
-          ${item('statement', icons.bank, 'Импорт выписки банка', 'PDF, CSV')}
+        <div class="card rows group">
           ${item('backup', icons.down_file, 'Резервная копия', lastBackupLabel())}
-          ${item('import', icons.up_file, 'Восстановить из копии', 'JSON, XLSX')}
+          ${item('import', icons.sync, 'Восстановить из копии', 'JSON · XLSX')}
           ${item('export', icons.chart, 'Отчёт в Excel')}
+          ${item('statement', icons.bank, 'Импорт выписки банка', 'PDF · CSV')}
+          ${item('cats', icons.tag, 'Свои категории', String(customCategories().length))}
+          ${imported ? item('clear-imported', icons.trash, 'Удалить импортированные', String(imported)) : ''}
         </div>
-        ${imported ? `<div class="card rows">${item('clear-imported', icons.trash, 'Удалить импортированные', String(imported))}</div>` : ''}
-        <div class="card rows">
+        <div class="section-label">Кэш и интерфейс</div>
+        <div class="card rows group">
+          ${item('kesh', icons.paw, 'Кэш', coat)}
+          ${item('hints', icons.bell, 'Подсказки Кэша', hintsOn() ? 'умеренно' : 'выкл')}
+          ${item('calm', icons.moon, 'Спокойный режим', calmMode() ? 'вкл' : 'выкл')}
+        </div>
+        <div class="section-label">О проекте</div>
+        <div class="card rows group">
+          ${link(`${REPO}#поддержать-проект`, icons.heart, 'Поддержать проект')}
+          ${link(REPO, icons.code, 'Исходный код', 'GitHub')}
+        </div>
+        <div class="card rows group">
           ${item('wipe', icons.trash, 'Сбросить все данные')}
         </div>
         <div class="version">Кэш ${BUILD} · данные хранятся на этом устройстве</div>
@@ -594,21 +651,15 @@ export async function renderProfile() {
     </section>`;
 
   bindTabs();
+  app.querySelector('#back').onclick = () => go('home');
   app.querySelector('#pick-ava').onclick = pickAvatar;
-  app.querySelector('.skins').onclick = (e) => {
-    const n = e.target.closest('[data-skin]')?.dataset.skin;
-    if (n === undefined) return;
-    haptic();
-    localStorage.setItem('avatarSkin', n);
-    localStorage.removeItem('avatar');
-    applySkin(Number(n));
-    render();
-  };
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const a = e.target.closest('.row')?.dataset.a;
     if (!a) return;
-    if (a === 'kesh') { setKesh(!keshOn()); haptic(); return render(); }
+    // белый → чёрный → выкл → белый
+    if (a === 'kesh') { haptic(); if (!keshOn()) { setKesh(true); setCoat('white'); } else if (keshCoat() === 'white') setCoat('black'); else setKesh(false); return render(); }
     if (a === 'hints') { setHints(!hintsOn()); haptic(); return render(); }
+    if (a === 'calm') { setCalm(!calmMode()); haptic(); return render(); }
     if (a === 'cats') { state.flow = 'cats'; return render(); }
     if (a === 'statement') return pickStatement();
     if (a === 'export') return exportData();
@@ -928,7 +979,8 @@ export async function renderImport() {
   app.querySelector('#add')?.addEventListener('click', async () => {
     const res = await store.importExpenses(imp.add);
     state.flow = null; state.imp = null; state.tab = 'home';
-    render();
+    const already = items.filter(isKnown).length;
+    Promise.resolve(render()).then(() => keshSay(`Нашёл ${res.added} ${plural(res.added, 'операцию', 'операции', 'операций')}${already ? `, ${already} уже ${plural(already, 'была', 'были', 'было')} — не дублирую` : ''}.`, 'Думает'));
     toast(importSummary(res));
   });
 }
@@ -985,8 +1037,18 @@ export async function limitHint(cat, added) {
   const before = used - added;
   const name = CAT[cat]?.name || cat;
   const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate() + 1;
-  if (used > lim && before <= lim) keshHint(null, `${name} вышли за лимит на ${money(used - lim)}.`, 'К бюджету', () => go('budget'), 'Переживает');
-  else if (used >= lim * 0.8 && before < lim * 0.8) keshHint(null, `${name} — ${Math.round((used / lim) * 100)} % лимита. Осталось ${money(lim - used)} на ${days} ${plural(days, 'день', 'дня', 'дней')}.`, null, null, 'Думает');
+  if (used > lim && before <= lim) {
+    const up = Math.ceil(used / 100000) * 100000;
+    return keshHint(null, `${name} вышли за лимит на ${money(used - lim)}. Поднять лимит или оставить?`, `Поднять до ${money(up)}`, () => {
+      saveBudgets({ ...budgets(), [cat]: up });
+      toast(`Лимит ${money(up)} в месяц`);
+      if (state.tab === 'budget') render();
+    }, 'Переживает');
+  }
+  if (used >= lim * 0.8 && before < lim * 0.8) {
+    return keshHint(null, `${name} — ${Math.round((used / lim) * 100)} % лимита. Осталось ${money(lim - used)} на ${days} ${plural(days, 'день', 'дня', 'дней')}.`, null, null, 'Думает');
+  }
+  return false;
 }
 
 const saveBudgets = (b) => localStorage.setItem('budgets', JSON.stringify(b));
@@ -1012,30 +1074,34 @@ export async function renderBudget() {
   if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="month-head">
-        <div class="page-title">Бюджет · ${MONTHS[now.getMonth()]}</div>
-        ${limit ? `
-          <div class="month-total${left < 0 ? ' over' : ''}">${money(Math.abs(left))}</div>
-          <div class="month-sub">${left < 0 ? 'Перерасход' : `Осталось · ≈ ${money(Math.floor(left / daysLeft / 100) * 100)} в день`} · потрачено ${money(used)} из ${money(limit)}</div>
-          <div class="days-bar${left < 0 ? ' over' : ''}" aria-hidden="true">${Array.from({ length: monthDays }, (_, n) =>
-            `<i class="${n < Math.round(Math.min(1, used / limit) * monthDays) ? 'on' : ''}${n === now.getDate() - 1 ? ' cur' : ''}"></i>`).join('')}</div>`
-        : `<div class="month-total">${money(sum(items))}</div>
-          <div class="month-sub">Потрачено в этом месяце · задайте лимит категории</div>`}
-      </header>
+      <header class="appbar"><h1>Бюджет · ${MONTHS_LOW[now.getMonth()]}</h1></header>
       <div class="scroll">
-        ${limited.length ? `<div class="section-label">Лимиты на месяц</div>
-        <div class="card">${limited.map(([id, name], n) => {
-          const v = bySpent[id] || 0;
-          const rest = b[id] - v;
-          return `<button class="cat-row" data-b="${id}" style="--i:${n}">
-            <span class="tr-ico">${catIcon(id)}</span>
-            <span class="cat-info">
-              <span class="cat-top">${esc(name)}<b>${moneyShort(v)} / ${moneyShort(b[id])} ₽</b></span>
-              <span class="meter"><i style="width:${Math.min(100, pct(v, b[id]))}%;background:${rest < 0 ? 'var(--danger)' : 'var(--bar)'}"></i></span>
-              <small class="budget-left${rest < 0 ? ' over' : ''}">${rest < 0 ? `Перерасход ${money(-rest)}` : `Осталось ${money(rest)}`}</small>
-            </span>
-          </button>`;
-        }).join('')}</div>` : ''}
+        <div class="card budget-card">
+          ${limit ? `
+            <div class="hero-label">${left < 0 ? 'Перерасход' : 'Осталось на месяц'}</div>
+            <div class="hero-row"><div class="month-total${left < 0 ? ' over' : ''}">${money(Math.abs(left))}</div><small class="of">из ${money(limit)}</small></div>
+            <div class="days-bar${left < 0 ? ' over' : ''}" aria-hidden="true">${Array.from({ length: monthDays }, (_, n) =>
+              `<i class="${n < Math.round(Math.min(1, used / limit) * monthDays) ? 'on' : ''}"></i>`).join('')}</div>
+            <div class="budget-foot"><span class="month-sub">Потрачено ${Math.round((used / limit) * 100)}%</span>${left > 0 ? `<b class="plus">≈ ${money(Math.floor(left / daysLeft / 100) * 100)} в день</b>` : ''}</div>`
+          : `<div class="hero-label">Потрачено в этом месяце</div>
+            <div class="month-total">${money(sum(items))}</div>
+            <div class="month-sub">Задайте лимит категории — предупрежу на 80 %</div>`}
+        </div>
+        ${limited.length ? `
+        <div class="card">
+          <div class="card-head"><b>Лимиты категорий</b><span class="chip">${limited.length}</span></div>
+          ${limited.map(([id, name], n) => {
+            const v = bySpent[id] || 0;
+            const rest = b[id] - v;
+            return `<button class="cat-row limit-row" data-b="${id}" style="--i:${n}">
+              <span class="tr-ico">${catIcon(id)}</span>
+              <span class="cat-info">
+                <span class="cat-top">${esc(name)}<b class="${rest < 0 ? 'minus' : ''}">${num(v)} / ${num(b[id])}</b></span>
+                <span class="meter${rest < 0 ? ' over' : ''}"><i style="width:${Math.min(100, pct(v, b[id]))}%"></i></span>
+              </span>
+            </button>`;
+          }).join('')}
+        </div>` : ''}
         <div class="section-label">${limited.length ? 'Без лимита' : 'Категории'}</div>
         <div class="card rows">${free.map(([id, name]) => `
           <button class="row" data-b="${id}"><span class="tr-ico">${catIcon(id)}</span><span>${esc(name)}</span>
@@ -1047,6 +1113,7 @@ export async function renderBudget() {
 
   bindTabs();
   countUp(app.querySelector('.month-total'), limit ? Math.abs(left) : sum(items));
+  if (!limit) keshHint('budget-first', 'Задай лимит категории — предупрежу на 80 %.');
   app.querySelector('.scroll').addEventListener('click', async (e) => {
     const id = e.target.closest('[data-b]')?.dataset.b;
     if (!id) return;
@@ -1067,8 +1134,7 @@ const deposits = () => readJSON('deposits', []);
 const saveDeposits = (list) => localStorage.setItem('deposits', JSON.stringify(list));
 const monthly = (d) => Math.round((d.amount * (d.rate || 0)) / 100 / 12);
 const depIcon = (d, n) => {
-  const c = ['#66d9a6', '#6ad1ff', '#ffd84d', '#b38cff', '#ff9f5a', '#ff8ac2'][n % 6];
-  return `<span class="tr-ico"><i class="cbg" style="background:${c}"></i>${icons.safe.replace('<svg', `<svg class="ci" style="color:${c}"`)}</span>`;
+  return `<span class="tr-ico">${icons.safe.replace('<svg', '<svg class="ci"')}</span>`;
 };
 
 export function renderDeposits() {
@@ -1078,22 +1144,23 @@ export function renderDeposits() {
 
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="month-head">
-        <div class="page-title">Вклады</div>
-        <div class="month-total">${money(total)}</div>
-        <div class="month-sub">${list.length
-          ? `${list.length} ${plural(list.length, 'вклад', 'вклада', 'вкладов')}${income ? ` · <span class="plus">≈ +${money(income)} в месяц</span>` : ''}`
-          : 'Добавьте вклад или накопительный счёт'}</div>
-      </header>
+      <header class="appbar"><h1>Вклады</h1><button class="icon-btn sm" id="add-top" aria-label="Добавить вклад">${icons.plus}</button></header>
       <div class="scroll">
-        ${list.length ? `<div class="card">${list.map((d, n) => `
+        <div class="hero">
+          <div class="hero-label">Всего на вкладах</div>
+          <div class="month-total">${money(total)}</div>
+          <div class="month-sub">${income ? `<span class="delta down">≈ +${money(income)} / мес</span> оценка` : list.length ? `${list.length} ${plural(list.length, 'вклад', 'вклада', 'вкладов')}` : 'Добавьте вклад или накопительный счёт'}</div>
+        </div>
+        ${list.length ? `<div class="card">
+          <div class="card-head"><b>Счета</b><span class="chip">по сумме</span></div>
+          ${[...list].sort((a, b) => b.amount - a.amount).map((d, n) => `
           <button class="res" data-id="${d.id}">
             ${depIcon(d, n)}
-            <span class="tr-name">${esc(d.name)}<small>${d.rate ? `${String(d.rate).replace('.', ',')}% годовых · +${money(monthly(d))}/мес` : 'Без процентов'}</small></span>
-            <span class="tr-sum">${money(d.amount)}</span>
+            <span class="tr-name">${esc(d.name)}<small>${d.rate ? `${String(d.rate).replace('.', ',')}% годовых` : 'Без процентов'}</small></span>
+            <span class="tr-right"><span class="tr-sum">${num(d.amount)}</span>${d.rate ? `<small class="plus">+${num(monthly(d))} / мес</small>` : ''}</span>
           </button>`).join('')}</div>` : ''}
         ${income ? '<div class="imp-note dep-note">Доход — примерная оценка: сумма × ставка ÷ 12, без капитализации и налогов</div>' : ''}
-        <button class="btn alt add-dep" id="add">${icons.plus} Добавить вклад</button>
+        <button class="btn alt add-dep" id="add">Добавить вклад</button>
       </div>
       ${tabbar()}
     </section>`;
@@ -1102,6 +1169,7 @@ export function renderDeposits() {
   countUp(app.querySelector('.month-total'), total);
   const open = (dep) => { haptic(); state.dep = dep; state.flow = 'deposit'; render(); };
   app.querySelector('#add').onclick = () => open({ name: '', amount: 0, rate: '' });
+  app.querySelector('#add-top').onclick = () => open({ name: '', amount: 0, rate: '' });
   app.querySelector('.scroll').addEventListener('click', (e) => {
     const id = e.target.closest('[data-id]')?.dataset.id;
     if (id) open({ ...list.find((d) => d.id === id) });
