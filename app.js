@@ -34,20 +34,41 @@ function main() {
 function renderWelcome() {
   app.innerHTML = `
     <section class="screen auth welcome">
+      <div class="grain"></div>
       <div class="brand">Кэш</div>
-      <div class="kesh-stage">${keshSVG('Привет')}</div>
+      <div class="kesh-stage"><div class="kesh-fly">${keshSVG('Ждёт')}</div></div>
       <div class="auth-body">
         <h1>Привет, я Кэш.<br>Буду считать твои траты.</h1>
-        <button class="btn" id="reg">Начать</button>
+        <button class="btn trap" id="reg"><span class="trap-kesh">${keshSVG('Переживает', true)}</span><span class="trap-label">Начать</span></button>
       </div>
     </section>`;
-  app.querySelector('#reg').onclick = () => { state.authMode = 'register'; state.step = 0; state.draft = {}; render(); };
+  const btn = app.querySelector('#reg');
+  const fly = app.querySelector('.kesh-fly');
+  btn.onclick = () => { state.authMode = 'register'; state.step = 0; state.draft = {}; state.jumpOut = true; render(); };
+  // Кэш выходит из темноты, затем перелетает в кнопку и бегает там «взаперти»
+  const catch_ = () => { btn.classList.add('caught'); btn.style.setProperty('--w', `${btn.offsetWidth}px`); fly.style.visibility = 'hidden'; };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return catch_();
+  setTimeout(() => {
+    if (!fly.isConnected) return;
+    const a = fly.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
+    const dx = b.left + 34 - (a.left + a.width / 2);
+    const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+    const s = 44 / a.width;
+    fly.animate([
+      { transform: 'none' },
+      { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 90}px) scale(${(1 + s) / 2}) rotate(-8deg)`, offset: 0.55 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${s})`, opacity: 0.2 },
+    ], { duration: 900, easing: 'cubic-bezier(.5,0,.3,1)', fill: 'forwards' }).onfinish = catch_;
+  }, 2600);
 }
 
 function renderOnboarding() {
   const step = state.step;
   const name = state.draft.name || '';
   const pick = state.draft.skin ?? null;
+  const jumped = state.jumpOut;
+  state.jumpOut = false;
 
   app.innerHTML = `
     <section class="screen auth onb">
@@ -57,7 +78,10 @@ function renderOnboarding() {
         ${step === 0 ? `
           <h1>Как вас зовут?</h1>
           <p>Имя видно только на этом устройстве</p>
-          <input class="field big" id="name" placeholder="Например, Артём" maxlength="32" value="${esc(name)}" autocapitalize="words" spellcheck="false">
+          <div class="field-wrap">
+            <div class="field-kesh${jumped ? ' jump' : ''}">${keshSVG(name.trim().length >= 2 ? 'Рад' : 'Ждёт')}</div>
+            <input class="field big" id="name" placeholder="Например, Артём" maxlength="32" value="${esc(name)}" autocapitalize="words" spellcheck="false">
+          </div>
           <div class="error" id="err"></div>
           <button class="btn" id="next" ${name.trim().length >= 2 ? '' : 'disabled'}>Дальше <span class="arr">→</span></button>
         ` : `
@@ -78,6 +102,9 @@ function renderOnboarding() {
     input.oninput = () => {
       state.draft.name = input.value;
       next.disabled = input.value.trim().length < 2;
+      const pose = next.disabled ? 'Ждёт' : 'Рад';
+      const fk = app.querySelector('.field-kesh');
+      if (fk.dataset.pose !== pose) { fk.dataset.pose = pose; fk.innerHTML = keshSVG(pose); }
     };
     input.onkeydown = (e) => { if (e.key === 'Enter' && !next.disabled) next.click(); };
     next.onclick = () => {

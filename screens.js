@@ -9,7 +9,7 @@ import { writeXlsx, readXlsx } from './xlsx.js';
 import { keshOn, setKesh, hintsOn, setHints, keshHint } from './kesh.js';
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 
-export const BUILD = 'v28';
+export const BUILD = 'v29';
 
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];

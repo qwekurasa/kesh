@@ -24,8 +24,11 @@ const POSES = {
 };
 
 // Белый Кэш для тёмного интерфейса: тело светлое, глаза тёмные
-export const keshSVG = (pose = 'Ждёт') =>
-  `<svg viewBox="-6 -4 276 256" aria-hidden="true"><path d="${HEAD}" fill="#ECECEE"/>${(POSES[pose] || POSES['Ждёт']).replaceAll('"B"', '"#ECECEE"').replaceAll('"E"', '"#0B0B0C"')}</svg>`;
+// dark — тёмный Кэш для светлого фона (внутри кнопки)
+export const keshSVG = (pose = 'Ждёт', dark = false) => {
+  const [B, E] = dark ? ['#0B0B0C', '#ECECEE'] : ['#ECECEE', '#0B0B0C'];
+  return `<svg viewBox="-6 -4 276 256" aria-hidden="true"><path d="${HEAD}" fill="${B}"/>${(POSES[pose] || POSES['Ждёт']).replaceAll('"B"', `"${B}"`).replaceAll('"E"', `"${E}"`)}</svg>`;
+};
 
 export const keshOn = () => localStorage.getItem('kesh') !== '0';
 export const hintsOn = () => localStorage.getItem('keshHints') !== '0';
