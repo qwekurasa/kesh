@@ -42,7 +42,15 @@ function renderWelcome() {
       <div class="stage">
         <div class="peek">${keshSVG('Ждёт')}</div>
         <div class="horizon"></div>
-        <p class="hello" aria-live="polite"></p>
+        <div class="say">
+          <p class="hello" aria-live="polite"></p>
+          <p class="say-lead">${L('Я помогаю считать деньги — без регистрации, облака и рекламы.', 'I help you track money — no sign-up, no cloud, no ads.')}</p>
+          <ul class="say-list">
+            <li>${icons.plus}<span>${L('Траты и доходы — в два касания', 'Log spending and income in two taps')}</span></li>
+            <li>${icons.chart}<span>${L('Видно, куда уходят деньги, и есть лимиты', 'See where money goes and set limits')}</span></li>
+            <li>${icons.lock}<span>${L('Всё хранится только на твоём телефоне', 'Everything stays on your phone')}</span></li>
+          </ul>
+        </div>
       </div>
       <div class="auth-body">
         <button class="btn trap" id="reg"><canvas class="trap-px" aria-hidden="true"></canvas><span class="trap-kesh">${keshSVG('Ждёт')}</span><span class="trap-label">${L('Начать', 'Start')}</span></button>
@@ -95,9 +103,10 @@ function renderWelcome() {
     pose('Привет'); hello.textContent = TEXT; phase('button');
   } else {
     at(250, () => phase('ears'));                       // 1. из-за горизонта поднимаются уши
-    at(900, () => { phase('hello'); pose('Привет'); typeHello(); }); // 2. машет лапой, текст по буквам
-    at(2000, () => { phase('button'); pose('Показывает'); });       // 3. снизу выезжает кнопка, лапа на «Начать»
-    at(3300, jumpIn);                                    // 4. прыгает в кнопку и оказывается заперт
+    at(900, () => { phase('hello'); pose('Привет'); typeHello(); }); // 2. машет лапой, привет по буквам
+    at(2000, () => { phase('intro'); pose('Ждёт'); });              // 3. рассказывает о приложении
+    at(4600, () => { phase('button'); pose('Показывает'); });       // 4. снизу выезжает кнопка, лапа на «Начать»
+    at(6000, jumpIn);                                    // 5. прыгает в кнопку и оказывается заперт
   }
   // всё пропускается тапом по экрану
   scr.addEventListener('pointerdown', (e) => {

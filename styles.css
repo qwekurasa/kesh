@@ -480,7 +480,7 @@ button.cat-row { animation: rise .4s ease-out backwards; animation-delay: calc(v
 .peek { position: relative; height: 150px; overflow: hidden; display: flex; justify-content: center; }
 .peek svg { width: 162px; height: 150px; transform: translateY(100%); transition: transform .5s cubic-bezier(.3, 1.3, .5, 1); }
 .welcome[data-phase="ears"] .peek svg { transform: translateY(66%); }
-.welcome[data-phase="hello"] .peek svg, .welcome[data-phase="button"] .peek svg, .welcome[data-phase="trap"] .peek svg { transform: none; }
+.welcome[data-phase="hello"] .peek svg, .welcome[data-phase="intro"] .peek svg, .welcome[data-phase="button"] .peek svg, .welcome[data-phase="trap"] .peek svg { transform: none; }
 .welcome[data-phase="trap"] .peek svg { visibility: hidden; }
 .horizon { height: 1px; margin: 0 -18px; background: linear-gradient(90deg, transparent, var(--border-strong) 20%, var(--border-strong) 80%, transparent); }
 .welcome .hello { color: var(--text); min-height: 34px; margin-top: 22px; font-size: 26px; font-weight: 600; letter-spacing: -.03em; }
@@ -714,3 +714,22 @@ button.switch-row { width: 100%; text-align: left; }
 .trap-label { position: relative; z-index: 2; text-shadow: 0 0 10px var(--raised), 0 0 4px var(--raised); }
 .btn.trap.landed { animation: squish .3s ease-out; }
 @media (prefers-reduced-motion: reduce) { .rays i { opacity: 1; } }
+
+/* приветственное письмо Кэша — облачко под ним */
+.welcome .lang-pick { z-index: 5; }
+.say { position: relative; margin-top: 16px; padding: 16px 16px 14px; border-radius: 18px; background: rgba(24, 24, 27, .72); border: 1px solid var(--border); opacity: 0; transform: translateY(8px); transition: opacity .4s, transform .4s; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.say::before { content: ''; position: absolute; top: -7px; left: calc(50% - 7px); width: 12px; height: 12px; background: #18181b; border-left: 1px solid var(--border); border-top: 1px solid var(--border); transform: rotate(45deg); }
+.welcome:not([data-phase="empty"]):not([data-phase="ears"]) .say { opacity: 1; transform: none; }
+.welcome .say .hello { margin: 0; min-height: 30px; font-size: 22px; }
+.say-lead, .say-list { opacity: 0; transition: opacity .5s; }
+.welcome .say-lead { margin-top: 6px; font-size: 14.5px; color: var(--text-2); line-height: 1.45; }
+.say-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 9px; }
+.say-list li { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text); opacity: 0; transform: translateX(-6px); transition: opacity .4s, transform .4s; }
+.say-list svg { width: 16px; height: 16px; color: var(--pos); flex: none; }
+.welcome[data-phase="intro"] .say-lead, .welcome[data-phase="button"] .say-lead, .welcome[data-phase="trap"] .say-lead,
+.welcome[data-phase="intro"] .say-list, .welcome[data-phase="button"] .say-list, .welcome[data-phase="trap"] .say-list { opacity: 1; }
+.welcome[data-phase="intro"] .say-list li, .welcome[data-phase="button"] .say-list li, .welcome[data-phase="trap"] .say-list li { opacity: 1; transform: none; }
+.say-list li:nth-child(1) { transition-delay: .5s; } .say-list li:nth-child(2) { transition-delay: 1.1s; } .say-list li:nth-child(3) { transition-delay: 1.7s; }
+.welcome[data-phase="button"] .say-list li, .welcome[data-phase="trap"] .say-list li { transition-delay: 0s; }
+.welcome .peek { height: 120px; }
+.welcome .peek svg { width: 130px; height: 120px; }
