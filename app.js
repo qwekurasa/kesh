@@ -1,11 +1,11 @@
 import * as store from './store.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, limitHint } from './screens.js';
 import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
   setRender, render, ticket, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask,
 } from './ui.js';
-import { startKitty } from './kitty.js';
+import { startKesh, keshSVG, keshOn, keshReact, amountPose } from './kesh.js';
 
 const kopecks = () => Math.round(parseFloat(state.amt.replace(',', '.') || '0') * 100);
 
@@ -27,18 +27,18 @@ function main() {
   if (state.tab === 'deposits') return renderDeposits();
   if (state.tab === 'charts') return renderCharts();
   if (state.tab === 'profile') return renderProfile();
-  renderHome();
+  return renderHome();
 }
 
 /* ---------- приветствие и онбординг ---------- */
 function renderWelcome() {
   app.innerHTML = `
     <section class="screen auth welcome">
-      <div class="aurora"></div>
-      <div class="brand">NOTA</div>
+      <div class="brand">Кэш</div>
+      <div class="kesh-stage">${keshSVG('Привет')}</div>
       <div class="auth-body">
-        <h1>Записывайте траты<br>в одно касание</h1>
-        <button class="btn breathe" id="reg">Создать аккаунт <span class="arr">→</span></button>
+        <h1>Привет, я Кэш.<br>Буду считать твои траты.</h1>
+        <button class="btn" id="reg">Начать</button>
       </div>
     </section>`;
   app.querySelector('#reg').onclick = () => { state.authMode = 'register'; state.step = 0; state.draft = {}; render(); };
@@ -51,8 +51,7 @@ function renderOnboarding() {
 
   app.innerHTML = `
     <section class="screen auth onb">
-      <div class="aurora"></div>
-      <div class="brand">NOTA</div>
+      <div class="brand">Кэш</div>
       <div class="dots">${[0, 1].map((i) => `<i class="${i === step ? 'on' : ''}"></i>`).join('')}</div>
       <div class="auth-body">
         ${step === 0 ? `
@@ -121,9 +120,6 @@ async function renderAmount() {
   if (!live()) return;
   app.innerHTML = `
     <section class="screen add-screen">
-      <div class="glow-top"></div>
-      <div class="heat l"></div>
-      <div class="heat r"></div>
       <div class="topbar">
         <div class="pill">${editing ? 'Изменение' : `Сегодня <b>${money(today)}</b>`}</div>
         <button class="icon-btn" id="close" aria-label="Закрыть">${icons.back}</button>
@@ -133,6 +129,7 @@ async function renderAmount() {
         <button class="${state.kind === 'in' ? 'on' : ''}" data-k="in">Пополнение</button>
       </div>
       <div class="amount-wrap${state.kind === 'in' ? ' income' : ''}">
+        <div class="amount-kesh" id="kesh-amt" aria-hidden="true"></div>
         <div class="amount" id="amount"><span class="val"></span><span class="cur">₽</span></div>
         <div class="amount-hint" id="hint"></div>
       </div>
@@ -197,9 +194,10 @@ function updateAmount() {
   el.querySelector('.val').textContent = text;
   el.classList.toggle('empty', !state.amt);
   el.style.setProperty('--size', `${Math.max(44, 88 - Math.max(0, text.length - 5) * 7)}px`);
-  const big = state.kind === 'in' ? 0 : Math.min(1, Math.max(0, (kopecks() - 200000) / 1800000));
-  app.querySelector('.screen').style.setProperty('--heat', big.toFixed(3));
-  app.querySelector('#hint').textContent = state.amt ? (big > .45 ? 'Крупная трата' : '') : (state.kind === 'in' ? 'Сколько пришло?' : 'Сколько потратили?');
+  const [pose, line] = amountPose(state.kind, kopecks());
+  const k = app.querySelector('#kesh-amt');
+  if (k.dataset.pose !== pose) { k.dataset.pose = pose; k.innerHTML = keshOn() ? keshSVG(pose) : ''; }
+  app.querySelector('#hint').textContent = state.amt ? line : (state.kind === 'in' ? 'Сколько пришло?' : 'Сколько потратили?');
   app.querySelector('#next').disabled = kopecks() <= 0;
 }
 
@@ -225,7 +223,6 @@ async function renderCategory() {
   if (!live()) return;
   app.innerHTML = `
     <section class="screen">
-      <div class="glow-top"></div>
       <div class="topbar cat-bar">
         <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
         <button class="amount-chip center${income ? ' income' : ''}" id="edit">${income ? '+' : ''}${money(kopecks())} ${icons.edit}</button>
@@ -306,7 +303,10 @@ async function save() {
   }
   const item = await store.addExpense({ amount, category, note, ts: state.date, type });
   Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(state.date)), date: Date.now(), kind: 'out' });
-  render();
+  Promise.resolve(render()).then(() => {
+    keshReact(type && item.amount >= 500000 ? 'Ликует' : 'Рад');
+    if (!type) limitHint(item.category, item.amount);
+  });
   toast(`${type ? '+' : ''}${money(item.amount)} · ${CAT[item.category].name}`, async () => {
     await store.removeExpense(item.id);
     render();
@@ -325,7 +325,6 @@ function renderNewCategory() {
   const { icon = 'star', name = '', color = PALETTE[0], id } = state.draft;
   app.innerHTML = `
     <section class="screen">
-      <div class="glow-top"></div>
       <div class="topbar">
         <button class="icon-btn" id="back" aria-label="Назад">${icons.back}</button>
         <div class="pill">${id ? 'Категория' : 'Новая категория'}</div>
@@ -453,7 +452,7 @@ document.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 applySkin();
-startKitty();
+startKesh(app);
 store.fixOrphans(new Set(Object.keys(CAT))).catch(() => {});
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 render();

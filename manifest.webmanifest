@@ -1,15 +1,15 @@
 {
-  "name": "NOTA — трекер трат",
-  "short_name": "NOTA",
+  "name": "Кэш — трекер трат",
+  "short_name": "Кэш",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#141416",
-  "theme_color": "#141416",
+  "background_color": "#09090A",
+  "theme_color": "#09090A",
   "icons": [
-    { "src": "./icon-180.png?v=3", "sizes": "180x180", "type": "image/png" },
-    { "src": "./icon-512.png?v=3", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
-    { "src": "./icon.svg?v=3", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "./icon-180.png?v=4", "sizes": "180x180", "type": "image/png" },
+    { "src": "./icon-512.png?v=4", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./icon.svg?v=4", "sizes": "any", "type": "image/svg+xml" }
   ]
 }
