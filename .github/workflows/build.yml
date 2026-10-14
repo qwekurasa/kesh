@@ -1,5 +1,7 @@
 name: Build IPA
 on: [push, workflow_dispatch]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: macos-15
@@ -15,3 +17,11 @@ jobs:
         with:
           name: CatIsland-ipa
           path: CatIsland.ipa
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git checkout --orphan cat-island-build
+          git rm -rfq --cached .
+          git add -f CatIsland.ipa
+          git commit -qm "IPA ${GITHUB_SHA::7}"
+          git push -f origin cat-island-build
