@@ -11,7 +11,7 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, TYPES } f
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '2.2';
+const BUILD_WEB = '2.3';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'settings'];
