@@ -2,10 +2,11 @@
 import * as store from './store.js';
 import * as auth from './auth.js';
 import { customCategories, cleanCategory, saveCategories, SKINS } from './ui.js';
+import { CURRENCIES } from './i18n.js';
 
 const FORMAT = 'nota-backup';
 const SCHEMA = 1;
-const PREFS = ['avatarSkin', 'avatar', 'kitty', 'kittyCoat', 'currency', 'lang'];
+const PREFS = ['avatarSkin', 'avatar', 'kitty', 'kittyCoat', 'currency', 'lang', 'kesh', 'keshHints', 'keshCalm', 'keshCoat', 'accountsOff'];
 const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
 
 export async function makeBackup(appVersion) {
@@ -63,10 +64,15 @@ export function checkBackup(data) {
   if (typeof p.avatar === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(p.avatar) && p.avatar.length < 3e6) preferences.avatar = p.avatar;
   if (p.kitty === '0' || p.kitty === '1') preferences.kitty = p.kitty;
   if (/^(white|grey|black|orange)$/.test(p.kittyCoat)) preferences.kittyCoat = p.kittyCoat;
+  if (CURRENCIES.some(([c]) => c === p.currency)) preferences.currency = p.currency;
+  if (p.lang === 'ru' || p.lang === 'en') preferences.lang = p.lang;
+  ['kesh', 'keshHints', 'keshCalm', 'accountsOff'].forEach((k) => { if (p[k] === '0' || p[k] === '1') preferences[k] = p[k]; });
+  if (p.keshCoat === 'white' || p.keshCoat === 'black') preferences.keshCoat = p.keshCoat;
+  const login = !legacy && data.account && typeof data.account.login === 'string' ? data.account.login.trim().slice(0, 40) : '';
   return {
     ok: true,
     exportedAt: legacy ? null : String(data.exportedAt || ''),
-    transactions, categories, deposits, budgets, preferences,
+    transactions, categories, deposits, budgets, preferences, login,
     // старые копии хранили один «кошелёк» — превращаем в счёт
     accounts: Array.isArray(data.accounts) ? data.accounts.map(cleanAccount).filter(Boolean)
       : (cleanWallet(data.wallet) ? [{ id: `a${data.wallet.from.toString(36)}`, name: 'Кошелёк', type: 'cash', base: data.wallet.base, from: data.wallet.from, all: true }] : []),
@@ -75,26 +81,24 @@ export function checkBackup(data) {
 }
 
 // Восстановление: недостающее добавляется, текущие данные не удаляются
+// одинаковые id — берём версию из копии (она свежее), новые добавляем
+const upsert = (list, incoming) => {
+  const map = new Map(list.map((x) => [x.id, x]));
+  let added = 0;
+  incoming.forEach((x) => { if (!map.has(x.id)) added++; map.set(x.id, x); });
+  return { list: [...map.values()], added };
+};
 export async function restoreBackup(c) {
-  const cats = customCategories();
-  const known = new Set(cats.map((x) => x.id));
-  const newCats = c.categories.filter((x) => !known.has(x.id));
-  if (newCats.length) saveCategories([...cats, ...newCats]);
-
-  const deps = read('deposits', []);
-  const depIds = new Set(deps.map((d) => d.id));
-  const newDeps = c.deposits.filter((d) => !depIds.has(d.id));
-  if (newDeps.length) localStorage.setItem('deposits', JSON.stringify([...deps, ...newDeps]));
-
-  const budgets = read('budgets', {});
-  const newBudgets = Object.keys(c.budgets).filter((id) => !(id in budgets));
-  if (newBudgets.length) localStorage.setItem('budgets', JSON.stringify({ ...c.budgets, ...budgets }));
-
-  const accs = read('accounts', []);
-  const accIds = new Set(accs.map((a) => a.id));
-  const newAccs = (c.accounts || []).filter((a) => !accIds.has(a.id));
-  if (newAccs.length) localStorage.setItem('accounts', JSON.stringify([...accs, ...newAccs]));
+  const cats = upsert(customCategories(), c.categories);
+  if (c.categories.length) saveCategories(cats.list);
+  const deps = upsert(read('deposits', []), c.deposits);
+  if (c.deposits.length) localStorage.setItem('deposits', JSON.stringify(deps.list));
+  const newBudgets = Object.keys(c.budgets).filter((id) => !(id in read('budgets', {})));
+  if (Object.keys(c.budgets).length) localStorage.setItem('budgets', JSON.stringify({ ...read('budgets', {}), ...c.budgets }));
+  const accs = upsert(read('accounts', []), c.accounts || []);
+  if ((c.accounts || []).length) localStorage.setItem('accounts', JSON.stringify(accs.list));
+  if (c.login && !auth.account()) auth.register(c.login);
   Object.entries(c.preferences).forEach(([k, v]) => localStorage.setItem(k, v));
   const tx = await store.importExpenses(c.transactions);
-  return { ...tx, categories: newCats.length, deposits: newDeps.length, budgets: newBudgets.length };
+  return { ...tx, categories: cats.added, deposits: deps.added, budgets: newBudgets.length };
 }

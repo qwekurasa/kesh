@@ -2,7 +2,7 @@
 // Главное — экспорт и перенос данных; плюс аналитика, операции, бюджет, счета, вклады и категории.
 import '../guard.js';
 import { L, EN, setLang, CURRENCIES, CURRENCY, setCurrency, curSymbol } from '../i18n.js';
-import { CAT, CATEGORIES, INCOME_CATEGORIES, PALETTE, customCategories, addCategory, updateCategory, removeCategory } from '../ui.js'; // раньше kesh.js: взаимный импорт
+import { CAT, CATEGORIES, INCOME_CATEGORIES, PALETTE, customCategories, addCategory, updateCategory, removeCategory, rawIcon } from '../ui.js'; // раньше kesh.js: взаимный импорт
 import { catAvatar } from '../kesh.js';
 import * as store from '../store.js';
 import * as auth from '../auth.js';
@@ -11,7 +11,7 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, TYPES } f
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '2.1';
+const BUILD_WEB = '2.2';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'settings'];
@@ -62,7 +62,7 @@ const deposits = () => readJSON('deposits', []);
 const saveDeposits = (list) => localStorage.setItem('deposits', JSON.stringify(list));
 
 const hashPage = () => { const p = location.hash.slice(1); return PAGES.includes(p) ? p : 'data'; };
-const view = { page: hashPage(), mode: 'month', anchor: new Date(), range: null, q: '', type: 'all', cat: '', acc: '', sort: 'date', dir: -1, limit: 100, inst: 'iphone', msg: '', tab: 'sum', sel: '', lim: 60 };
+const view = { page: hashPage(), mode: 'month', anchor: new Date(), range: null, q: '', type: 'all', cat: '', acc: '', sort: 'date', dir: -1, limit: 100, inst: 'iphone', msg: '', sel: '', kind: 'out' };
 
 async function load() {
   items = (await store.allExpenses()).sort((a, b) => b.ts - a.ts);
@@ -95,12 +95,12 @@ const isIn = (i) => i.type === 'in';
 const sum = (list) => list.reduce((s, i) => s + i.amount, 0);
 const plural = (n, a, b, c) => (EN ? (n === 1 ? a : b) : (n % 10 === 1 && n % 100 !== 11 ? a : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? b : c));
 const nOps = (n) => `${n} ${plural(n, L('операция', 'transaction'), L('операции', 'transactions'), L('операций', 'transactions'))}`;
-const cat = (id) => (CAT[id] ? { name: CAT[id].name, color: CAT[id].color, kind: CAT[id].kind } : { name: id || L('Без категории', 'Uncategorized'), color: '#9a9aa4', kind: 'out' });
+const cat = (id) => (CAT[id] ? { name: CAT[id].name, color: CAT[id].color, kind: CAT[id].kind, icon: CAT[id].icon } : { name: id || L('Без категории', 'Uncategorized'), color: '#9a9aa4', kind: 'out', icon: 'other' });
 const accName = (id) => accounts().find((a) => a.id === id)?.name || '';
 const parseAmount = (s) => { const v = Math.round(parseFloat(String(s).replace(/[\s ]/g, '').replace(',', '.')) * 100); return Number.isFinite(v) ? v : 0; };
 const toLocalInput = (ts) => { const d = new Date(ts); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const day0 = (ts) => { const d = new Date(ts); return +new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
-const dot = (c) => `<span class="dot" style="background:${c.color}22;color:${c.color}">${esc(c.name.slice(0, 1).toUpperCase())}</span>`;
+const dot = (c) => `<span class="dot" style="background:${c.color}1f">${rawIcon(c.icon || 'other', c.color)}</span>`;
 
 /* ---------- период ---------- */
 function range(shift = 0) {
@@ -192,7 +192,7 @@ function dataPage() {
   const cats = new Set(items.map((i) => i.category)).size;
   const exp = (kind, icon, name, desc, file) => `<button class="xcard" data-exp="${kind}"><span class="x-ico">${icon}</span><span class="x-name">${name}<small>${desc}</small></span><span class="x-file mono">${file}</span><span class="x-go">${I.download}${L('Скачать', 'Download')}</span></button>`;
   const body = `
-    ${has ? `<div class="hero-card"><div class="hc-text"><small>${L('Ваши данные на этом компьютере', 'Your data on this computer')}</small><h2>${nOps(items.length)}</h2><p>${dateStr(from)} — ${dateStr(items[0].ts)} · ${cats} ${plural(cats, L('категория', 'category'), L('категории', 'categories'), L('категорий', 'categories'))} · ${accounts().length} ${plural(accounts().length, L('счёт', 'account'), L('счёта', 'accounts'), L('счетов', 'accounts'))} · ${deposits().length} ${plural(deposits().length, L('вклад', 'deposit'), L('вклада', 'deposits'), L('вкладов', 'deposits'))}</p></div><i class="hc-x tl"></i><i class="hc-x tr"></i><i class="hc-x bl"></i><i class="hc-x br"></i></div>
+    ${has ? `<div class="strip"><span><small>${L('Операций', 'Transactions')}</small><b class="mono">${items.length}</b></span><span><small>${L('Расходы за всё время', 'All-time spending')}</small><b class="mono">${money(sum(items.filter((i) => !isIn(i))))}</b></span><span><small>${L('Период', 'Period')}</small><b class="mono">${dm(from)} – ${dateStr(items[0].ts)}</b></span><span><small>${L('Категорий · счетов · вкладов', 'Categories · accounts · savings')}</small><b class="mono">${cats} · ${accounts().length} · ${deposits().length}</b></span></div>
     ${sec(L('Экспорт', 'Export'), `<em>${L('главное — забрать данные в удобном формате', 'take your data in any format')}</em>`)}
     <div class="xgrid">
       ${exp('xlsx', I.xls, L('Отчёт Excel', 'Excel report'), L('Операции, категории, бюджет и вклады — по листам, с датами и суммами.', 'Transactions, categories, budget and savings on separate sheets.'), `kesh-${new Date().toISOString().slice(0, 10)}.xlsx`)}
@@ -240,28 +240,6 @@ function byCategory(list) {
   return [...m].sort((a, b) => b[1] - a[1]);
 }
 
-function bars(items0, r) {
-  const out = items0.filter((i) => !isIn(i));
-  const now = Date.now();
-  const daily = view.mode === 'month' || (view.mode === 'custom' && r[1] - r[0] <= 62 * 864e5);
-  let buckets;
-  if (daily) {
-    const n = Math.max(1, Math.round((r[1] - r[0]) / 864e5));
-    buckets = Array.from({ length: n }, (_, k) => { const from = day0(r[0] + k * 864e5 + 36e5); return { from, to: from + 864e5, label: dateStr(from), axis: new Date(from).getDate() }; });
-  } else {
-    const d0 = new Date(r[0]);
-    const end = new Date(Math.min(r[1], now + 1) - 1);
-    const n = view.mode === 'year' ? 12 : Math.max(1, (end.getFullYear() - d0.getFullYear()) * 12 + end.getMonth() - d0.getMonth() + 1);
-    buckets = Array.from({ length: n }, (_, k) => { const f = new Date(d0.getFullYear(), d0.getMonth() + k, 1); return { from: +f, to: +new Date(f.getFullYear(), f.getMonth() + 1, 1), label: `${MONTHS[f.getMonth()]} ${f.getFullYear()}`, axis: n > 14 ? `${MON[f.getMonth()]} ${String(f.getFullYear()).slice(2)}` : MON[f.getMonth()] }; });
-  }
-  buckets.forEach((b) => { const l = out.filter((i) => i.ts >= b.from && i.ts < b.to); b.v = sum(l); b.n = l.length; });
-  const peak = Math.max(...buckets.map((b) => b.v), 1);
-  const step = Math.max(1, Math.ceil(buckets.length / 8));
-  return `<div class="bars"><div class="grid-lines">${[peak, peak / 2, 0].map((t) => `<span>${short(t)}</span>`).join('')}</div>
-    ${buckets.map((b) => `<div class="b${b.v ? '' : ' zero'}${now >= b.from && now < b.to ? ' now' : ''}" data-tip="${esc(b.label)}" data-v="${esc(money(b.v))}" data-n="${b.n}"><i style="height:${b.v ? Math.max(2, (b.v / peak) * 100) : 1}%"></i></div>`).join('')}</div>
-    <div class="axis">${buckets.filter((_, k) => k % step === 0 || k === buckets.length - 1).map((b) => `<span>${b.axis}</span>`).join('')}</div>`;
-}
-
 function donut(list) {
   const cats = byCategory(list);
   const total = sum(list);
@@ -274,35 +252,6 @@ function donut(list) {
   const arcs = parts.map((p) => { const len = (p.v / total) * C; const s = `<circle cx="75" cy="75" r="${R}" fill="none" stroke="${p.color}" stroke-width="18" stroke-dasharray="${Math.max(0, len - 2)} ${C}" stroke-dashoffset="${-off}" data-tip="${esc(p.name)}" data-v="${esc(money(p.v))}" data-n="${Math.round((p.v / total) * 100)}%"/>`; off += len; return s; }).join('');
   return `<div class="donut-wrap"><div class="donut"><svg viewBox="0 0 150 150" width="150" height="150">${arcs}</svg><div class="donut-mid"><small>${L('всего', 'total')}</small><b>${short(total)}</b></div></div>
     <div class="legend">${parts.map((p) => `<div><i style="background:${p.color}"></i><span>${esc(p.name)}</span><em>${Math.round((p.v / total) * 100)}%</em></div>`).join('')}</div></div>`;
-}
-
-function cumulative(list, prevList, r) {
-  const out = list.filter((i) => !isIn(i)).sort((a, b) => a.ts - b.ts);
-  const pout = (prevList || []).filter((i) => !isIn(i)).sort((a, b) => a.ts - b.ts);
-  const span = r[1] - r[0]; const N = 60;
-  const series = (l, start) => { let acc = 0; let k = 0; return Array.from({ length: N + 1 }, (_, i) => { const t = start + (span * i) / N; while (k < l.length && l[k].ts <= t) acc += l[k++].amount; return acc; }); };
-  const nowI = Math.min(N, Math.max(0, Math.floor(((Date.now() - r[0]) / span) * N)));
-  const a = series(out, r[0]).slice(0, nowI + 1);
-  const b = prevList ? series(pout, r[0] - span) : null;
-  const peak = Math.max(...a, ...(b || [0]), 1);
-  const W = 600; const H = 180;
-  const pts = (arr) => arr.map((v, i) => [((i / N) * W).toFixed(1), (H - (v / peak) * (H - 12)).toFixed(1)]);
-  const line = (arr) => pts(arr).map((q, i) => `${i ? 'L' : 'M'}${q[0]} ${q[1]}`).join('');
-  const last = pts(a)[a.length - 1];
-  return `<svg class="cum" viewBox="0 0 ${W} ${H + 4}" preserveAspectRatio="none"><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4ADE80" stop-opacity=".25"/><stop offset="1" stop-color="#4ADE80" stop-opacity="0"/></linearGradient></defs>
-    ${[0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${W}" y1="${H * f}" y2="${H * f}" class="cum-grid"/>`).join('')}
-    ${b ? `<path d="${line(b)}" class="cum-prev"/>` : ''}<path d="${line(a)}L${last[0]} ${H}L0 ${H}Z" fill="url(#cg)"/><path d="${line(a)}" class="cum-now"/></svg>
-    <div class="cum-legend"><span><i class="now"></i>${L('Этот период', 'This period')} · ${money(a[a.length - 1])}</span>${b ? `<span><i class="prev"></i>${L('Прошлый', 'Previous')} · ${money(b[b.length - 1])}</span>` : ''}</div>`;
-}
-
-function weekdays(out) {
-  const s = Array(7).fill(0); const days = Array(7).fill(0);
-  out.forEach((i) => { s[(new Date(i.ts).getDay() + 6) % 7] += i.amount; });
-  new Set(out.map((i) => day0(i.ts))).forEach((d) => { days[(new Date(d).getDay() + 6) % 7]++; });
-  const avg = s.map((v, k) => (days[k] ? v / days[k] : 0));
-  const peak = Math.max(...avg, 1);
-  const top = avg.indexOf(Math.max(...avg));
-  return `<div class="wd">${avg.map((v, k) => `<div class="wd-col${k === top && v ? ' top' : ''}" data-tip="${WD[k]} · ${L('в среднем', 'average')}" data-v="${esc(money(Math.round(v)))}"><i style="height:${v ? Math.max(4, (v / peak) * 100) : 2}%"></i><span>${WD[k]}</span></div>`).join('')}</div>`;
 }
 
 function insights(out, prevOut, r) {
@@ -337,18 +286,6 @@ function catRows(list, total, kind = 'out') {
   return cats.length ? cats.slice(0, 8).map(([id, v]) => { const c = cat(id); const n = list.filter((i) => i.category === id).length; return `<button class="cat-row" data-filter-cat="${esc(id)}">${dot(c)}<div class="name">${esc(c.name)}<small>${nOps(n)} · ${Math.round((v / total) * 100)}%</small>${ticks(v, max, 40, c.color)}</div><span class="sum${kind === 'in' ? ' in' : ''}">${money(v)}</span></button>`; }).join('') : empty(kind === 'in' ? L('Доходов нет', 'No income') : L('Расходов нет', 'No expenses'));
 }
 
-// Карточка операции в списке слева
-function txCard(i) {
-  const c = cat(i.category);
-  const acc = accName(i.acc);
-  return `<button class="txc${view.sel === i.id ? ' on' : ''}" data-edit="${esc(i.id)}">
-    <span class="txc-top"><b class="mono">${dm(i.ts).toUpperCase()} · ${timeStr(i.ts)}</b><span class="st ${isIn(i) ? 'in' : 'out'}">${isIn(i) ? L('ДОХОД', 'INCOME') : L('РАСХОД', 'EXPENSE')}</span></span>
-    <span class="txc-route"><em class="mono">${esc(c.name.slice(0, 3).toUpperCase())}</em><i class="ln"></i><span class="dt" style="background:${c.color}"></span><i class="ln"></i><em class="mono">${esc((acc || L('Без счёта', 'No acc.')).slice(0, 10).toUpperCase())}</em></span>
-    <span class="txc-main"><b>${esc(i.note || c.name)}</b><span class="mono ${isIn(i) ? 'plus' : ''}">${isIn(i) ? '+' : '−'}${money(i.amount)}</span></span>
-    <span class="txc-sub"><span><i style="background:${c.color}"></i>${esc(c.name)}</span><span>${dateStr(i.ts)}</span></span>
-  </button>`;
-}
-
 // Точечная карта трат: колонки — дни (или месяцы), светятся точки под суммой
 function dotMap(list, r) {
   const out = list.filter((i) => !isIn(i));
@@ -364,8 +301,8 @@ function dotMap(list, r) {
     cols = Array.from({ length: n }, (_, k) => { const f = new Date(d0.getFullYear(), d0.getMonth() + k, 1); return { from: +f, to: +new Date(f.getFullYear(), f.getMonth() + 1, 1), label: `${MONTHS[f.getMonth()]} ${f.getFullYear()}`, ax: MON[f.getMonth()] }; });
   }
   cols.forEach((c) => { const l = out.filter((i) => i.ts >= c.from && i.ts < c.to); c.v = sum(l); c.n = l.length; });
-  const ROWS = 18; const peak = Math.max(...cols.map((c) => c.v), 1);
-  const W = 1000; const H = 420; const padX = 40; const padTop = 60; const padBot = 46;
+  const ROWS = 14; const peak = Math.max(...cols.map((c) => c.v), 1);
+  const W = 1200; const H = 300; const padX = 30; const padTop = 34; const padBot = 34;
   const cw = (W - padX * 2) / cols.length; const rh = (H - padTop - padBot) / ROWS;
   const r0 = Math.max(1.4, Math.min(cw, rh) * 0.17);
   let dots = '';
@@ -397,62 +334,48 @@ function dotMap(list, r) {
     ${pts.length > 1 ? `<path d="${path}" class="arc"/>` : ''}
     ${pk && pk[2].v ? chip(pk[0], pk[1] - 10, L('Пик', 'Peak'), `${daily ? dm(pk[2].from) : esc(pk[2].label)} · ${money(pk[2].v)}`) : ''}
     ${nw && nw !== pk ? chip(nw[0], nw[1] - 10, L('Сейчас', 'Now'), money(nw[2].v), 'now') : ''}
-    ${cols.map((c, k) => (k % step === 0 || k === cols.length - 1 ? `<text x="${(padX + cw * (k + 0.5)).toFixed(1)}" y="${H - 16}" class="ax">${c.ax}</text>` : '')).join('')}
+    ${cols.map((c, k) => (k % step === 0 || k === cols.length - 1 ? `<text x="${(padX + cw * (k + 0.5)).toFixed(1)}" y="${H - 12}" class="ax">${c.ax}</text>` : '')).join('')}
   </svg>`;
 }
 
 function overview() {
-  if (!items.length) return { title: L('Обзор', 'Overview'), body: `<div class="page">${dataPage().body}</div>` };
+  if (!items.length) return { title: L('Обзор', 'Overview'), body: dataPage().body };
   const r = range(); const pr = range(-1);
   const all = inRange(r); const prev = pr ? inRange(pr) : null;
   const out = all.filter((i) => !isIn(i)); const inc = all.filter(isIn);
   const spent = sum(out); const income = sum(inc); const diff = income - spent;
   const now = Date.now();
   const days = Math.max(1, Math.ceil((Math.min(r[1], now) - r[0]) / 864e5));
-  const total = Math.max(1, Math.round((r[1] - r[0]) / 864e5));
-  const pOut = prev && prev.filter((i) => !isIn(i));
-  const pSpent = prev && sum(pOut);
-  const q = view.q.trim().toLowerCase();
-  const list = all.filter((i) => (view.type === 'all' || (view.type === 'in') === isIn(i)) && (!view.cat || i.category === view.cat) && (!q || `${i.note || ''} ${cat(i.category).name} ${(i.amount / 100).toFixed(2)}`.toLowerCase().includes(q)));
-  const topCats = byCategory(out).slice(0, 4);
-  const live = now >= r[0] && now < r[1];
-  const forecast = live && view.mode === 'month' ? Math.round((spent / days) * total) : 0;
-  const pill = (on, attrs, label) => `<button class="pl${on ? ' on' : ''}" ${attrs}>${label}</button>`;
-  const tabs = [['sum', L('Сводка', 'Summary')], ['cats', L('Категории', 'Categories')], ['trend', L('Динамика', 'Trend')], ['ins', L('Выводы', 'Insights')]];
-  let detail = '';
-  if (view.tab === 'sum') {
-    const pct = Math.min(1, days / total);
-    detail = `<div class="dsum">
-      <div class="ds-id"><b class="mono">${periodLabel().toUpperCase()}</b><span class="st ${live ? 'live' : 'done'}">${live ? L('ИДЁТ', 'LIVE') : L('ЗАКРЫТ', 'CLOSED')}</span><p>${L('Потрачено', 'Spent')} <b class="mono">${money(spent)}</b></p><p class="muted">${nOps(all.length)} · ${income ? `${L('доход', 'income')} ${money(income)}` : L('без доходов', 'no income')}</p></div>
-      <div class="ds-route"><div class="dr-top"><span>${L('Период', 'Period')}</span><em class="mono">${live ? L(`ПРОШЛО ${days} ИЗ ${total} ДН.`, `${days} OF ${total} DAYS`) : `${total} ${L('ДН.', 'DAYS')}`}</em></div>
-        <div class="dr-bar"><i style="width:${(pct * 100).toFixed(1)}%"></i><b style="left:${(pct * 100).toFixed(1)}%"></b></div>
-        <div class="dr-ends"><span><i></i>${dm(r[0])}</span><span><i></i>${dateStr(Math.min(r[1], now + 1) - 1)}</span></div>
-        <div class="dr-top" style="margin-top:14px"><span>${L('Расходы к прошлому', 'Spent vs previous')}</span>${delta(spent, pSpent)}</div>
-        ${ticks(spent, pSpent || 0, 40)}</div>
-      <div class="ds-stats">
-        <div><small>${I.chart}${forecast ? L('Прогноз', 'Forecast') : L('Разница', 'Net')}</small><b class="mono ${!forecast && diff > 0 ? 'plus' : !forecast && diff < 0 ? 'minus' : ''}">${forecast ? money(forecast) : `${diff > 0 ? '+' : ''}${money(diff)}`}</b></div>
-        <div><small>${I.cal}${L('В среднем в день', 'Per day')}</small><b class="mono">${money(Math.round(spent / days))}</b></div>
-      </div></div>`;
-  } else if (view.tab === 'cats') detail = `<div class="dcols">${donut(out)}<div>${catRows(out, spent)}</div></div>`;
-  else if (view.tab === 'trend') detail = `<div class="dcols">${cumulative(all, prev, r)}${weekdays(out)}</div>`;
-  else detail = `<div class="dcols">${insights(out, pOut, r)}<div>${(() => { const places = new Map(); out.filter((i) => i.note).forEach((i) => { const k = i.note.trim(); const p = places.get(k) || { n: 0, v: 0, c: i.category }; p.n++; p.v += i.amount; places.set(k, p); }); const pl = [...places].sort((a, b) => b[1].v - a[1].v).slice(0, 5); return pl.length ? pl.map(([k, p]) => `<button class="cat-row" data-search="${esc(k)}">${dot(cat(p.c))}<div class="name">${esc(k)}<small>${nOps(p.n)}</small></div><span class="sum">${money(p.v)}</span></button>`).join('') : empty(L('Нет описаний у операций', 'No notes')); })()}</div></div>`;
-  const body = `<div class="split">
-    <aside class="lpane">
-      <div class="lp-head"><h3>${L('Операции', 'Transactions')}</h3><span class="chip">${I.ops}${list.length}</span><span class="grow"></span><button class="ibtn sm" data-act="calendar" aria-label="${L('Даты', 'Dates')}">${I.cal}</button><button class="ibtn sm" data-page="ops" aria-label="${L('Таблица', 'Table')}">${I.right}</button></div>
-      <div class="pills">${pill(view.type === 'all' && !view.cat, 'data-type="all"', L('Все', 'All'))}${pill(view.type === 'out' && !view.cat, 'data-type="out"', `${I.upload}${L('Расходы', 'Spent')}`)}${pill(view.type === 'in' && !view.cat, 'data-type="in"', `${I.download}${L('Доходы', 'Income')}`)}${topCats.map(([id]) => pill(view.cat === id, `data-pcat="${esc(id)}"`, `<i style="background:${cat(id).color}"></i>${esc(cat(id).name)}`)).join('')}</div>
-      <div class="cards">${list.length ? list.slice(0, view.lim).map(txCard).join('') + (list.length > view.lim ? `<button class="btn more" data-act="more-cards">${L('Ещё', 'More')} · ${list.length - view.lim}</button>` : '') : empty(L('В этом периоде пусто', 'Nothing in this period'))}</div>
-    </aside>
-    <section class="stage">
-      <div class="viz">
-        <div class="viz-bar">${periodBar()}<div class="viz-kpi"><span><small>${L('Расходы', 'Spent')}</small><b class="mono">${money(spent)}</b></span><span><small>${L('Доходы', 'Income')}</small><b class="mono plus">${income ? '+' : ''}${money(income)}</b></span></div></div>
-        ${dotMap(all, r)}
-      </div>
-      <div class="detail">
-        <div class="tabs">${tabs.map(([id, t]) => `<button class="${view.tab === id ? 'on' : ''}" data-tab="${id}">${t}</button>`).join('')}</div>
-        <div class="d-body">${detail}</div>
-      </div>
-    </section>
-  </div>`;
+  const pOut = prev && prev.filter((i) => !isIn(i)); const pInc = prev && prev.filter(isIn);
+  const pSpent = prev && sum(pOut); const pIncome = prev && sum(pInc);
+  const pDays = pr ? Math.max(1, Math.round((pr[1] - pr[0]) / 864e5)) : 1;
+  const side = view.kind === 'in' ? inc : out;
+  const sideSum = view.kind === 'in' ? income : spent;
+  const b = budgets();
+  const m0 = new Date(); const mFrom = +new Date(m0.getFullYear(), m0.getMonth(), 1);
+  const monthOut = items.filter((i) => !isIn(i) && i.ts >= mFrom);
+  const limited = Object.entries(b).filter(([id]) => CAT[id]);
+  const kpi = (label, val, cls, foot) => `<div class="card kpi"><small>${label}</small><div class="val mono ${cls}">${val}</div><div class="kpi-foot">${foot}</div></div>`;
+  const body = `
+    ${periodBar()}
+    <div class="grid kpis">
+      ${kpi(L('Потрачено', 'Spent'), money(spent), '', `${delta(spent, pSpent)}<span>${nOps(out.length)}</span>`)}
+      ${kpi(L('Получено', 'Received'), `${income ? '+' : ''}${money(income)}`, income ? 'plus' : '', `${delta(income, pIncome, true)}<span>${nOps(inc.length)}</span>`)}
+      ${kpi(L('Осталось', 'Left over'), `${diff > 0 ? '+' : ''}${money(diff)}`, diff > 0 ? 'plus' : diff < 0 ? 'minus' : '', `<span>${income ? `${Math.round((spent / income) * 100)}% ${L('дохода потрачено', 'of income spent')}` : L('доходов нет', 'no income')}</span>`)}
+      ${kpi(L('В среднем в день', 'Per day'), money(Math.round(spent / days)), '', `${prev ? delta(spent / days, pSpent / pDays) : ''}<span>${days} ${L('дн.', 'd')}</span>`)}
+    </div>
+    <div class="card chart-card"><div class="card-head"><h3>${view.mode === 'month' || (view.mode === 'custom' && r[1] - r[0] <= 62 * 864e5) ? L('Траты по дням', 'Spending by day') : L('Траты по месяцам', 'Spending by month')}</h3><span class="hint">${L('Наведите на столбец, чтобы увидеть сумму', 'Hover a column to see the amount')}</span></div><div class="chart-box">${dotMap(all, r)}</div></div>
+    <div class="grid row3">
+      <div class="card"><div class="card-head"><h3>${L('Куда уходят деньги', 'Where the money goes')}</h3><div class="seg sm"><button class="${view.kind === 'out' ? 'on' : ''}" data-kind2="out">${L('Расходы', 'Spent')}</button><button class="${view.kind === 'in' ? 'on' : ''}" data-kind2="in">${L('Доходы', 'Income')}</button></div></div>
+        ${sideSum ? `${donut(side)}<div class="sp"></div>${catRows(side, sideSum, view.kind)}` : empty(view.kind === 'in' ? L('Доходов за период нет', 'No income in this period') : L('Трат за период нет', 'No spending in this period'))}</div>
+      <div class="card"><div class="card-head"><h3>${L('Последние операции', 'Recent transactions')}</h3><button class="chip" data-page="ops">${L('Все операции', 'All')} →</button></div>
+        ${all.length ? all.slice(0, 9).map((i) => { const c = cat(i.category); return `<button class="cat-row" data-edit="${esc(i.id)}">${dot(c)}<div class="name">${esc(i.note || c.name)}<small>${esc(c.name)} · ${dm(i.ts)}, ${timeStr(i.ts)}</small></div><span class="sum${isIn(i) ? ' in' : ''}">${isIn(i) ? '+' : '−'}${money(i.amount)}</span></button>`; }).join('') : empty(L('В этом периоде пусто', 'Nothing in this period'))}</div>
+    </div>
+    <div class="grid row3">
+      <div class="card"><div class="card-head"><h3>${L('Коротко о периоде', 'Period at a glance')}</h3></div>${insights(out, pOut, r)}</div>
+      <div class="card"><div class="card-head"><h3>${L('Лимиты на этот месяц', 'This month’s limits')}</h3><button class="chip" data-page="budget">${L('Бюджет', 'Budget')} →</button></div>
+        ${limited.length ? limited.map(([id, lim]) => { const sp = sum(monthOut.filter((i) => i.category === id)); const p = sp / lim; const c = cat(id); return `<div class="lim row">${dot(c)}<div class="lim-body"><div class="lim-top">${esc(c.name)}<span class="mono">${money(sp)} / ${money(lim)}</span></div><div class="bar"><i class="${p >= 1 ? 'over' : p >= 0.8 ? 'warn' : ''}" style="width:${Math.min(100, p * 100)}%"></i></div></div></div>`; }).join('') : `${empty(L('Лимитов пока нет. Задайте сумму на категорию — здесь будет видно, сколько осталось.', 'No limits yet. Set one per category to see what’s left.'))}<button class="btn center" data-act="add-limit">${I.plus}${L('Задать лимит', 'Set a limit')}</button>`}</div>
+    </div>`;
   return { title: L('Обзор', 'Overview'), body };
 }
 
@@ -480,7 +403,7 @@ function opsPage() {
     <div class="card table-card">
       <div class="card-head"><h3>${nOps(list.length)}</h3><span class="chip">−${money(spent)}${income ? ` · +${money(income)}` : ''}</span></div>
       ${list.length ? `<table><thead><tr><th class="sortable" data-sort="date">${L('Дата', 'Date')}${arrow('date')}</th><th>${L('Категория', 'Category')}</th><th class="note-c">${L('Описание', 'Note')}</th>${accs.length ? `<th class="note-c">${L('Счёт', 'Account')}</th>` : ''}<th>${L('Тип', 'Type')}</th><th class="sortable" data-sort="amount">${L('Сумма', 'Amount')}${arrow('amount')}</th><th></th></tr></thead><tbody>
-        ${list.slice(0, view.limit).map((i) => { const c = cat(i.category); return `<tr data-edit="${esc(i.id)}"><td class="date">${dateStr(i.ts)}<small>${timeStr(i.ts)}</small></td><td><span class="cat"><i style="background:${c.color}"></i>${esc(c.name)}</span></td><td class="note-c">${esc(i.note || '—')}</td>${accs.length ? `<td class="note-c">${esc(accName(i.acc) || '—')}</td>` : ''}<td><span class="badge${isIn(i) ? ' in' : ''}"><i></i>${isIn(i) ? L('Доход', 'Income') : L('Расход', 'Expense')}</span></td><td class="sum${isIn(i) ? ' in' : ''}">${isIn(i) ? '+' : '−'}${money(i.amount)}</td><td class="act">${I.edit}</td></tr>`; }).join('')}
+        ${list.slice(0, view.limit).map((i) => { const c = cat(i.category); return `<tr data-edit="${esc(i.id)}"><td class="date">${dateStr(i.ts)}<small>${timeStr(i.ts)}</small></td><td><span class="cat">${dot(c)}${esc(c.name)}</span></td><td class="note-c">${esc(i.note || '—')}</td>${accs.length ? `<td class="note-c">${esc(accName(i.acc) || '—')}</td>` : ''}<td><span class="badge${isIn(i) ? ' in' : ''}"><i></i>${isIn(i) ? L('Доход', 'Income') : L('Расход', 'Expense')}</span></td><td class="sum${isIn(i) ? ' in' : ''}">${isIn(i) ? '+' : '−'}${money(i.amount)}</td><td class="act">${I.edit}</td></tr>`; }).join('')}
       </tbody></table>${list.length > view.limit ? `<button class="btn more" data-act="more">${L('Показать ещё', 'Show more')} · ${list.length - view.limit}</button>` : ''}` : empty(L('Ничего не найдено', 'Nothing found'))}
     </div>`;
   return { title: L('Операции', 'Transactions'), body };
@@ -929,24 +852,23 @@ function render() {
   const keep = document.activeElement?.id === 'q' ? document.activeElement.selectionStart : null;
   const p = { data: dataPage, overview, ops: opsPage, budget: budgetPage, deposits: depositsPage, cats: catsPage, install: installPage, settings: settingsPage }[view.page]();
   const box = document.getElementById('pbody');
-  const sc = box.querySelector('.page, .cards')?.scrollTop || 0;
+  const sc = box.querySelector('.page')?.scrollTop || 0;
   document.getElementById('ptitle').textContent = p.title;
   document.getElementById('pactions').innerHTML = headActions();
-  box.innerHTML = view.page === 'overview' && items.length ? p.body : `<div class="page">${p.body}</div>`;
-  if (keepScroll) { const el = box.querySelector('.page, .cards'); if (el) el.scrollTop = sc; }
+  box.innerHTML = `<div class="page">${p.body}</div>`;
+  if (keepScroll) { const el = box.querySelector('.page'); if (el) el.scrollTop = sc; }
   keepScroll = false;
   chrome();
   if (keep != null) { const q = document.getElementById('q'); q?.focus(); q?.setSelectionRange(keep, keep); }
 }
-const go = (page) => { view.page = page; view.limit = 100; view.lim = 60; location.hash = page; render(); };
+const go = (page) => { view.page = page; view.limit = 100; location.hash = page; render(); };
 
 root.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-tab],[data-pcat],[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp],[data-lang],[data-edit],[data-limit],[data-account],[data-deposit],[data-cat],[data-filter-cat],[data-search],[data-sort]');
+  const t = e.target.closest('[data-kind2],[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp],[data-lang],[data-edit],[data-limit],[data-account],[data-deposit],[data-cat],[data-filter-cat],[data-search],[data-sort]');
   if (!t?.closest('#exp')) document.getElementById('exp')?.classList.remove('open');
   if (!t) return;
   const d = t.dataset;
-  if (d.tab) { view.tab = d.tab; keepScroll = true; return render(); }
-  if (d.pcat) { view.cat = view.cat === d.pcat ? '' : d.pcat; view.type = 'all'; view.lim = 60; return render(); }
+  if (d.kind2) { view.kind = d.kind2; keepScroll = true; return render(); }
   if (d.page) { e.preventDefault(); return go(d.page); }
   if (d.lang) return d.lang !== (EN ? 'en' : 'ru') && setLang(d.lang);
   if (d.exp) { document.getElementById('exp')?.classList.remove('open'); return exportAs(d.exp); }
@@ -956,10 +878,10 @@ root.addEventListener('click', async (e) => {
     if (view.mode === 'custom' && view.range) { const s = view.range.to - view.range.from; view.range = { from: view.range.from + k * s, to: view.range.to + k * s }; } else view.anchor = view.mode === 'month' ? new Date(a.getFullYear(), a.getMonth() + k, 1) : new Date(a.getFullYear() + k, 0, 1);
     return render();
   }
-  if (d.type) { view.type = d.type; view.limit = 100; view.lim = 60; if (view.page === 'overview') view.cat = ''; return render(); }
+  if (d.type) { view.type = d.type; view.limit = 100; return render(); }
   if (d.inst) { view.inst = d.inst; return render(); }
   if (d.sort) { view.dir = view.sort === d.sort ? -view.dir : -1; view.sort = d.sort; return render(); }
-  if (d.edit) { view.sel = d.edit; document.querySelectorAll('.txc.on').forEach((x) => x.classList.remove('on')); t.classList.add('on'); return editTx(items.find((i) => i.id === d.edit)); }
+  if (d.edit) return editTx(items.find((i) => i.id === d.edit));
   if (d.limit) return editLimit(d.limit);
   if (d.account) return editAccount(d.account);
   if (d.deposit) return editDeposit(d.deposit);
@@ -974,7 +896,6 @@ root.addEventListener('click', async (e) => {
     case 'pick-backup': e.preventDefault(); return document.getElementById('file-backup').click();
     case 'pick-bank': return document.getElementById('file-bank').click();
     case 'more': view.limit += 200; keepScroll = true; return render();
-    case 'more-cards': view.lim += 100; keepScroll = true; return render();
     case 'reset-filters': Object.assign(view, { q: '', cat: '', acc: '', type: 'all' }); return render();
     case 'add-limit': return editLimit(null);
     case 'add-account': return editAccount(null);
@@ -999,7 +920,7 @@ root.addEventListener('change', (e) => {
 });
 root.addEventListener('input', (e) => {
   if (e.target.id === 'q') { view.q = e.target.value; view.limit = 100; render(); }
-  if (e.target.id === 'gq') { view.q = e.target.value; view.limit = 100; view.lim = 60; if (!['overview', 'ops'].includes(view.page)) { view.page = 'ops'; location.hash = 'ops'; } render(); }
+  if (e.target.id === 'gq') { view.q = e.target.value; view.limit = 100; if (view.page !== 'ops') { view.page = 'ops'; location.hash = 'ops'; } render(); }
 });
 
 // Перетаскивание: .json — копия, .pdf/.csv — выписка
