@@ -21,7 +21,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Кот
+        CFBundleDisplayName: Cat
         NSSupportsLiveActivities: true
         UILaunchScreen: {}
     dependencies:
@@ -36,6 +36,6 @@ targets:
     info:
       path: Widget/Info.plist
       properties:
-        CFBundleDisplayName: Кот
+        CFBundleDisplayName: Cat
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
