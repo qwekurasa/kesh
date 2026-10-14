@@ -11,7 +11,7 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, TYPES } f
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '2.0';
+const BUILD_WEB = '2.1';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'settings'];
@@ -44,6 +44,7 @@ const I = {
   xls: ic('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l8 8M16 8l-8 8"/>'),
   csv: ic('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h5"/>'),
   json: ic('<path d="M8 4c-2 0-2 2-2 4s-2 4-2 4 2 2 2 4 0 4 2 4M16 4c2 0 2 2 2 4s2 4 2 4-2 2-2 4 0 4-2 4"/>'),
+  chart: ic('<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>'),
   bank: ic('<path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18"/>'),
   phone: ic('<rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/>'),
   apple: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9s-2-.9-3.3-.8C6.1 7 4.6 8 3.7 9.5c-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.5 1.3-.1 1.8-.8 3.3-.8s2 .8 3.3.8c1.4 0 2.3-1.2 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.8-1.1-2.9-4.2zM14 5.3c.7-.9 1.2-2 1-3.3-1 0-2.2.7-3 1.6-.6.7-1.2 1.9-1 3.1 1.1.1 2.3-.6 3-1.4z"/></svg>',
@@ -61,11 +62,12 @@ const deposits = () => readJSON('deposits', []);
 const saveDeposits = (list) => localStorage.setItem('deposits', JSON.stringify(list));
 
 const hashPage = () => { const p = location.hash.slice(1); return PAGES.includes(p) ? p : 'data'; };
-const view = { page: hashPage(), mode: 'month', anchor: new Date(), range: null, q: '', type: 'all', cat: '', acc: '', sort: 'date', dir: -1, limit: 100, inst: 'iphone', msg: '' };
+const view = { page: hashPage(), mode: 'month', anchor: new Date(), range: null, q: '', type: 'all', cat: '', acc: '', sort: 'date', dir: -1, limit: 100, inst: 'iphone', msg: '', tab: 'sum', sel: '', lim: 60 };
 
 async function load() {
   items = (await store.allExpenses()).sort((a, b) => b.ts - a.ts);
   bal = await balances();
+  keepScroll = ready;
   ready = true;
   render();
 }
@@ -124,23 +126,33 @@ const periodBar = () => `<div class="toolbar">
   ${view.mode === 'all' ? '' : `<div class="period"><button class="arrow" data-shift="-1" aria-label="${L('Назад', 'Back')}">${I.left}</button><b>${periodLabel()}</b><button class="arrow" data-shift="1" ${range(1)[0] > Date.now() ? 'disabled' : ''} aria-label="${L('Вперёд', 'Forward')}">${I.right}</button></div>`}
 </div>`;
 
-/* ---------- каркас ---------- */
-const mini = () => { try { return localStorage.getItem('webMini') === '1'; } catch { return false; } };
+/* ---------- каркас: узкая панель иконок, верхняя строка, рабочая область ---------- */
 function frame() {
-  const nav = (id, icon, label) => `<button class="nav" data-page="${id}" title="${label}">${icon}<span>${label}</span><em class="count" data-count="${id}"></em></button>`;
-  root.innerHTML = `<div class="frame${mini() ? ' mini' : ''}" id="frame">
-    <span class="frame-tag">Web</span>
-    <aside class="side">
-      <div class="side-top"><div class="brand"><img src="../icon-180.png" alt=""><span>${L('Кэш', 'Kesh')}</span></div></div>
-      <div class="group">${nav('data', I.data, L('Экспорт и импорт', 'Export & import'))}</div>
-      <div class="group"><div class="g-label">${L('Аналитика', 'Analytics')}</div>${nav('overview', I.overview, L('Обзор', 'Overview'))}${nav('ops', I.ops, L('Операции', 'Transactions'))}</div>
-      <div class="group"><div class="g-label">${L('Деньги', 'Money')}</div>${nav('budget', I.budget, L('Бюджет и счета', 'Budget & accounts'))}${nav('deposits', I.safe, L('Вклады', 'Savings'))}${nav('cats', I.tag, L('Категории', 'Categories'))}</div>
-      <div class="group"><div class="g-label">${L('Устройства', 'Devices')}</div>${nav('install', I.install, L('Установка', 'Install'))}<a class="nav" href="../?app" title="${L('Веб-приложение', 'Web app')}">${I.app}<span>${L('Веб-приложение', 'Web app')}</span></a></div>
-      <div class="side-foot">${nav('settings', I.settings, L('Настройки', 'Settings'))}<div class="user" id="user"></div></div>
-    </aside>
-    <section class="panel">
-      <header class="phead"><button class="icon-btn" data-act="mini" aria-label="${L('Свернуть меню', 'Toggle sidebar')}">${I.side}</button><span class="sep"></span><h1 id="ptitle"></h1><div class="phead-right" id="pactions"></div></header>
-      <div class="pbody" id="pbody"></div>
+  const nav = (id, icon, label, badge = '') => `<button class="rl" data-page="${id}" aria-label="${label}">${icon}${badge}<span class="rl-tip">${label}</span></button>`;
+  root.innerHTML = `<div class="app" id="frame">
+    <nav class="rail">
+      <button class="rl-logo" data-page="data" aria-label="${L('Кэш', 'Kesh')}"><img src="../icon-180.png" alt=""></button>
+      ${nav('data', I.data, L('Экспорт и импорт', 'Export & import'))}
+      ${nav('overview', I.overview, L('Обзор', 'Overview'))}
+      ${nav('ops', I.ops, L('Операции', 'Transactions'), '<em class="rl-badge" data-count="ops"></em>')}
+      <i class="rl-sep"></i>
+      ${nav('budget', I.budget, L('Бюджет и счета', 'Budget & accounts'))}
+      ${nav('deposits', I.safe, L('Вклады', 'Savings'))}
+      ${nav('cats', I.tag, L('Категории', 'Categories'))}
+      <i class="rl-sep"></i>
+      ${nav('install', I.install, L('Установка', 'Install'))}
+      <a class="rl" href="../?app" aria-label="${L('Веб-приложение', 'Web app')}">${I.app}<span class="rl-tip">${L('Веб-приложение', 'Web app')}</span></a>
+      <span class="grow"></span>
+      ${nav('settings', I.settings, L('Настройки', 'Settings'))}
+      <button class="rl-ava" id="user" data-page="settings"></button>
+    </nav>
+    <section class="main">
+      <header class="top">
+        <h1 id="ptitle"></h1>
+        <label class="gsearch">${I.search}<input id="gq" placeholder="${L('Поиск операций, категорий, сумм…', 'Search transactions, categories, amounts…')}" autocomplete="off"><kbd>/</kbd></label>
+        <div class="top-right" id="pactions"></div>
+      </header>
+      <div class="content" id="pbody"></div>
     </section>
   </div><div class="tip" id="tip"></div><div class="toast" id="toast"></div>
   <input type="file" id="file-backup" accept=".json,application/json" hidden><input type="file" id="file-bank" accept=".pdf,.csv,application/pdf,text/csv" multiple hidden>`;
@@ -148,20 +160,25 @@ function frame() {
 
 const headActions = () => `
   ${items.length ? `<span class="status ok"><i></i>${nOps(items.length)}</span>` : `<span class="status"><i></i>${L('Нет данных', 'No data')}</span>`}
-  <button class="btn" data-act="add">${I.plus}${L('Операция', 'Transaction')}<kbd>N</kbd></button>
-  ${items.length ? `<div class="menu" id="exp"><button class="btn primary" data-act="export-menu">${I.download}${L('Экспорт', 'Export')}</button>
+  ${items.length ? `<div class="menu" id="exp"><button class="ibtn" data-act="export-menu" aria-label="${L('Экспорт', 'Export')}">${I.download}</button>
     <div class="menu-list">
       <button data-exp="xlsx">${I.xls}<span>Excel<small>${L('отчёт на 4 листа', '4-sheet report')}</small></span></button>
       <button data-exp="csv">${I.csv}<span>CSV<small>${L('для таблиц и банков', 'for spreadsheets')}</small></span></button>
       <button data-exp="json">${I.json}<span>${L('Резервная копия', 'Backup')}<small>${L('перенос на телефон', 'move to phone')}</small></span></button>
-    </div></div>` : ''}`;
+    </div></div>` : ''}
+  <button class="btn primary" data-act="add">${I.plus}${L('Добавить', 'Add')}</button>`;
 
 function chrome() {
-  document.querySelectorAll('.nav[data-page]').forEach((n) => n.classList.toggle('on', n.dataset.page === view.page));
-  document.querySelector('[data-count="ops"]').textContent = items.length || '';
+  document.querySelectorAll('.rl[data-page]').forEach((n) => n.classList.toggle('on', n.dataset.page === view.page));
+  const c = document.querySelector('[data-count="ops"]');
+  c.textContent = items.length > 999 ? '999+' : items.length || '';
   const name = auth.account()?.login || L('Гость', 'Guest');
   const skin = Number(localStorage.getItem('avatarSkin')) || 0;
-  document.getElementById('user').innerHTML = `<span class="u-ava">${auth.account() ? catAvatar(skin, true) : esc(name[0])}</span><span class="u-name">${esc(name)}<small>${items.length ? `${L('последняя', 'latest')} ${dateStr(items[0].ts)}` : L('данных пока нет', 'no data yet')}</small></span>`;
+  const u = document.getElementById('user');
+  u.innerHTML = auth.account() ? catAvatar(skin, true) : esc(name[0]);
+  u.title = name;
+  const g = document.getElementById('gq');
+  if (document.activeElement !== g) g.value = view.q;
 }
 
 const card = (title, body, extra = '', cls = '') => `<div class="card ${cls}"><div class="card-head"><h3>${title}</h3>${extra}</div>${body}</div>`;
@@ -320,55 +337,122 @@ function catRows(list, total, kind = 'out') {
   return cats.length ? cats.slice(0, 8).map(([id, v]) => { const c = cat(id); const n = list.filter((i) => i.category === id).length; return `<button class="cat-row" data-filter-cat="${esc(id)}">${dot(c)}<div class="name">${esc(c.name)}<small>${nOps(n)} · ${Math.round((v / total) * 100)}%</small>${ticks(v, max, 40, c.color)}</div><span class="sum${kind === 'in' ? ' in' : ''}">${money(v)}</span></button>`; }).join('') : empty(kind === 'in' ? L('Доходов нет', 'No income') : L('Расходов нет', 'No expenses'));
 }
 
+// Карточка операции в списке слева
+function txCard(i) {
+  const c = cat(i.category);
+  const acc = accName(i.acc);
+  return `<button class="txc${view.sel === i.id ? ' on' : ''}" data-edit="${esc(i.id)}">
+    <span class="txc-top"><b class="mono">${dm(i.ts).toUpperCase()} · ${timeStr(i.ts)}</b><span class="st ${isIn(i) ? 'in' : 'out'}">${isIn(i) ? L('ДОХОД', 'INCOME') : L('РАСХОД', 'EXPENSE')}</span></span>
+    <span class="txc-route"><em class="mono">${esc(c.name.slice(0, 3).toUpperCase())}</em><i class="ln"></i><span class="dt" style="background:${c.color}"></span><i class="ln"></i><em class="mono">${esc((acc || L('Без счёта', 'No acc.')).slice(0, 10).toUpperCase())}</em></span>
+    <span class="txc-main"><b>${esc(i.note || c.name)}</b><span class="mono ${isIn(i) ? 'plus' : ''}">${isIn(i) ? '+' : '−'}${money(i.amount)}</span></span>
+    <span class="txc-sub"><span><i style="background:${c.color}"></i>${esc(c.name)}</span><span>${dateStr(i.ts)}</span></span>
+  </button>`;
+}
+
+// Точечная карта трат: колонки — дни (или месяцы), светятся точки под суммой
+function dotMap(list, r) {
+  const out = list.filter((i) => !isIn(i));
+  const now = Date.now();
+  const daily = view.mode === 'month' || (view.mode === 'custom' && r[1] - r[0] <= 62 * 864e5);
+  let cols;
+  if (daily) {
+    const n = Math.max(1, Math.round((r[1] - r[0]) / 864e5));
+    cols = Array.from({ length: n }, (_, k) => { const from = day0(r[0] + k * 864e5 + 36e5); return { from, to: from + 864e5, label: dateStr(from), ax: new Date(from).getDate() }; });
+  } else {
+    const d0 = new Date(r[0]); const end = new Date(Math.min(r[1], now + 1) - 1);
+    const n = view.mode === 'year' ? 12 : Math.max(1, (end.getFullYear() - d0.getFullYear()) * 12 + end.getMonth() - d0.getMonth() + 1);
+    cols = Array.from({ length: n }, (_, k) => { const f = new Date(d0.getFullYear(), d0.getMonth() + k, 1); return { from: +f, to: +new Date(f.getFullYear(), f.getMonth() + 1, 1), label: `${MONTHS[f.getMonth()]} ${f.getFullYear()}`, ax: MON[f.getMonth()] }; });
+  }
+  cols.forEach((c) => { const l = out.filter((i) => i.ts >= c.from && i.ts < c.to); c.v = sum(l); c.n = l.length; });
+  const ROWS = 18; const peak = Math.max(...cols.map((c) => c.v), 1);
+  const W = 1000; const H = 420; const padX = 40; const padTop = 60; const padBot = 46;
+  const cw = (W - padX * 2) / cols.length; const rh = (H - padTop - padBot) / ROWS;
+  const r0 = Math.max(1.4, Math.min(cw, rh) * 0.17);
+  let dots = '';
+  const tops = [];
+  cols.forEach((c, x) => {
+    const lit = c.v ? Math.max(1, Math.round((c.v / peak) * ROWS)) : 0;
+    const cx = padX + cw * (x + 0.5);
+    const isNow = now >= c.from && now < c.to;
+    for (let y = 0; y < ROWS; y++) {
+      const cy = H - padBot - rh * (y + 0.5);
+      const on = y < lit;
+      dots += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(on ? r0 * 1.15 : r0 * 0.75).toFixed(2)}" class="${on ? (isNow ? 'dn' : 'do') : 'df'}"${on ? ` style="opacity:${(0.45 + 0.55 * ((y + 1) / ROWS)).toFixed(2)}"` : ''}/>`;
+    }
+    tops.push([cx, H - padBot - rh * lit, c, isNow]);
+    dots += `<rect x="${(cx - cw / 2).toFixed(1)}" y="${padTop - 20}" width="${cw.toFixed(1)}" height="${H - padTop - padBot + 20}" fill="transparent" data-tip="${esc(c.label)}" data-v="${esc(money(c.v))}" data-n="${c.n}"/>`;
+  });
+  // дуга через вершины — как маршрут
+  const pts = tops.map(([x, y]) => [x, Math.min(H - padBot - 6, y - 10)]);
+  // сглаживание через середины отрезков — линия не выходит за точки
+  let path = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let k = 1; k < pts.length - 1; k++) { const [x0, y0] = pts[k]; const [x1, y1] = pts[k + 1]; path += ` Q${x0} ${y0} ${(x0 + x1) / 2} ${(y0 + y1) / 2}`; }
+  if (pts.length > 1) path += ` L${pts[pts.length - 1][0]} ${pts[pts.length - 1][1]}`;
+  const pk = tops.reduce((a, b) => (b[2].v > a[2].v ? b : a), tops[0]);
+  const nw = tops.find((t) => t[3]);
+  const chip = (x, y, small, big, cls = '') => { const left = x > W * 0.7; return `<g class="pin ${cls}"><circle cx="${x}" cy="${y}" r="5"/><circle cx="${x}" cy="${y}" r="11" class="halo"/><foreignObject x="${left ? x - 274 : x + 14}" y="${y - 17}" width="260" height="34"><div xmlns="http://www.w3.org/1999/xhtml" class="mchip${left ? ' r' : ''}"><small>${small}</small> <b>${big}</b></div></foreignObject></g>`; };
+  const step = Math.max(1, Math.ceil(cols.length / 10));
+  return `<svg class="dmap" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    ${dots}
+    ${pts.length > 1 ? `<path d="${path}" class="arc"/>` : ''}
+    ${pk && pk[2].v ? chip(pk[0], pk[1] - 10, L('Пик', 'Peak'), `${daily ? dm(pk[2].from) : esc(pk[2].label)} · ${money(pk[2].v)}`) : ''}
+    ${nw && nw !== pk ? chip(nw[0], nw[1] - 10, L('Сейчас', 'Now'), money(nw[2].v), 'now') : ''}
+    ${cols.map((c, k) => (k % step === 0 || k === cols.length - 1 ? `<text x="${(padX + cw * (k + 0.5)).toFixed(1)}" y="${H - 16}" class="ax">${c.ax}</text>` : '')).join('')}
+  </svg>`;
+}
+
 function overview() {
-  if (!items.length) return { title: L('Обзор', 'Overview'), body: dataPage().body };
+  if (!items.length) return { title: L('Обзор', 'Overview'), body: `<div class="page">${dataPage().body}</div>` };
   const r = range(); const pr = range(-1);
-  const list = inRange(r); const prev = pr ? inRange(pr) : null;
-  const out = list.filter((i) => !isIn(i)); const inc = list.filter(isIn);
+  const all = inRange(r); const prev = pr ? inRange(pr) : null;
+  const out = all.filter((i) => !isIn(i)); const inc = all.filter(isIn);
   const spent = sum(out); const income = sum(inc); const diff = income - spent;
-  const days = Math.max(1, Math.ceil((Math.min(r[1], Date.now()) - r[0]) / 864e5));
+  const now = Date.now();
+  const days = Math.max(1, Math.ceil((Math.min(r[1], now) - r[0]) / 864e5));
+  const total = Math.max(1, Math.round((r[1] - r[0]) / 864e5));
   const pOut = prev && prev.filter((i) => !isIn(i));
-  const pSpent = prev && sum(pOut); const pIncome = prev && sum(prev.filter(isIn));
-  const pDays = pr ? Math.max(1, Math.round((pr[1] - pr[0]) / 864e5)) : 1;
-  const top = [...out].sort((a, b) => b.amount - a.amount).slice(0, 6);
-  const places = new Map();
-  out.filter((i) => i.note).forEach((i) => { const k = i.note.trim(); const p = places.get(k) || { n: 0, v: 0, c: i.category }; p.n++; p.v += i.amount; places.set(k, p); });
-  const placeList = [...places].sort((a, b) => b[1].v - a[1].v).slice(0, 6);
-  const b = budgets();
-  const m0 = new Date(); const mFrom = +new Date(m0.getFullYear(), m0.getMonth(), 1);
-  const monthOut = items.filter((i) => !isIn(i) && i.ts >= mFrom);
-  const limited = Object.entries(b).filter(([id]) => CAT[id]);
-  const name = auth.account()?.login;
-  const body = `
-    <div class="hero-card"><div class="hc-text"><small>${periodLabel()}</small><h2>${name ? `${L('Привет', 'Hi')}, ${esc(name)}.` : L('Ваши траты', 'Your spending')}</h2><p>${L('Потрачено', 'Spent')} <b>${money(spent)}</b>${income ? ` · ${L('получено', 'received')} <b>${money(income)}</b>` : ''} · ${nOps(list.length)}</p></div>
-      <div class="hc-spark">${bars(list, r)}</div><i class="hc-x tl"></i><i class="hc-x tr"></i><i class="hc-x bl"></i><i class="hc-x br"></i></div>
-    ${periodBar()}
-    <div class="grid kpis">
-      <div class="card kpi"><small>${L('Расходы', 'Spent')}</small><div class="val mono">${money(spent)}</div>${ticks(spent, pSpent)}<div class="kpi-foot">${delta(spent, pSpent)}<span>${L('пред.', 'prev')} ${prev ? short(pSpent) : '—'}</span></div></div>
-      <div class="card kpi"><small>${L('Доходы', 'Income')}</small><div class="val mono ${income ? 'plus' : ''}">${income ? '+' : ''}${money(income)}</div>${ticks(income, pIncome, 28, 'var(--pos)')}<div class="kpi-foot">${delta(income, pIncome, true)}<span>${L('пред.', 'prev')} ${prev ? short(pIncome) : '—'}</span></div></div>
-      <div class="card kpi"><small>${L('Разница', 'Net')}</small><div class="val mono ${diff > 0 ? 'plus' : diff < 0 ? 'minus' : ''}">${diff > 0 ? '+' : ''}${money(diff)}</div>${ticks(Math.min(spent, income), Math.max(spent, income), 28, diff >= 0 ? 'var(--pos)' : 'var(--neg)')}<div class="kpi-foot"><span class="delta flat">${income ? `${Math.round((spent / income) * 100)}% ${L('дохода потрачено', 'of income spent')}` : L('доходов нет', 'no income')}</span></div></div>
-      <div class="card kpi"><small>${L('В среднем в день', 'Daily average')}</small><div class="val mono">${money(Math.round(spent / days))}</div>${ticks(spent / days, prev ? pSpent / pDays : 0)}<div class="kpi-foot">${prev ? delta(spent / days, pSpent / pDays) : ''}<span>${days} ${L('дн.', 'd')}</span></div></div>
-    </div>
-    <div class="grid row2">
-      ${card(view.mode === 'month' || (view.mode === 'custom' && r[1] - r[0] <= 62 * 864e5) ? L('Расходы по дням', 'Daily spending') : L('Расходы по месяцам', 'Monthly spending'), bars(list, r), `<span class="chip">${nOps(out.length)}</span>`)}
-      ${card(L('Структура расходов', 'Breakdown'), donut(out))}
-    </div>
-    <div class="grid row2">
-      ${card(L('Накопительно', 'Cumulative'), cumulative(list, prev, r), `<span class="chip">${prev ? L('с прошлым периодом', 'vs previous') : periodLabel()}</span>`)}
-      ${card(L('Выводы', 'Insights'), insights(out, pOut, r))}
-    </div>
-    <div class="grid row3">
-      ${card(L('Категории расходов', 'Spending categories'), catRows(out, spent), `<span class="chip">${L('нажмите — операции', 'click for details')}</span>`)}
-      ${card(L('По дням недели', 'By weekday'), weekdays(out), `<span class="chip">${L('в среднем', 'average')}</span>`)}
-    </div>
-    <div class="grid row3">
-      ${card(L('Крупные траты', 'Biggest expenses'), top.length ? top.map((i) => { const c = cat(i.category); return `<button class="cat-row" data-edit="${esc(i.id)}">${dot(c)}<div class="name">${esc(i.note || c.name)}<small>${esc(c.name)} · ${dateStr(i.ts)}</small></div><span class="sum">−${money(i.amount)}</span></button>`; }).join('') : empty(L('Расходов нет', 'No expenses')))}
-      ${card(L('Где тратите чаще', 'Top places'), placeList.length ? placeList.map(([k, p]) => `<button class="cat-row" data-search="${esc(k)}">${dot(cat(p.c))}<div class="name">${esc(k)}<small>${nOps(p.n)}</small></div><span class="sum">${money(p.v)}</span></button>`).join('') : empty(L('Нет описаний у операций', 'No notes on transactions')))}
-    </div>
-    <div class="grid row3">
-      ${card(L('Доходы по категориям', 'Income by category'), catRows(inc, income, 'in'))}
-      ${card(L('Лимиты этого месяца', 'This month’s limits'), limited.length ? limited.map(([id, lim]) => { const sp = sum(monthOut.filter((i) => i.category === id)); const p = sp / lim; return `<div class="lim"><div class="lim-top">${esc(cat(id).name)}<span class="mono">${money(sp)} / ${money(lim)}</span></div><div class="bar"><i class="${p >= 1 ? 'over' : p >= 0.8 ? 'warn' : ''}" style="width:${Math.min(100, p * 100)}%"></i></div></div>`; }).join('') : `${empty(L('Лимитов нет', 'No limits'))}<button class="btn center" data-page="budget">${L('Задать лимиты', 'Set limits')}</button>`)}
-    </div>`;
+  const pSpent = prev && sum(pOut);
+  const q = view.q.trim().toLowerCase();
+  const list = all.filter((i) => (view.type === 'all' || (view.type === 'in') === isIn(i)) && (!view.cat || i.category === view.cat) && (!q || `${i.note || ''} ${cat(i.category).name} ${(i.amount / 100).toFixed(2)}`.toLowerCase().includes(q)));
+  const topCats = byCategory(out).slice(0, 4);
+  const live = now >= r[0] && now < r[1];
+  const forecast = live && view.mode === 'month' ? Math.round((spent / days) * total) : 0;
+  const pill = (on, attrs, label) => `<button class="pl${on ? ' on' : ''}" ${attrs}>${label}</button>`;
+  const tabs = [['sum', L('Сводка', 'Summary')], ['cats', L('Категории', 'Categories')], ['trend', L('Динамика', 'Trend')], ['ins', L('Выводы', 'Insights')]];
+  let detail = '';
+  if (view.tab === 'sum') {
+    const pct = Math.min(1, days / total);
+    detail = `<div class="dsum">
+      <div class="ds-id"><b class="mono">${periodLabel().toUpperCase()}</b><span class="st ${live ? 'live' : 'done'}">${live ? L('ИДЁТ', 'LIVE') : L('ЗАКРЫТ', 'CLOSED')}</span><p>${L('Потрачено', 'Spent')} <b class="mono">${money(spent)}</b></p><p class="muted">${nOps(all.length)} · ${income ? `${L('доход', 'income')} ${money(income)}` : L('без доходов', 'no income')}</p></div>
+      <div class="ds-route"><div class="dr-top"><span>${L('Период', 'Period')}</span><em class="mono">${live ? L(`ПРОШЛО ${days} ИЗ ${total} ДН.`, `${days} OF ${total} DAYS`) : `${total} ${L('ДН.', 'DAYS')}`}</em></div>
+        <div class="dr-bar"><i style="width:${(pct * 100).toFixed(1)}%"></i><b style="left:${(pct * 100).toFixed(1)}%"></b></div>
+        <div class="dr-ends"><span><i></i>${dm(r[0])}</span><span><i></i>${dateStr(Math.min(r[1], now + 1) - 1)}</span></div>
+        <div class="dr-top" style="margin-top:14px"><span>${L('Расходы к прошлому', 'Spent vs previous')}</span>${delta(spent, pSpent)}</div>
+        ${ticks(spent, pSpent || 0, 40)}</div>
+      <div class="ds-stats">
+        <div><small>${I.chart}${forecast ? L('Прогноз', 'Forecast') : L('Разница', 'Net')}</small><b class="mono ${!forecast && diff > 0 ? 'plus' : !forecast && diff < 0 ? 'minus' : ''}">${forecast ? money(forecast) : `${diff > 0 ? '+' : ''}${money(diff)}`}</b></div>
+        <div><small>${I.cal}${L('В среднем в день', 'Per day')}</small><b class="mono">${money(Math.round(spent / days))}</b></div>
+      </div></div>`;
+  } else if (view.tab === 'cats') detail = `<div class="dcols">${donut(out)}<div>${catRows(out, spent)}</div></div>`;
+  else if (view.tab === 'trend') detail = `<div class="dcols">${cumulative(all, prev, r)}${weekdays(out)}</div>`;
+  else detail = `<div class="dcols">${insights(out, pOut, r)}<div>${(() => { const places = new Map(); out.filter((i) => i.note).forEach((i) => { const k = i.note.trim(); const p = places.get(k) || { n: 0, v: 0, c: i.category }; p.n++; p.v += i.amount; places.set(k, p); }); const pl = [...places].sort((a, b) => b[1].v - a[1].v).slice(0, 5); return pl.length ? pl.map(([k, p]) => `<button class="cat-row" data-search="${esc(k)}">${dot(cat(p.c))}<div class="name">${esc(k)}<small>${nOps(p.n)}</small></div><span class="sum">${money(p.v)}</span></button>`).join('') : empty(L('Нет описаний у операций', 'No notes')); })()}</div></div>`;
+  const body = `<div class="split">
+    <aside class="lpane">
+      <div class="lp-head"><h3>${L('Операции', 'Transactions')}</h3><span class="chip">${I.ops}${list.length}</span><span class="grow"></span><button class="ibtn sm" data-act="calendar" aria-label="${L('Даты', 'Dates')}">${I.cal}</button><button class="ibtn sm" data-page="ops" aria-label="${L('Таблица', 'Table')}">${I.right}</button></div>
+      <div class="pills">${pill(view.type === 'all' && !view.cat, 'data-type="all"', L('Все', 'All'))}${pill(view.type === 'out' && !view.cat, 'data-type="out"', `${I.upload}${L('Расходы', 'Spent')}`)}${pill(view.type === 'in' && !view.cat, 'data-type="in"', `${I.download}${L('Доходы', 'Income')}`)}${topCats.map(([id]) => pill(view.cat === id, `data-pcat="${esc(id)}"`, `<i style="background:${cat(id).color}"></i>${esc(cat(id).name)}`)).join('')}</div>
+      <div class="cards">${list.length ? list.slice(0, view.lim).map(txCard).join('') + (list.length > view.lim ? `<button class="btn more" data-act="more-cards">${L('Ещё', 'More')} · ${list.length - view.lim}</button>` : '') : empty(L('В этом периоде пусто', 'Nothing in this period'))}</div>
+    </aside>
+    <section class="stage">
+      <div class="viz">
+        <div class="viz-bar">${periodBar()}<div class="viz-kpi"><span><small>${L('Расходы', 'Spent')}</small><b class="mono">${money(spent)}</b></span><span><small>${L('Доходы', 'Income')}</small><b class="mono plus">${income ? '+' : ''}${money(income)}</b></span></div></div>
+        ${dotMap(all, r)}
+      </div>
+      <div class="detail">
+        <div class="tabs">${tabs.map(([id, t]) => `<button class="${view.tab === id ? 'on' : ''}" data-tab="${id}">${t}</button>`).join('')}</div>
+        <div class="d-body">${detail}</div>
+      </div>
+    </section>
+  </div>`;
   return { title: L('Обзор', 'Overview'), body };
 }
 
@@ -388,7 +472,6 @@ function opsPage() {
   const spent = sum(list.filter((i) => !isIn(i))); const income = sum(list.filter(isIn));
   const body = `${periodBar()}
     <div class="filters">
-      <label class="search">${I.search}<input id="q" value="${esc(view.q)}" placeholder="${L('Поиск по описанию, категории, сумме', 'Search notes, categories, amounts')}"></label>
       <div class="seg">${[['all', L('Все', 'All')], ['out', L('Расходы', 'Spent')], ['in', L('Доходы', 'Income')]].map(([t, n]) => `<button class="${view.type === t ? 'on' : ''}" data-type="${t}">${n}</button>`).join('')}</div>
       <select class="sel" id="catf"><option value="">${L('Все категории', 'All categories')}</option>${used.map(([id, n]) => `<option value="${esc(id)}"${view.cat === id ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>
       ${accs.length ? `<select class="sel" id="accf"><option value="">${L('Все счета', 'All accounts')}</option><option value="-"${view.acc === '-' ? ' selected' : ''}>${L('Без счёта', 'No account')}</option>${accs.map((a) => `<option value="${esc(a.id)}"${view.acc === a.id ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : ''}
@@ -840,23 +923,30 @@ async function importBank(files) {
 }
 
 /* ---------- отрисовка и события ---------- */
+let keepScroll = false;
 function render() {
   if (!ready) return;
   const keep = document.activeElement?.id === 'q' ? document.activeElement.selectionStart : null;
   const p = { data: dataPage, overview, ops: opsPage, budget: budgetPage, deposits: depositsPage, cats: catsPage, install: installPage, settings: settingsPage }[view.page]();
+  const box = document.getElementById('pbody');
+  const sc = box.querySelector('.page, .cards')?.scrollTop || 0;
   document.getElementById('ptitle').textContent = p.title;
   document.getElementById('pactions').innerHTML = headActions();
-  document.getElementById('pbody').innerHTML = p.body;
+  box.innerHTML = view.page === 'overview' && items.length ? p.body : `<div class="page">${p.body}</div>`;
+  if (keepScroll) { const el = box.querySelector('.page, .cards'); if (el) el.scrollTop = sc; }
+  keepScroll = false;
   chrome();
-  if (keep != null) { const q = document.getElementById('q'); q.focus(); q.setSelectionRange(keep, keep); }
+  if (keep != null) { const q = document.getElementById('q'); q?.focus(); q?.setSelectionRange(keep, keep); }
 }
-const go = (page) => { view.page = page; view.limit = 100; location.hash = page; window.scrollTo(0, 0); render(); };
+const go = (page) => { view.page = page; view.limit = 100; view.lim = 60; location.hash = page; render(); };
 
 root.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp],[data-lang],[data-edit],[data-limit],[data-account],[data-deposit],[data-cat],[data-filter-cat],[data-search],[data-sort]');
+  const t = e.target.closest('[data-tab],[data-pcat],[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp],[data-lang],[data-edit],[data-limit],[data-account],[data-deposit],[data-cat],[data-filter-cat],[data-search],[data-sort]');
   if (!t?.closest('#exp')) document.getElementById('exp')?.classList.remove('open');
   if (!t) return;
   const d = t.dataset;
+  if (d.tab) { view.tab = d.tab; keepScroll = true; return render(); }
+  if (d.pcat) { view.cat = view.cat === d.pcat ? '' : d.pcat; view.type = 'all'; view.lim = 60; return render(); }
   if (d.page) { e.preventDefault(); return go(d.page); }
   if (d.lang) return d.lang !== (EN ? 'en' : 'ru') && setLang(d.lang);
   if (d.exp) { document.getElementById('exp')?.classList.remove('open'); return exportAs(d.exp); }
@@ -866,10 +956,10 @@ root.addEventListener('click', async (e) => {
     if (view.mode === 'custom' && view.range) { const s = view.range.to - view.range.from; view.range = { from: view.range.from + k * s, to: view.range.to + k * s }; } else view.anchor = view.mode === 'month' ? new Date(a.getFullYear(), a.getMonth() + k, 1) : new Date(a.getFullYear() + k, 0, 1);
     return render();
   }
-  if (d.type) { view.type = d.type; view.limit = 100; return render(); }
+  if (d.type) { view.type = d.type; view.limit = 100; view.lim = 60; if (view.page === 'overview') view.cat = ''; return render(); }
   if (d.inst) { view.inst = d.inst; return render(); }
   if (d.sort) { view.dir = view.sort === d.sort ? -view.dir : -1; view.sort = d.sort; return render(); }
-  if (d.edit) return editTx(items.find((i) => i.id === d.edit));
+  if (d.edit) { view.sel = d.edit; document.querySelectorAll('.txc.on').forEach((x) => x.classList.remove('on')); t.classList.add('on'); return editTx(items.find((i) => i.id === d.edit)); }
   if (d.limit) return editLimit(d.limit);
   if (d.account) return editAccount(d.account);
   if (d.deposit) return editDeposit(d.deposit);
@@ -883,7 +973,8 @@ root.addEventListener('click', async (e) => {
     case 'calendar': return pickDates();
     case 'pick-backup': e.preventDefault(); return document.getElementById('file-backup').click();
     case 'pick-bank': return document.getElementById('file-bank').click();
-    case 'more': view.limit += 200; return render();
+    case 'more': view.limit += 200; keepScroll = true; return render();
+    case 'more-cards': view.lim += 100; keepScroll = true; return render();
     case 'reset-filters': Object.assign(view, { q: '', cat: '', acc: '', type: 'all' }); return render();
     case 'add-limit': return editLimit(null);
     case 'add-account': return editAccount(null);
@@ -906,7 +997,10 @@ root.addEventListener('change', (e) => {
   if (e.target.id === 'accf') { view.acc = e.target.value; view.limit = 100; render(); }
   if (e.target.id === 'set-cur' && e.target.value !== CURRENCY) setCurrency(e.target.value);
 });
-root.addEventListener('input', (e) => { if (e.target.id === 'q') { view.q = e.target.value; view.limit = 100; render(); } });
+root.addEventListener('input', (e) => {
+  if (e.target.id === 'q') { view.q = e.target.value; view.limit = 100; render(); }
+  if (e.target.id === 'gq') { view.q = e.target.value; view.limit = 100; view.lim = 60; if (!['overview', 'ops'].includes(view.page)) { view.page = 'ops'; location.hash = 'ops'; } render(); }
+});
 
 // Перетаскивание: .json — копия, .pdf/.csv — выписка
 let dragDepth = 0;
@@ -936,6 +1030,7 @@ window.addEventListener('hashchange', () => { const p = hashPage(); if (p !== vi
 document.addEventListener('keydown', (e) => {
   if (document.querySelector('.mw') || e.target.closest('input, select, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === 'n' || e.key === 'т') { e.preventDefault(); editTx(null); }
+  if (e.key === '/') { e.preventDefault(); document.getElementById('gq').focus(); }
 });
 store.onChange(() => load());
 
