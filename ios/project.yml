@@ -7,8 +7,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.2"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "1.3"
+    CURRENT_PROJECT_VERSION: "4"
     TARGETED_DEVICE_FAMILY: "1"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
@@ -22,7 +22,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.qwekurasa.kesh
         INFOPLIST_FILE: Kesh/Info.plist
         GENERATE_INFOPLIST_FILE: YES
-        CODE_SIGN_ENTITLEMENTS: Kesh/Kesh.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: "Кэш"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
@@ -32,17 +31,18 @@ targets:
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
-    dependencies:
-      - target: KeshWidget
-  KeshWidget:
-    type: app-extension
-    platform: iOS
-    sources: [KeshWidget]
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.qwekurasa.kesh.widget
-        INFOPLIST_FILE: KeshWidget/Info.plist
-        GENERATE_INFOPLIST_FILE: YES
-        CODE_SIGN_ENTITLEMENTS: KeshWidget/KeshWidget.entitlements
-        INFOPLIST_KEY_CFBundleDisplayName: "Кэш"
-        SKIP_INSTALL: YES
+# Виджет временно отключён (проверка чёрного экрана). Вернуть: раскомментировать ниже.
+#     dependencies:
+#       - target: KeshWidget
+#   KeshWidget:
+#     type: app-extension
+#     platform: iOS
+#     sources: [KeshWidget]
+#     settings:
+#       base:
+#         PRODUCT_BUNDLE_IDENTIFIER: io.github.qwekurasa.kesh.widget
+#         INFOPLIST_FILE: KeshWidget/Info.plist
+#         GENERATE_INFOPLIST_FILE: YES
+#         CODE_SIGN_ENTITLEMENTS: KeshWidget/KeshWidget.entitlements
+#         INFOPLIST_KEY_CFBundleDisplayName: "Кэш"
+#         SKIP_INSTALL: YES
