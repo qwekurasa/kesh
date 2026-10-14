@@ -34,17 +34,7 @@ svg { display: block; }
 /* ---------- заставка: без фона, с деталями ---------- */
 .loader { position: fixed; inset: 0; z-index: 50; background: var(--bg); transition: opacity .6s ease, visibility .6s; display: grid; place-items: center; }
 .loader.done { opacity: 0; visibility: hidden; pointer-events: none; }
-.ld-frame { position: absolute; inset: 28px; border: 1px solid rgba(255, 255, 255, .05); pointer-events: none; }
-.ld-frame .x { position: absolute; width: 18px; height: 18px; }
-.ld-frame .x::before, .ld-frame .x::after { content: ''; position: absolute; background: rgba(255, 255, 255, .45); }
-.ld-frame .x::before { left: 8px; top: 0; width: 1px; height: 18px; }
-.ld-frame .x::after { left: 0; top: 8px; width: 18px; height: 1px; }
-.ld-frame .tl { left: -9px; top: -9px; } .ld-frame .tr { right: -9px; top: -9px; } .ld-frame .bl { left: -9px; bottom: -9px; } .ld-frame .br { right: -9px; bottom: -9px; }
-.ld-top, .ld-bot { position: absolute; left: 52px; right: 52px; display: flex; align-items: center; gap: 14px; font-size: 10.5px; letter-spacing: .16em; color: var(--text-3); }
-.ld-top { top: 46px; } .ld-bot { bottom: 46px; }
-.ld-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pos-strong); box-shadow: 0 0 0 4px rgba(228, 228, 231, .15); animation: blink 1.2s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: .3; } }
-.ld-grid { flex: 1; height: 1px; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .14) 0 4px, transparent 4px 10px); }
 .ld-mid { display: grid; justify-items: center; gap: 14px; animation: rise .7s both cubic-bezier(.2, .8, .2, 1); }
 .ld-mark { width: 54px; height: 54px; border-radius: 16px; padding: 1px; background: linear-gradient(135deg, rgba(228, 228, 231, .6), rgba(255, 255, 255, .08)); }
 .ld-mark img { width: 100%; height: 100%; border-radius: 15px; display: block; }
