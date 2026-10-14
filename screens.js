@@ -3,17 +3,16 @@ import * as auth from './auth.js';
 import {
   CAT, app, state, money, moneyShort, esc, haptic, icons,
   render, go, toast, dialog, sheet, bottomSheet, PALETTE, tabbar, bindTabs, avatarHTML, openEdit, openRepeat, openInfo, openCategory, countUp, customCategories, removeCategory, catIcon, ask, askText, applySkin, SKINS, skinStyle, avatarSkin,
-  CATEGORIES, catColor, isIncome, sumCell, num, SYM, reloadCategories, addCategory, ticket,
+  CATEGORIES, catColor, isIncome, sumCell, num, SYM, reloadCategories, addCategory, ticket, DONATE, copyText,
 } from './ui.js';
 import { writeXlsx, readXlsx } from './xlsx.js';
 import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCalm, keshCoat, setCoat, keshSVG, catAvatar } from './kesh.js';
 
-const DONATE = [['Solana', '64kwY5adPeQVfzvsyvEpke5wsJuVEPXAY3bm6VuFBZf'], ['Ethereum', '0xad4a06e063d0e83e783f9fb17efc6524a83a40f2'], ['USDT TRC20', 'TERWLLYABDAvMQTKPkpXwdKpU4AS5k8ff3']];
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { TYPES, accounts, balances, moneyLeft, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v54';
+export const BUILD = 'v55';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -801,13 +800,16 @@ const PREVIEW = ['Ждёт', 'Привет', 'Рад', 'Думает', 'Удив
 // Выбор валюты: меняется знак во всём приложении, суммы не пересчитываются
 function openDonate() {
   const { panel } = bottomSheet(L('Поддержать проект', 'Support the project'), `
-    <p class="bs-sub">${L('Нажмите на адрес, чтобы скопировать.', 'Tap an address to copy it.')}</p>
-    <div class="acc-list">${DONATE.map(([n, a]) => `<button class="acc-opt" data-addr="${a}"><span class="tr-name">${n}<small class="addr">${a}</small></span></button>`).join('')}</div>`);
-  panel.querySelector('.acc-list').onclick = (e) => {
-    const a = e.target.closest('[data-addr]')?.dataset.addr;
-    if (!a) return;
+    <p class="bs-sub">${L('Нажмите на адрес или кнопку, чтобы скопировать.', 'Tap an address or the button to copy it.')}</p>
+    <div class="acc-list">${DONATE.map(([n, a]) => `<button class="acc-opt" data-addr="${a}"><span class="tr-name">${n}<small class="addr">${a}</small></span><span class="don-copy" aria-label="${L('Копировать', 'Copy')}">${icons.copy}</span></button>`).join('')}</div>`);
+  panel.querySelector('.acc-list').onclick = async (e) => {
+    const b = e.target.closest('[data-addr]');
+    if (!b) return;
     haptic();
-    navigator.clipboard?.writeText(a).then(() => toast(L('Адрес скопирован', 'Address copied')), () => {});
+    if (!(await copyText(b.dataset.addr))) return toast(L('Не удалось скопировать', 'Couldn’t copy'));
+    toast(L('Адрес скопирован', 'Address copied'));
+    const i = b.querySelector('.don-copy'); i.innerHTML = icons.check; i.classList.add('ok');
+    setTimeout(() => { i.innerHTML = icons.copy; i.classList.remove('ok'); }, 1500);
   };
 }
 

@@ -2,7 +2,7 @@
 // Главное — экспорт и перенос данных; плюс аналитика, операции, бюджет, счета, вклады и категории.
 import '../guard.js';
 import { L, EN, setLang, CURRENCIES, CURRENCY, setCurrency, curSymbol } from '../i18n.js';
-import { CAT, CATEGORIES, INCOME_CATEGORIES, PALETTE, customCategories, addCategory, updateCategory, removeCategory, rawIcon } from '../ui.js'; // раньше kesh.js: взаимный импорт
+import { CAT, CATEGORIES, INCOME_CATEGORIES, PALETTE, customCategories, addCategory, updateCategory, removeCategory, rawIcon, DONATE, copyText } from '../ui.js'; // раньше kesh.js: взаимный импорт
 import { catAvatar } from '../kesh.js';
 import * as store from '../store.js';
 import * as auth from '../auth.js';
@@ -11,15 +11,18 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, moneyLeft
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '2.7';
+const BUILD_WEB = '2.8';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
-const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'settings'];
+const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'support', 'settings'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 
 const ic = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const I = {
+  heart: ic('<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.6 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10Z"/>'),
+  copy: ic('<rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>'),
+  check: ic('<path d="m5 12.5 4.5 4.5L19 7.5"/>', 2.2),
   data: ic('<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'),
   overview: ic('<rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/>'),
   ops: ic('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
@@ -147,6 +150,7 @@ function frame() {
       ${nav('install', I.install, L('Установка', 'Install'))}
       <a class="rl" href="../?app" aria-label="${L('Веб-приложение', 'Web app')}">${I.app}<span class="rl-tip">${L('Веб-приложение', 'Web app')}</span></a>
       <span class="grow"></span>
+      ${nav('support', I.heart, L('Поддержать проект', 'Support the project')).replace('class="rl"', 'class="rl rl-heart"')}
       ${nav('settings', I.settings, L('Настройки', 'Settings'))}
       <button class="rl-ava" id="user" data-page="settings"></button>
     </nav>
@@ -430,6 +434,15 @@ const hard = `<span class="tag warn">${L('сложнее', 'advanced')}</span>`;
 const weekly = `<div class="warn-line">${L('С бесплатным Apple ID приложение работает 7 дней — потом установите тот же файл ещё раз. Данные сохраняются.', 'With a free Apple ID the app runs for 7 days — then install the same file again. Data stays.')}</div>`;
 const dlCard = (os, icon, file, title, sub, meta) => `<a class="dl-card ${os}" href="${DL}${file}" download>
   <span class="dl-ico">${icon}</span><span class="dl-text"><small>${sub}</small><b>${title}</b><em class="mono">${file} · ${meta}</em></span><span class="dl-btn">${I.download}${L('Скачать', 'Download')}</span></a>`;
+
+/* ---------- поддержать проект ---------- */
+function supportPage() {
+  const body = `<div class="support">
+    ${card(L('Поддержать проект', 'Support the project'), `<p class="muted">${L('Кэш бесплатный, без рекламы и подписок. Если он вам полезен — можно поддержать разработку криптовалютой. Спасибо!', 'Kesh is free, with no ads or subscriptions. If it helps you, you can support development with crypto. Thank you!')}</p>
+      <div class="don-list">${DONATE.map(([n, a]) => `<div class="don-row"><div class="don-info"><b>${n}</b><code class="mono">${a}</code></div><button class="btn" data-copy="${a}">${I.copy}<span>${L('Копировать', 'Copy')}</span></button></div>`).join('')}</div>`)}
+  </div>`;
+  return { title: L('Поддержать проект', 'Support the project'), body };
+}
 
 function installPage() {
   const T = {
@@ -800,7 +813,7 @@ let keepScroll = false;
 function render() {
   if (!ready) return;
   const keep = document.activeElement?.id === 'q' ? document.activeElement.selectionStart : null;
-  const p = { data: dataPage, overview, ops: opsPage, budget: budgetPage, deposits: depositsPage, cats: catsPage, install: installPage, settings: settingsPage }[view.page]();
+  const p = { data: dataPage, overview, ops: opsPage, budget: budgetPage, deposits: depositsPage, cats: catsPage, install: installPage, support: supportPage, settings: settingsPage }[view.page]();
   const box = document.getElementById('pbody');
   const sc = box.querySelector('.page')?.scrollTop || 0;
   document.getElementById('ptitle').textContent = p.title;
@@ -814,10 +827,16 @@ function render() {
 const go = (page) => { view.page = page; view.limit = 100; location.hash = page; render(); };
 
 root.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-kind2],[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp],[data-lang],[data-edit],[data-limit],[data-account],[data-deposit],[data-cat],[data-filter-cat],[data-search],[data-sort]');
+  const t = e.target.closest('[data-copy],[data-kind2],[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp],[data-lang],[data-edit],[data-limit],[data-account],[data-deposit],[data-cat],[data-filter-cat],[data-search],[data-sort]');
   if (!t?.closest('#exp')) document.getElementById('exp')?.classList.remove('open');
   if (!t) return;
   const d = t.dataset;
+  if (d.copy) {
+    if (!(await copyText(d.copy))) return toast(L('Не удалось скопировать', 'Couldn’t copy'));
+    toast(L('Адрес скопирован', 'Address copied'));
+    t.querySelector('svg').outerHTML = I.check; t.classList.add('ok');
+    return setTimeout(() => { t.querySelector('svg').outerHTML = I.copy; t.classList.remove('ok'); }, 1500);
+  }
   if (d.kind2) { view.kind = d.kind2; keepScroll = true; return render(); }
   if (d.page) { e.preventDefault(); return go(d.page); }
   if (d.lang) return d.lang !== (EN ? 'en' : 'ru') && setLang(d.lang);

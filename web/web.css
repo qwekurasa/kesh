@@ -487,3 +487,13 @@ td .cat .dot svg { width: 14px; height: 14px; }
 .dc-col.now .dc-ax { color: var(--text); }
 .dc-val { position: absolute; font-size: 11px; color: var(--text); white-space: nowrap; }
 @media (max-width: 900px) { .dc { height: 210px; } .dc-cols { gap: 2px; } }
+/* поддержать проект */
+.rl-heart { color: var(--text-3); } .rl-heart:hover, .rl-heart.on { color: var(--neg); }
+.support { max-width: 760px; }
+.support .muted { color: var(--text-2); font-size: 13.5px; line-height: 1.55; margin: 0 0 14px; }
+.don-list { display: grid; gap: 8px; }
+.don-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 12px; background: var(--inset); border: 1px solid var(--border); }
+.don-info { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.don-info b { font-size: 13.5px; font-weight: 600; }
+.don-info code { font-size: 12px; color: var(--text-2); word-break: break-all; }
+.don-row .btn { flex: none; } .don-row .btn.ok { color: var(--text); border-color: var(--border-strong); }

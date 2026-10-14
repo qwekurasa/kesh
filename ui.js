@@ -295,6 +295,7 @@ export const icons = {
   bell: svg('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>'),
   moon: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>'),
   heart: svg('<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.6 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10Z"/>'),
+  copy: svg('<rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>'),
   code: svg('<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/>'),
   globe: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3Z"/>'),
   calendar: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>'),
@@ -467,6 +468,20 @@ export const ask = (title, text, ok = L('Удалить', 'Delete')) => dialog({
 export const askText = (title, opts = {}) => dialog({ title, ok: L('Готово', 'Done'), input: { ...opts } });
 
 let toastTimer;
+// Адреса для поддержки проекта (приложение и сайт)
+export const DONATE = [['Solana', '64kwY5adPeQVfzvsyvEpke5wsJuVEPXAY3bm6VuFBZf'], ['Ethereum', '0xad4a06e063d0e83e783f9fb17efc6524a83a40f2'], ['USDT TRC20', 'TERWLLYABDAvMQTKPkpXwdKpU4AS5k8ff3']];
+// Копирование в буфер; в старых WebView без Clipboard API — через скрытое поле
+export async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch { /* запасной путь */ }
+  const f = document.createElement('textarea');
+  f.value = t; f.setAttribute('readonly', ''); f.style.cssText = 'position:fixed;opacity:0;top:0';
+  document.body.append(f); f.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { /* нет поддержки */ }
+  f.remove();
+  return ok;
+}
+
 export function toast(text, undo) {
   const el = document.getElementById('toast');
   el.innerHTML = `<span>${esc(text)}</span>${undo ? `<button>${L('Отменить', 'Undo')}</button>` : ''}`;
