@@ -4,13 +4,15 @@ import '../guard.js';
 import { L, EN, LANG, setLang, CURRENCIES, CURRENCY } from '../i18n.js';
 import { CAT } from '../ui.js'; // раньше kesh.js: у них взаимный импорт
 import { catAvatar } from '../kesh.js';
-import { playIntro, scene } from './intro.js';
+import { playIntro } from './intro.js';
+import { snapshot } from './scene.js';
+let SHOT = '';
 import { checkBackup } from '../backup.js';
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
 const KEY = 'webBackup';
-const BUILD_WEB = '1.2';
+const BUILD_WEB = '1.3';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -290,7 +292,7 @@ function overview() {
   const max = cats[0]?.[1] || 1;
 
   const body = `
-    <div class="banner">${scene('xMidYMid slice', '0 300 1600 280')}<div class="banner-text"><small>${periodLabel()}</small><h2>${raw?.account?.login ? `${L('Привет', 'Hi')}, ${esc(raw.account.login)}.` : L('Ваши траты', 'Your spending')}</h2><p>${L('Потрачено', 'Spent')} <b>${money(spent)}</b>${income ? ` · ${L('получено', 'received')} <b>${money(income)}</b>` : ''}</p></div></div>
+    <div class="banner"${SHOT ? ` style="background-image:url(${SHOT})"` : ''}><div class="banner-text"><small>${periodLabel()}</small><h2>${raw?.account?.login ? `${L('Привет', 'Hi')}, ${esc(raw.account.login)}.` : L('Ваши траты', 'Your spending')}</h2><p>${L('Потрачено', 'Spent')} <b>${money(spent)}</b>${income ? ` · ${L('получено', 'received')} <b>${money(income)}</b>` : ''}</p></div></div>
     <div class="toolbar">${periodBar()}</div>
     ${sec(1, L('Показатели', 'Key figures'), `<em>${periodLabel()}</em>`)}
     <div class="grid kpis">
@@ -515,3 +517,11 @@ document.addEventListener('keydown', (e) => {
 frame();
 render();
 playIntro(() => (document.getElementById('frame').classList.contains('mini') ? null : document.getElementById('pet')));
+// Приглушённый кадр сцены — фоном сайта и в баннере
+setTimeout(() => {
+  SHOT = snapshot();
+  if (!SHOT) return;
+  document.body.style.setProperty('--shot', `url(${SHOT})`);
+  document.body.classList.add('has-shot');
+  if (view.page === 'overview') render();
+}, 60);
