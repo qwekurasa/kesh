@@ -10,10 +10,10 @@ import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCal
 
 const DONATE = [['Solana', '64kwY5adPeQVfzvsyvEpke5wsJuVEPXAY3bm6VuFBZf'], ['Ethereum', '0xad4a06e063d0e83e783f9fb17efc6524a83a40f2'], ['USDT TRC20', 'TERWLLYABDAvMQTKPkpXwdKpU4AS5k8ff3']];
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
-import { TYPES, accounts, balances, ownTotal, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
+import { TYPES, accounts, balances, moneyLeft, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v53';
+export const BUILD = 'v54';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -57,6 +57,7 @@ export async function renderHome() {
     store.expensesBetween(prevFrom, prevTo - 1),
     balances(),
   ]);
+  const ml = await moneyLeft(wal);
   const days = groupByDay(items);
   const total = sum(spent(items));
   const income = sum(items.filter(isIncome));
@@ -117,7 +118,7 @@ export async function renderHome() {
       </header>
       <div class="scroll" id="list">
         <div class="hero">
-          <div class="hero-top"><span class="hero-label">${isMonth ? L('Расходы за месяц', 'Spent this month') : oneDay ? L('Расходы за день', 'Spent that day') : L('Расходы за период', 'Spent in period')}</span>${wal.length ? `<button class="wallet-pill" id="wallet">${icons.wallet}<b class="${ownTotal(wal) < 0 ? 'minus' : ''}">${money(ownTotal(wal))}</b></button>` : ''}</div>
+          <div class="hero-top"><span class="hero-label">${isMonth ? L('Расходы за месяц', 'Spent this month') : oneDay ? L('Расходы за день', 'Spent that day') : L('Расходы за период', 'Spent in period')}</span>${wal.length || ml.v ? `<button class="wallet-pill" id="wallet" aria-label="${L('Осталось денег', 'Money left')}">${icons.wallet}<span>${L('осталось', 'left')}</span><b class="${ml.v < 0 ? 'minus' : ''}">${money(ml.v)}</b></button>` : ''}</div>
           <div class="hero-row"><div class="month-total">${money(total)}</div>${deltaChip(total, prevTotal)}</div>
           <div class="month-sub">${sub}</div>
         </div>
@@ -1268,22 +1269,24 @@ const toKop = (v) => Math.round(parseFloat(String(v).replace(/\s/g, '').replace(
 const rub = (kop) => String(Math.round(kop / 100));
 
 /* ---------- счета ---------- */
+// «Осталось денег»: со счетами — их остатки с учётом всех доходов и трат, без счетов — доходы − расходы за месяц
+const leftChip = (ml) => `<span class="acc-left"><small>${ml.acc ? L('осталось', 'left') : L('осталось за месяц', 'left this month')}</small><b class="acc-total ${ml.v < 0 ? 'minus' : ''}">${money(ml.v)}</b></span>`;
 const accIcon = (a) => `<span class="acc-ico">${TYPES[a.type]?.icon || SYM}</span>`;
 const accSub = (a, short) => a.type === 'credit'
   ? `${short ? L('лимит', 'limit') : TYPES.credit.sub} · ${money(a.balance)}`
   : short ? `${money(a.balance)} ${L('доступно', 'available')}` : `${TYPES[a.type]?.sub || ''} · ${money(a.balance)}`;
 export { accSub };
 
-function accountsCard(bal) {
+function accountsCard(bal, ml) {
   if (!bal.length && accountsOff()) {
     return `<button class="card acc-off" id="acc-on"><span class="tr-name">${L('Счета выключены', 'Accounts are off')}<small>${L('Включите, чтобы видеть остаток после каждой траты', 'Turn on to see the balance after each expense')}</small></span><span class="link">${L('Включить', 'Turn on')}</span></button>`;
   }
   if (!bal.length) {
-    return `<div class="card acc-card"><div class="card-head"><b>${icons.wallet}${L('Счета', 'Accounts')}</b></div>
+    return `<div class="card acc-card"><div class="card-head"><b>${icons.wallet}${L('Счета', 'Accounts')}</b>${leftChip(ml)}</div>
       <p class="month-sub">${L('Добавь наличные, карту или накопления — траты будут вычитаться из выбранного счёта.', 'Add cash, a card or savings — expenses will be subtracted from the chosen account.')}</p>
       <div class="dep-actions"><button class="btn alt" id="acc-add">${icons.plus} ${L('Добавить счёт', 'Add account')}</button><button class="btn alt" id="acc-skip">${L('Не нужно', 'Not needed')}</button></div></div>`;
   }
-  return `<div class="card acc-card"><div class="card-head"><b>${icons.wallet}${L('Счета', 'Accounts')}</b><span class="acc-total ${ownTotal(bal) < 0 ? 'minus' : ''}">${money(ownTotal(bal))}</span></div>
+  return `<div class="card acc-card"><div class="card-head"><b>${icons.wallet}${L('Счета', 'Accounts')}</b>${leftChip(ml)}</div>
     ${bal.map((a) => `<button class="acc-row" data-acc="${a.id}">${accIcon(a)}<span class="tr-name">${esc(a.name)}<small>${TYPES[a.type]?.name || ''}</small></span><b class="${a.balance < 0 ? 'minus' : ''}">${money(a.balance)}</b></button>`).join('')}
     <button class="link acc-new" id="acc-add">${icons.plus} ${L('Добавить счёт', 'Add account')}</button></div>`;
 }
@@ -1387,6 +1390,7 @@ export async function renderBudget() {
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const [all, bal] = await Promise.all([store.expensesBetween(from.getTime(), to.getTime() - 1), balances()]);
+  const ml = await moneyLeft(bal);
   const items = spent(all);
   const bySpent = Object.fromEntries(byCategory(items));
   const b = budgets();
@@ -1403,10 +1407,10 @@ export async function renderBudget() {
     <section class="screen tabbed">
       <header class="appbar"><h1>${L('Бюджет', 'Budget')} · ${MONTHS_LOW[now.getMonth()]}</h1></header>
       <div class="scroll">
-        ${accountsCard(bal)}
+        ${accountsCard(bal, ml)}
         <div class="card budget-card">
           ${limit ? `
-            <div class="hero-label">${left < 0 ? L('Перерасход', 'Overspent') : L('Осталось на месяц', 'Left this month')}</div>
+            <div class="hero-label">${left < 0 ? L('Перерасход', 'Overspent') : L('Осталось по лимитам', 'Left within limits')}</div>
             <div class="hero-row"><div class="month-total${left < 0 ? ' over' : ''}">${money(Math.abs(left))}</div><small class="of">${L('из', 'of')} ${money(limit)}</small></div>
             <div class="days-bar${left < 0 ? ' over' : ''}" aria-hidden="true">${Array.from({ length: monthDays }, (_, n) =>
               `<i class="${n < Math.round(Math.min(1, used / limit) * monthDays) ? 'on' : ''}"></i>`).join('')}</div>

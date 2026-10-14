@@ -7,11 +7,11 @@ import { catAvatar } from '../kesh.js';
 import * as store from '../store.js';
 import * as auth from '../auth.js';
 import { makeBackup, checkBackup, restoreBackup } from '../backup.js';
-import { accounts, addAccount, updateAccount, removeAccount, balances, ownTotal, TYPES } from '../accounts.js';
+import { accounts, addAccount, updateAccount, removeAccount, balances, moneyLeft, TYPES } from '../accounts.js';
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '2.6';
+const BUILD_WEB = '2.7';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'settings'];
@@ -55,6 +55,7 @@ const I = {
 /* ---------- данные ---------- */
 let items = []; // все операции, новые сверху
 let bal = []; // счета с остатками
+let left = { v: 0, from: 0, acc: false }; // сколько денег осталось
 let ready = false;
 const budgets = () => readJSON('budgets', {});
 const saveBudgets = (b) => localStorage.setItem('budgets', JSON.stringify(b));
@@ -67,6 +68,7 @@ const view = { page: hashPage(), mode: 'month', anchor: new Date(), range: null,
 async function load() {
   items = (await store.allExpenses()).sort((a, b) => b.ts - a.ts);
   bal = await balances();
+  left = await moneyLeft(bal);
   keepScroll = ready;
   ready = true;
   render();
@@ -308,7 +310,7 @@ function overview() {
     <div class="grid kpis k3">
       ${kpi(L('Потрачено', 'Spent'), money(spent), '', `${delta(spent, pSpent)}<span>${nOps(out.length)}</span>`)}
       ${kpi(L('Получено', 'Received'), `${income ? '+' : ''}${money(income)}`, income ? 'plus' : '', `${delta(income, pIncome, true)}<span>${nOps(inc.length)}</span>`)}
-      ${bal.length ? kpi(L('Осталось', 'Left'), money(moneyLeft().v), moneyLeft().v < 0 ? 'minus' : '', `<span>${L('на счетах с учётом доходов и трат', 'in accounts incl. income & spending')}</span><button class="chip" data-page="budget">${L('Бюджет', 'Budget')} →</button>`) : kpi(L('Осталось', 'Left over'), `${diff > 0 ? '+' : ''}${money(diff)}`, diff > 0 ? 'plus' : diff < 0 ? 'minus' : '', `<span>${L('доходы − расходы за период', 'income − spending for the period')}</span>`)}
+      ${bal.length ? kpi(L('Осталось', 'Left'), money(left.v), left.v < 0 ? 'minus' : '', `<span>${L('на счетах с учётом доходов и трат', 'in accounts incl. income & spending')}</span><button class="chip" data-page="budget">${L('Бюджет', 'Budget')} →</button>`) : kpi(L('Осталось', 'Left over'), `${diff > 0 ? '+' : ''}${money(diff)}`, diff > 0 ? 'plus' : diff < 0 ? 'minus' : '', `<span>${L('доходы − расходы за период', 'income − spending for the period')}</span>`)}
     </div>
     <div class="card chart-card"><div class="card-head"><h3>${view.mode === 'month' || (view.mode === 'custom' && r[1] - r[0] <= 62 * 864e5) ? L('Траты по дням', 'Spending by day') : L('Траты по месяцам', 'Spending by month')}</h3><span class="hint">${L('Наведите на столбец, чтобы увидеть сумму', 'Hover a column to see the amount')}</span></div>${dayChart(all, r)}</div>
     <div class="grid row3">
@@ -352,17 +354,6 @@ function opsPage() {
 }
 
 /* ---------- 4. бюджет и счета ---------- */
-// Сколько денег осталось. Без счетов: доходы − расходы за текущий месяц.
-// Со счетами: их остатки (старт + свои операции) + операции без счёта с момента заведения первого счёта.
-function moneyLeft() {
-  const m0 = new Date(); const mFrom = +new Date(m0.getFullYear(), m0.getMonth(), 1);
-  const net = (l) => sum(l.filter(isIn)) - sum(l.filter((i) => !isIn(i)));
-  if (!bal.length) return { v: net(items.filter((i) => i.ts >= mFrom)), from: mFrom, acc: false };
-  // время операции вводится с точностью до минуты — начало считаем с начала минуты
-  const from = Math.floor(Math.min(...bal.map((a) => a.from || Date.now())) / 6e4) * 6e4;
-  const loose = items.filter((i) => !i.acc && i.ts >= from && !bal.some((a) => a.all && i.ts >= a.from));
-  return { v: ownTotal(bal) + net(loose), from, acc: true };
-}
 
 function budgetPage() {
   const b = budgets();
@@ -374,12 +365,12 @@ function budgetPage() {
   const monthIn = items.filter((i) => isIn(i) && i.ts >= mFrom);
   const mIn = sum(monthIn); const mOut = sum(items.filter((i) => !isIn(i) && i.ts >= mFrom));
   // осталось денег: со счетами — их остаток (старт + доходы − расходы), без счетов — доходы − расходы за месяц
-  const ml = moneyLeft(); const left = ml.v;
+  const ml = left;
   const limLeft = totalLim - totalSp;
   const mName = MONTHS[m0.getMonth()].toLowerCase();
   const body = `
     <div class="grid kpis">
-      <div class="card kpi"><small>${L('Осталось денег', 'Money left')}</small><div class="val mono ${left < 0 ? 'minus' : ''}">${money(left)}</div><div class="kpi-foot"><span>${ml.acc ? L(`счета + доходы − расходы с ${dm(ml.from)}`, `accounts + income − spending since ${dm(ml.from)}`) : L(`доходы − расходы за ${mName}`, `income − spending, ${mName}`)}</span></div></div>
+      <div class="card kpi"><small>${L('Осталось денег', 'Money left')}</small><div class="val mono ${ml.v < 0 ? 'minus' : ''}">${money(ml.v)}</div><div class="kpi-foot"><span>${ml.acc ? L(`счета + доходы − расходы с ${dm(ml.from)}`, `accounts + income − spending since ${dm(ml.from)}`) : L(`доходы − расходы за ${mName}`, `income − spending, ${mName}`)}</span></div></div>
       <div class="card kpi"><small>${L('Доходы за месяц', 'Income this month')}</small><div class="val mono ${mIn ? 'plus' : ''}">${mIn ? '+' : ''}${money(mIn)}</div><div class="kpi-foot"><span>${nOps(monthIn.length)}</span><button class="chip" data-act="add-income">${I.plus}${L('Доход', 'Income')}</button></div></div>
       <div class="card kpi"><small>${L('Расходы за месяц', 'Spending this month')}</small><div class="val mono">${money(mOut)}</div><div class="kpi-foot"><span>${mIn ? `${Math.round((mOut / mIn) * 100)}% ${L('от доходов', 'of income')}` : L('доходов пока нет', 'no income yet')}</span></div></div>
       <div class="card kpi"><small>${L('Осталось по лимитам', 'Left within limits')}</small><div class="val mono ${limLeft < 0 ? 'minus' : ''}">${totalLim ? money(limLeft) : '—'}</div>${totalLim ? `${ticks(totalSp, totalLim, 28, totalSp > totalLim ? 'var(--neg)' : '')}<div class="kpi-foot"><span>${money(totalSp)} ${L('из', 'of')} ${money(totalLim)}</span></div>` : `<div class="kpi-foot"><span>${L('лимиты не заданы', 'no limits set')}</span></div>`}</div>

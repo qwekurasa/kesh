@@ -61,3 +61,17 @@ export async function balances() {
 }
 // свои деньги: кредитный лимит в сумму не входит
 export const ownTotal = (bal) => bal.filter((a) => a.type !== 'credit').reduce((s, a) => s + a.balance, 0);
+
+// Сколько денег осталось. Без счетов: доходы − расходы за текущий месяц.
+// Со счетами: их остатки + операции без счёта с момента заведения первого счёта (время операций — с точностью до минуты).
+export async function moneyLeft(bal) {
+  const net = (l) => l.reduce((s, i) => s + (i.type === 'in' ? i.amount : -i.amount), 0);
+  const end = Date.now() + 366 * 864e5;
+  if (!bal.length) {
+    const d = new Date(); const from = +new Date(d.getFullYear(), d.getMonth(), 1);
+    return { v: net(await store.expensesBetween(from, end)), from, acc: false };
+  }
+  const from = Math.floor(Math.min(...bal.map((a) => a.from || Date.now())) / 6e4) * 6e4;
+  const loose = (await store.expensesBetween(from, end)).filter((i) => !i.acc && !bal.some((a) => a.all && i.ts >= a.from));
+  return { v: ownTotal(bal) + net(loose), from, acc: true };
+}
