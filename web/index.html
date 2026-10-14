@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="theme-color" content="#09090A">
+  <meta name="description" content="Кэш — трекер трат без регистрации. Аналитика на компьютере и установка на все устройства.">
+  <title>Кэш — трекер трат</title>
+  <link rel="icon" href="../icon.svg?v=6" type="image/svg+xml">
+  <link rel="preload" href="../fonts/onest-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./web.css">
+</head>
+<body>
+  <div id="loader" class="loader" aria-label="Загрузка">
+    <div class="ld-stage">
+      <div class="ld-cat" id="ld-cat"></div>
+      <div class="ld-shadow"></div>
+      <svg class="ld-yarn" viewBox="0 0 60 60" aria-hidden="true">
+        <circle cx="30" cy="30" r="24" fill="#A6F0C0"/>
+        <g fill="none" stroke="#5FBF86" stroke-width="2.4" stroke-linecap="round">
+          <path d="M10 22c10 4 30 4 40-2"/><path d="M8 32c12 6 32 6 44-2"/><path d="M14 44c10 2 24 0 34-8"/>
+          <path d="M22 8c-6 12-6 32 2 46"/><path d="M38 7c6 14 6 32-4 47"/>
+        </g>
+      </svg>
+      <svg class="ld-thread" viewBox="0 0 160 40" aria-hidden="true"><path d="M0 30C30 10 50 40 80 22S130 8 160 26" fill="none" stroke="#A6F0C0" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 6"/></svg>
+    </div>
+    <div class="ld-name">Кэш</div>
+  </div>
+  <div id="root"></div>
+  <script type="module" src="./web.js"></script>
+</body>
+</html>

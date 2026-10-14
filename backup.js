@@ -5,7 +5,7 @@ import { customCategories, cleanCategory, saveCategories, SKINS } from './ui.js'
 
 const FORMAT = 'nota-backup';
 const SCHEMA = 1;
-const PREFS = ['avatarSkin', 'avatar', 'kitty', 'kittyCoat'];
+const PREFS = ['avatarSkin', 'avatar', 'kitty', 'kittyCoat', 'currency', 'lang'];
 const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
 
 export async function makeBackup(appVersion) {

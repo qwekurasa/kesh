@@ -1,6 +1,6 @@
 const PREFIX = 'nota-';
-const CACHE = `${PREFIX}v48`;
-const SHELL = ['./', './index.html', './styles.css', './app.js', './guard.js', './store.js', './auth.js', './ui.js', './screens.js', './statement.js',
+const CACHE = `${PREFIX}v49`;
+const SHELL = ['./', './index.html', './styles.css', './app.js', './guard.js', './desktop.js', './store.js', './auth.js', './ui.js', './screens.js', './statement.js',
   './xlsx.js', './kesh.js', './backup.js', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-512.png',
   './fonts/onest-latin-wght-normal.woff2', './fonts/outfit-latin-wght-normal.woff2', './i18n.js', './fonts/onest-cyrillic-wght-normal.woff2', './fonts/jetbrains-mono-latin-wght-normal.woff2', './fonts/jetbrains-mono-cyrillic-wght-normal.woff2',
   // PDF-разбор выписки должен работать и без сети
