@@ -11,7 +11,7 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, moneyLeft
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '2.8';
+const BUILD_WEB = '2.9';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'support', 'settings'];
@@ -492,13 +492,15 @@ function installPage() {
 
 /* ---------- 8. настройки ---------- */
 function settingsPage() {
+  const imported = items.filter((i) => i.id.startsWith('imp')).length;
   const body = `<div class="grid row2b">
     ${card(L('Профиль', 'Profile'), `<label class="field"><span>${L('Имя', 'Name')}</span><input id="set-name" value="${esc(auth.account()?.login || '')}" maxlength="40" placeholder="${L('Как к вам обращаться', 'Your name')}"></label><button class="btn" data-act="save-name">${L('Сохранить', 'Save')}</button>`)}
     ${card(L('Язык и валюта', 'Language & currency'), `<label class="field"><span>${L('Язык', 'Language')}</span><div class="seg"><button class="${EN ? '' : 'on'}" data-lang="ru">Русский</button><button class="${EN ? 'on' : ''}" data-lang="en">English</button></div></label>
       <label class="field"><span>${L('Валюта', 'Currency')}</span><select class="sel" id="set-cur">${CURRENCIES.map(([c, ru, en]) => `<option value="${c}"${c === CURRENCY ? ' selected' : ''}>${curSymbol(c)} · ${L(ru, en)}</option>`).join('')}</select></label>
       <p class="hint">${L('Меняется только знак — суммы не пересчитываются по курсу.', 'Only the symbol changes — amounts are not converted.')}</p>`)}
     ${card(L('Данные на этом компьютере', 'Data on this computer'), `<p class="hint">${L('Сайт и веб-приложение в этом браузере используют одни и те же данные. На телефоне — свои, переносятся копией.', 'This site and the web app in this browser share data. Phones keep their own; move it with a backup.')}</p>
-      <div class="center-row" style="justify-content:flex-start"><button class="btn primary" data-exp="json">${I.download}${L('Скачать копию', 'Download backup')}</button><button class="btn danger" data-act="wipe">${I.trash}${L('Удалить все данные', 'Erase all data')}</button></div>`)}
+      <div class="center-row" style="justify-content:flex-start"><button class="btn primary" data-exp="json">${I.download}${L('Скачать копию', 'Download backup')}</button>${imported ? `<button class="btn" data-act="clear-imported">${I.trash}${L('Удалить импортированные', 'Delete imported')} · ${imported}</button>` : ''}<button class="btn danger" data-act="wipe">${I.trash}${L('Удалить все данные', 'Erase all data')}</button></div>
+      ${imported ? `<p class="hint">${L('«Удалить импортированные» убирает только операции из банковских выписок — внесённые вручную и всё остальное останутся.', '“Delete imported” removes only bank-statement transactions — manual entries and everything else stay.')}</p>` : ''}`)}
     ${card(L('О Кэше', 'About'), `<p class="hint">${L('Трекер трат без регистрации и облака. Все данные хранятся только у вас.', 'A spending tracker with no sign-up and no cloud. Your data stays with you.')}</p><p class="hint mono">web ${BUILD_WEB}</p>`)}
   </div>`;
   return { title: L('Настройки', 'Settings'), body };
@@ -872,6 +874,12 @@ root.addEventListener('click', async (e) => {
     case 'add-deposit': return editDeposit(null);
     case 'add-cat': return editCat(null, d.kind);
     case 'save-name': { const n = document.getElementById('set-name').value.trim().slice(0, 40); if (n) { auth.register(n); toast(L('Имя сохранено', 'Name saved')); render(); } return; }
+    case 'clear-imported': {
+      const n = items.filter((i) => i.id.startsWith('imp')).length;
+      if (!(await ask(L(`Удалить ${nOps(n)} из выписок?`, `Delete ${nOps(n)} from statements?`), L('Удаляются только операции, загруженные из банковских выписок. Внесённые вручную, категории, лимиты, счета и вклады останутся.', 'Only transactions imported from bank statements are removed. Manual entries, categories, limits, accounts and savings stay.')))) return;
+      toast(`${L('Удалено', 'Deleted')}: ${await store.removeImported()}`);
+      return;
+    }
     case 'wipe':
       if (!(await ask(L('Удалить все данные?', 'Erase all data?'), L('Операции, категории, лимиты, счета и вклады на этом компьютере будут удалены. Сначала скачайте копию, если она нужна.', 'Transactions, categories, limits, accounts and savings on this computer will be deleted. Download a backup first if you need it.'), L('Удалить всё', 'Erase all')))) return;
       await store.wipe();
