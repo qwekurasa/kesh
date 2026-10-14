@@ -11,7 +11,7 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, moneyLeft
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '3.0';
+const BUILD_WEB = '3.1';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'support', 'settings'];
@@ -431,7 +431,7 @@ function catsPage() {
 const step = (title, tag, sub, steps, extra = '') => `<div class="card"><h3 class="ih">${title}${tag}</h3><p class="sub">${sub}</p><ol class="steps">${steps.map((s) => `<li>${s}</li>`).join('')}</ol>${extra}</div>`;
 const easy = `<span class="tag">${L('просто', 'easy')}</span>`;
 const hard = `<span class="tag warn">${L('сложнее', 'advanced')}</span>`;
-const weekly = `<div class="warn-line">${L('С бесплатным Apple ID приложение работает 7 дней — потом установите тот же файл ещё раз. Данные сохраняются.', 'With a free Apple ID the app runs for 7 days — then install the same file again. Data stays.')}</div>`;
+const weekly = `<div class="warn-line">${L('С бесплатным Apple ID приложение работает 7 дней — продлевайте в AltStore: My Apps → <b>Refresh All</b> (AltServer должен быть запущен в той же сети). Данные сохраняются.', 'With a free Apple ID the app runs for 7 days — refresh it in AltStore: My Apps → <b>Refresh All</b> (AltServer running on the same network). Data stays.')}</div>`;
 const dlCard = (os, icon, file, title, sub, meta) => `<a class="dl-card ${os}" href="${DL}${file}" download>
   <span class="dl-ico">${icon}</span><span class="dl-text"><small>${sub}</small><b>${title}</b><em class="mono">${file} · ${meta}</em></span><span class="dl-btn">${I.download}${L('Скачать', 'Download')}</span></a>`;
 
@@ -447,22 +447,22 @@ function supportPage() {
 function installPage() {
   const T = {
     iphone: [
-      dlCard('ios', I.apple, 'Kesh.ipa', L('Кэш для iPhone', 'Kesh for iPhone'), L('Файл приложения', 'App file'), L('ставится через Sideloadly', 'install with Sideloadly')),
+      dlCard('ios', I.apple, 'Kesh.ipa', L('Кэш для iPhone', 'Kesh for iPhone'), L('Файл приложения', 'App file'), L('последняя версия · с виджетом · ставится через AltStore', 'latest · with widget · install with AltStore')),
       `<div class="inst">${step(L('Как приложение с сайта', 'Web app from Safari'), easy, L('Без компьютера. Работает офлайн, обновляется само.', 'No computer. Works offline, updates itself.'), [
         L('Откройте <code>kesh-money.vercel.app</code> в <b>Safari</b>.', 'Open <code>kesh-money.vercel.app</code> in <b>Safari</b>.'),
         L('<b>Поделиться</b> → <b>На экран «Домой»</b>.', '<b>Share</b> → <b>Add to Home Screen</b>.'),
         L('Запускайте «Кэш» с экрана «Домой».', 'Launch Kesh from the Home Screen.')])}
-      ${step(L('Файл через Windows', 'File via Windows'), hard, L('Кабель и программа Sideloadly.', 'Cable and Sideloadly.'), [
-        L('Установите <b>iTunes</b> и <b>iCloud</b> с сайта Apple (не из Microsoft Store) и <a href="https://sideloadly.io/" target="_blank" rel="noopener">Sideloadly</a>.', 'Install <b>iTunes</b> and <b>iCloud</b> from Apple (not the Microsoft Store) and <a href="https://sideloadly.io/" target="_blank" rel="noopener">Sideloadly</a>.'),
-        L('Подключите iPhone кабелем и нажмите «Доверять».', 'Connect the iPhone and tap Trust.'),
-        L('Перетащите <code>Kesh.ipa</code> в Sideloadly, введите Apple ID, нажмите <b>Start</b>.', 'Drag <code>Kesh.ipa</code> into Sideloadly, enter Apple ID, press <b>Start</b>.'),
-        L('iPhone: Настройки → Основные → VPN и управление устройством → ваш Apple ID → <b>Доверять</b>.', 'iPhone: Settings → General → VPN & Device Management → your Apple ID → <b>Trust</b>.'),
-        L('Настройки → Конфиденциальность и безопасность → <b>Режим разработчика</b> → включить, перезагрузить.', 'Settings → Privacy & Security → <b>Developer Mode</b> → on, restart.')], weekly)}
+      ${step(L('Файл через AltStore (Windows)', 'File via AltStore (Windows)'), hard, L('Полноценное приложение с виджетом. Нужен компьютер и Apple ID.', 'Full app with the widget. Needs a computer and an Apple ID.'), [
+        L('Установите <b>iTunes</b> и <b>iCloud</b> с сайта Apple (не из Microsoft Store) и <a href="https://altstore.io/" target="_blank" rel="noopener">AltServer</a>.', 'Install <b>iTunes</b> and <b>iCloud</b> from Apple (not the Microsoft Store) and <a href="https://altstore.io/" target="_blank" rel="noopener">AltServer</a>.'),
+        L('Подключите iPhone кабелем, нажмите «Доверять». Значок AltServer в трее → <b>Install AltStore</b> → ваш iPhone → Apple ID.', 'Connect the iPhone, tap Trust. AltServer tray icon → <b>Install AltStore</b> → your iPhone → Apple ID.'),
+        L('iPhone: Настройки → Основные → VPN и управление устройством → ваш Apple ID → <b>Доверять</b>. Включите <b>Режим разработчика</b> (Конфиденциальность и безопасность).', 'iPhone: Settings → General → VPN & Device Management → your Apple ID → <b>Trust</b>. Turn on <b>Developer Mode</b> (Privacy & Security).'),
+        L('Скачайте <code>Kesh.ipa</code> на iPhone в «Файлы».', 'Download <code>Kesh.ipa</code> to Files on the iPhone.'),
+        L('AltStore → <b>My Apps</b> → <b>+</b> → выберите <code>Kesh.ipa</code>. Обновление — так же, поверх: данные сохраняются.', 'AltStore → <b>My Apps</b> → <b>+</b> → pick <code>Kesh.ipa</code>. To update, install over it: data is kept.')], weekly)}
       ${step(L('Через Mac', 'Via Mac'), hard, L('Xcode и исходники проекта.', 'Xcode and project sources.'), [
         L('Установите <b>Xcode</b> и <code>brew install xcodegen</code>.', 'Install <b>Xcode</b> and <code>brew install xcodegen</code>.'),
         L('В папке <code>ios</code>: <code>xcodegen</code>, откройте <code>Kesh.xcodeproj</code>.', 'In <code>ios</code>: <code>xcodegen</code>, open <code>Kesh.xcodeproj</code>.'),
         L('Signing & Capabilities → Team → свой Apple ID.', 'Signing & Capabilities → Team → your Apple ID.'),
-        L('Выберите iPhone и нажмите <b>▶</b>. Доверие и режим разработчика — как выше.', 'Pick the iPhone, press <b>▶</b>. Trust and Developer Mode as above.')], weekly)}</div>`,
+        L('Выберите iPhone и нажмите <b>▶</b>. Доверие и режим разработчика — как выше; виджет собирается вместе с приложением.', 'Pick the iPhone, press <b>▶</b>. Trust and Developer Mode as above.')], weekly)}</div>`,
     ],
     android: [
       dlCard('android', I.android, 'Kesh.apk', L('Кэш для Android', 'Kesh for Android'), L('Файл приложения', 'App file'), L('открыть на телефоне', 'open on the phone')),
@@ -479,6 +479,18 @@ function installPage() {
       L('Перенесите копию с телефона во вкладке «Экспорт и импорт».', 'Bring your phone backup in “Export & import”.')])}
       ${step(L('Как отдельное приложение', 'As a separate app'), easy, L('Chrome или Edge.', 'Chrome or Edge.'), [
         L('Значок установки в адресной строке → <b>Установить</b>.', 'Install icon in the address bar → <b>Install</b>.')])}</div>`],
+    features: [`<div class="inst">${step(L('Что умеет Кэш', 'What Kesh does'), '', L('Всё хранится только на вашем устройстве.', 'Everything stays on your device.'), [
+      L('<b>Трата за пару секунд</b>: сумма → категория. Доход — переключатель «Доход».', '<b>Expense in seconds</b>: amount → category. Income — the “Income” switch.'),
+      L('<b>Главная</b>: расходы за месяц, сегодня, доходы, сколько осталось.', '<b>Home</b>: monthly spending, today, income, what’s left.'),
+      L('<b>Аналитика</b>: по дням, неделям, году и категориям.', '<b>Analytics</b>: by day, week, year and category.'),
+      L('<b>Бюджет</b>: счета, лимиты по категориям, «осталось денег».', '<b>Budget</b>: accounts, category limits, money left.'),
+      L('<b>Вклады</b>: срочные и накопительные, доход в месяц.', '<b>Savings</b>: term and savings accounts, monthly income.'),
+      L('<b>Выписки банков</b> и <b>копия данных</b>; на компьютере — Excel, CSV, JSON.', '<b>Bank statements</b> and <b>backups</b>; Excel, CSV, JSON on a computer.')])}
+      ${step(L('Виджет на iPhone', 'iPhone widget'), '', L('Только в приложении из файла <code>Kesh.ipa</code>.', 'Only in the app from <code>Kesh.ipa</code>.'), [
+        L('Долгое нажатие на пустое место экрана «Домой» → <b>Изменить</b> → <b>Добавить виджет</b>.', 'Long-press an empty spot on the Home Screen → <b>Edit</b> → <b>Add Widget</b>.'),
+        L('Найдите <b>Kesh</b>, выберите маленький или средний → <b>Добавить виджет</b>.', 'Find <b>Kesh</b>, pick small or medium → <b>Add Widget</b>.'),
+        L('Кнопка по центру — новая трата; плитки — доход, аналитика, бюджет, вклады.', 'The center button adds an expense; tiles open income, analytics, budget, savings.'),
+        L('На экран блокировки: долгое нажатие на нём → <b>Настроить</b> → поле виджетов → Kesh.', 'Lock Screen: long-press it → <b>Customize</b> → widget area → Kesh.')])}</div>`],
     move: [`<div class="inst">${step(L('С телефона на компьютер', 'Phone → computer'), '', L('Для отчётов и Excel.', 'For reports and Excel.'), [
       L('Телефон: Профиль → <b>Резервная копия</b>.', 'Phone: Profile → <b>Backup</b>.'),
       L('Отправьте файл себе и перетащите его во вкладку «Экспорт и импорт».', 'Send it to yourself and drop it into “Export & import”.')])}
@@ -486,7 +498,7 @@ function installPage() {
         L('Здесь: <b>Экспорт</b> → <b>Резервная копия</b>.', 'Here: <b>Export</b> → <b>Backup</b>.'),
         L('Телефон: Профиль → <b>Восстановить из копии</b>. Данные объединятся.', 'Phone: Profile → <b>Restore from backup</b>. Data is merged.')])}</div>`],
   };
-  const tabs = [['iphone', 'iPhone'], ['android', 'Android'], ['pc', L('Компьютер', 'Computer')], ['move', L('Перенос данных', 'Moving data')]];
+  const tabs = [['iphone', 'iPhone'], ['android', 'Android'], ['pc', L('Компьютер', 'Computer')], ['features', L('Функции и виджет', 'Features & widget')], ['move', L('Перенос данных', 'Moving data')]];
   return { title: L('Установка', 'Install'), body: `<div class="seg inst-tabs">${tabs.map(([id, n]) => `<button class="${view.inst === id ? 'on' : ''}" data-inst="${id}">${n}</button>`).join('')}</div>${T[view.inst].join('')}` };
 }
 

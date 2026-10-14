@@ -26,14 +26,16 @@ Android: Chrome → меню → «Установить приложение».
 
 Скачать [Kesh.apk](https://kesh-money.vercel.app/dl/Kesh.apk), открыть на телефоне, разрешить установку.
 
-### iPhone-приложение через Windows
+### iPhone-приложение через AltStore (Windows), с виджетом
 
-1. Установить iTunes и iCloud с сайта Apple (не из Microsoft Store) и [Sideloadly](https://sideloadly.io/).
-2. Скачать [Kesh.ipa](https://kesh-money.vercel.app/dl/Kesh.ipa).
-3. Подключить iPhone кабелем, нажать «Доверять».
-4. В Sideloadly перетащить Kesh.ipa, ввести Apple ID, нажать Start.
-5. На iPhone: Настройки → Основные → VPN и управление устройством → свой Apple ID → Доверять.
-6. Настройки → Конфиденциальность и безопасность → Режим разработчика → включить, перезагрузить.
+1. Установить iTunes и iCloud с сайта Apple (не из Microsoft Store) и [AltServer](https://altstore.io/).
+2. Подключить iPhone кабелем, нажать «Доверять». AltServer в трее → Install AltStore → iPhone → Apple ID.
+3. На iPhone: Настройки → Основные → VPN и управление устройством → свой Apple ID → Доверять; включить Режим разработчика.
+4. Скачать на iPhone последнюю [Kesh.ipa](https://kesh-money.vercel.app/dl/Kesh.ipa).
+5. AltStore → My Apps → «+» → Kesh.ipa. Обновление — так же, поверх (данные сохраняются).
+6. Раз в 7 дней: AltStore → My Apps → Refresh All (AltServer запущен в той же сети).
+
+Виджет: долгое нажатие на экране «Домой» → Изменить → Добавить виджет → Kesh.
 
 ### iPhone-приложение через Mac
 
@@ -41,7 +43,7 @@ Android: Chrome → меню → «Установить приложение».
 2. Скачать репозиторий, в Терминале: `brew install xcodegen`, затем в папке `ios` выполнить `xcodegen` и открыть `Kesh.xcodeproj`.
 3. Signing & Capabilities → Team → свой Apple ID.
 4. Подключить iPhone, выбрать его вверху, нажать ▶.
-5. Доверие и режим разработчика — как в шагах 5–6 выше.
+5. Доверие и режим разработчика — как в шаге 3 выше.
 
 **Обновлять придётся:** с бесплатным Apple ID приложение работает 7 дней, затем его нужно установить заново тем же способом. Данные сохраняются. С платным аккаунтом разработчика — раз в год.
 

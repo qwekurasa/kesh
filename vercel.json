@@ -1,0 +1,5 @@
+{
+  "headers": [
+    { "source": "/dl/(.*)", "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }] }
+  ]
+}
