@@ -11,7 +11,7 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, ownTotal,
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '2.5';
+const BUILD_WEB = '2.6';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'settings'];
@@ -305,11 +305,10 @@ function overview() {
   const kpi = (label, val, cls, foot) => `<div class="card kpi"><small>${label}</small><div class="val mono ${cls}">${val}</div><div class="kpi-foot">${foot}</div></div>`;
   const body = `
     ${periodBar()}
-    <div class="grid kpis${bal.length ? '' : ' k3'}">
+    <div class="grid kpis k3">
       ${kpi(L('Потрачено', 'Spent'), money(spent), '', `${delta(spent, pSpent)}<span>${nOps(out.length)}</span>`)}
       ${kpi(L('Получено', 'Received'), `${income ? '+' : ''}${money(income)}`, income ? 'plus' : '', `${delta(income, pIncome, true)}<span>${nOps(inc.length)}</span>`)}
-      ${kpi(L('Осталось', 'Left over'), `${diff > 0 ? '+' : ''}${money(diff)}`, diff > 0 ? 'plus' : diff < 0 ? 'minus' : '', `<span>${L('доходы − расходы', 'income − spending')}${income ? ` · ${Math.round((spent / income) * 100)}% ${L('потрачено', 'spent')}` : ''}</span>`)}
-      ${bal.length ? kpi(L('Денег сейчас', 'Money now'), money(moneyLeft().v), moneyLeft().v < 0 ? 'minus' : '', `<span>${L('счета + доходы − расходы', 'accounts + income − spending')}</span><button class="chip" data-page="budget">${L('Бюджет', 'Budget')} →</button>`) : ''}
+      ${bal.length ? kpi(L('Осталось', 'Left'), money(moneyLeft().v), moneyLeft().v < 0 ? 'minus' : '', `<span>${L('на счетах с учётом доходов и трат', 'in accounts incl. income & spending')}</span><button class="chip" data-page="budget">${L('Бюджет', 'Budget')} →</button>`) : kpi(L('Осталось', 'Left over'), `${diff > 0 ? '+' : ''}${money(diff)}`, diff > 0 ? 'plus' : diff < 0 ? 'minus' : '', `<span>${L('доходы − расходы за период', 'income − spending for the period')}</span>`)}
     </div>
     <div class="card chart-card"><div class="card-head"><h3>${view.mode === 'month' || (view.mode === 'custom' && r[1] - r[0] <= 62 * 864e5) ? L('Траты по дням', 'Spending by day') : L('Траты по месяцам', 'Spending by month')}</h3><span class="hint">${L('Наведите на столбец, чтобы увидеть сумму', 'Hover a column to see the amount')}</span></div>${dayChart(all, r)}</div>
     <div class="grid row3">
