@@ -7,8 +7,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.5"
-    CURRENT_PROJECT_VERSION: "6"
+    MARKETING_VERSION: "1.6"
+    CURRENT_PROJECT_VERSION: "7"
     TARGETED_DEVICE_FAMILY: "1"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
@@ -23,7 +23,7 @@ targets:
         INFOPLIST_FILE: Kesh/Info.plist
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_KEY_CFBundleDisplayName: "Кэш"
+        INFOPLIST_KEY_CFBundleDisplayName: "Kesh"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
         INFOPLIST_KEY_NSCameraUsageDescription: "Чтобы сфотографировать аватар"
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Чтобы выбрать фото для аватара"
@@ -44,5 +44,5 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.qwekurasa.kesh.widget
         INFOPLIST_FILE: KeshWidget/Info.plist
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: "Кэш"
+        INFOPLIST_KEY_CFBundleDisplayName: "Kesh"
         SKIP_INSTALL: YES
