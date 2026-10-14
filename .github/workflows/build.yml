@@ -8,8 +8,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen && xcodegen generate
-      - run: xcodebuild -project CatIsland.xcodeproj -scheme CatIsland -configuration Release -sdk iphoneos -derivedDataPath build build
-      - run: codesign -dv --verbose=2 build/Build/Products/Release-iphoneos/CatIsland.app/PlugIns/CatWidget.appex
+      - run: xcodebuild -project CatIsland.xcodeproj -scheme CatIsland -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - run: |
+          A=build/Build/Products/Release-iphoneos/CatIsland.app
+          codesign -f -s - --generate-entitlement-der $A/PlugIns/CatWidget.appex
+          codesign -f -s - --generate-entitlement-der $A
+          codesign -vv --deep $A
       - run: |
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/CatIsland.app Payload/
