@@ -4,13 +4,19 @@ import WidgetKit
 // Виджет без общих данных с приложением (App Group недоступен на бесплатном Apple ID):
 // только быстрые действия, каждое открывает нужный экран Кэша по ссылке kesh://…
 
-struct Entry: TimelineEntry { let date: Date }
+// phase 0…1 — фаза «дыхания» фона. iOS не даёт анимировать виджет постоянно,
+// поэтому свечение медленно меняется от записи к записи (раз в 10 минут, плавный переход)
+struct Entry: TimelineEntry { let date: Date; var phase: Double = 0.5 }
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> Entry { Entry(date: .now) }
     func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) { completion(Entry(date: .now)) }
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
-        completion(Timeline(entries: [Entry(date: .now)], policy: .never))
+        let step: TimeInterval = 600
+        let entries = (0..<36).map { i in
+            Entry(date: .now.addingTimeInterval(Double(i) * step), phase: (sin(Double(i) / 6 * .pi * 2) + 1) / 2)
+        }
+        completion(Timeline(entries: entries, policy: .atEnd))
     }
 }
 
@@ -23,11 +29,20 @@ private extension Color {
 
 private func link(_ id: String) -> URL { URL(string: "kesh://\(id)")! }
 
-// Фон: пиксельный серо-чёрный градиент с еле заметным котиком (картинки в Assets)
+// Фон: плавный серо-чёрный градиент со свечением снизу и еле заметным котиком
 struct Backdrop: View {
-    @Environment(\.widgetFamily) var family
+    let phase: Double
     var body: some View {
-        Image(family == .systemSmall ? "BgSmall" : "BgMedium").resizable().scaledToFill()
+        ZStack {
+            Color.bg
+            RadialGradient(colors: [Color(white: 0.17 + phase * 0.06), Color(white: 0.07), Color.bg],
+                           center: UnitPoint(x: 0.35 + phase * 0.3, y: 1.15),
+                           startRadius: 0, endRadius: 260 + phase * 60)
+            RadialGradient(colors: [Color.white.opacity(0.05 + phase * 0.03), .clear],
+                           center: UnitPoint(x: 0.85, y: -0.1), startRadius: 0, endRadius: 180)
+            Image("Cat").resizable().scaledToFit().opacity(0.05 + phase * 0.03).padding(.horizontal, 30)
+        }
+        .animation(.easeInOut(duration: 2), value: phase)
     }
 }
 
@@ -53,10 +68,10 @@ struct AddButton: View {
     var size: CGFloat
     var body: some View {
         ZStack {
-            Circle().fill(Color.white.opacity(0.06)).frame(width: size + 18, height: size + 18)
+            Circle().fill(Color.white.opacity(0.06)).frame(width: size + 14, height: size + 14)
             Circle().fill(LinearGradient(colors: [.white, Color(white: 0.82)], startPoint: .top, endPoint: .bottom))
                 .frame(width: size, height: size)
-                .shadow(color: .white.opacity(0.18), radius: 10)
+                .shadow(color: .white.opacity(0.15), radius: 6)
             Image(systemName: "minus").font(.system(size: size * 0.38, weight: .bold)).foregroundStyle(Color.bg)
         }
     }
@@ -71,8 +86,9 @@ struct Tile: View {
                 Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.text)
                 Text(title).font(.system(size: 10.5)).foregroundStyle(Color.text2).lineLimit(1).minimumScaleFactor(0.8)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
+            .frame(width: 74)
+            .frame(maxHeight: .infinity)
+            .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.08), lineWidth: 1))
         }
     }
@@ -96,7 +112,7 @@ struct WidgetBody: View {
         VStack(spacing: 0) {
             HStack { Brand(); Spacer() }
             Spacer(minLength: 4)
-            AddButton(size: 50)
+            AddButton(size: 40)
             Spacer(minLength: 6)
             Text("Новая трата").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.text)
             DateLabel().padding(.top, 2)
@@ -115,7 +131,7 @@ struct WidgetBody: View {
                 }
                 Link(destination: link("out")) {
                     VStack(spacing: 8) {
-                        AddButton(size: 46)
+                        AddButton(size: 34)
                         Text("Новая трата").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.text)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -124,8 +140,6 @@ struct WidgetBody: View {
                         in: RoundedRectangle(cornerRadius: 18))
                     .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.14), lineWidth: 1))
                 }
-                .frame(maxWidth: .infinity)
-                .layoutPriority(1)
                 VStack(spacing: 8) {
                     Tile(id: "budget", icon: "wallet.pass", title: "Бюджет")
                     Tile(id: "deposits", icon: "banknote", title: "Вклады")
@@ -158,9 +172,9 @@ struct WidgetBody: View {
 
 struct KeshWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "KeshWidget", provider: Provider()) { _ in
+        StaticConfiguration(kind: "KeshWidget", provider: Provider()) { entry in
             WidgetBody()
-                .containerBackground(for: .widget) { Backdrop() }
+                .containerBackground(for: .widget) { Backdrop(phase: entry.phase) }
         }
         .configurationDisplayName("Kesh")
         .description("Быстро добавить трату или открыть нужный экран")
