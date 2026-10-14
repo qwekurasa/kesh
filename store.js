@@ -92,15 +92,18 @@ export function cleanItem(i) {
   if (i.type === 'in') out.type = 'in';
   if (i.edited) out.edited = 1;
   if (typeof i.acc === 'string' && /^[\w-]{0,64}$/.test(i.acc)) out.acc = i.acc;
+  if (i.src === 'file') out.src = 'file';
   return out;
 }
 
 const same = (a, b) => a.amount === b.amount && a.category === b.category && a.note === b.note && a.ts === b.ts && (a.type === 'in') === (b.type === 'in');
 
 // Возвращает реальный результат: сколько добавлено, обновлено, совпало, пропущено и отброшено
-export async function importExpenses(items) {
+// fromFile: операции из файла копии помечаются src:'file', чтобы их можно было удалить кнопкой «Удалить импортированные»
+export async function importExpenses(items, fromFile = false) {
   const list = Array.isArray(items) ? items : [];
   const valid = list.map(cleanItem).filter(Boolean);
+  if (fromFile) valid.forEach((i) => { i.src = 'file'; });
   const res = { added: 0, updated: 0, unchanged: 0, skipped: 0, invalid: list.length - valid.length };
   await tx('readwrite', (s) => valid.forEach((i) => {
     s.get(i.id).onsuccess = (e) => {
@@ -154,11 +157,13 @@ export async function existingIds(ids) {
   return found;
 }
 
+// Импортированные: из банковских выписок (id с imp) и из файлов копий (src:'file')
+const isImported = (i) => i.id.startsWith('imp') || i.src === 'file';
 export const importedCount = () => tx('readonly', (s) => {
   let n = 0;
-  s.openCursor(IDBKeyRange.bound('imp', 'imq', false, true)).onsuccess = (e) => {
+  s.openCursor().onsuccess = (e) => {
     const c = e.target.result;
-    if (c) { n++; c.continue(); }
+    if (c) { if (isImported(c.value)) n++; c.continue(); }
   };
   return { get n() { return n; } };
 }).then((r) => r.n);
@@ -166,9 +171,9 @@ export const importedCount = () => tx('readonly', (s) => {
 export async function removeImported() {
   const n = await tx('readwrite', (s) => {
     let k = 0;
-    s.openCursor(IDBKeyRange.bound('imp', 'imq', false, true)).onsuccess = (e) => {
+    s.openCursor().onsuccess = (e) => {
       const c = e.target.result;
-      if (c) { c.delete(); k++; c.continue(); }
+      if (c) { if (isImported(c.value)) { c.delete(); k++; } c.continue(); }
     };
     return { get n() { return k; } };
   });

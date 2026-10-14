@@ -12,7 +12,7 @@ import { makeBackup, checkBackup, restoreBackup } from './backup.js';
 import { TYPES, accounts, balances, moneyLeft, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v55';
+export const BUILD = 'v56';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -681,7 +681,7 @@ export function renderInfo() {
           <div class="row"><span>${L('Дата', 'Date')}</span><span class="row-extra">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}, ${WD_FULL[d.getDay()]}</span></div>
           <div class="row"><span>${L('Время', 'Time')}</span><span class="row-extra">${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</span></div>
           ${i.note ? `<div class="row"><span>${L('Описание', 'Note')}</span><span class="row-extra">${esc(i.note)}</span></div>` : ''}
-          <div class="row"><span>${L('Источник', 'Source')}</span><span class="row-extra">${i.id.startsWith('imp') ? L('Выписка банка', 'Bank statement') : L('Добавлено вручную', 'Added manually')}</span></div>
+          <div class="row"><span>${L('Источник', 'Source')}</span><span class="row-extra">${i.id.startsWith('imp') ? L('Выписка банка', 'Bank statement') : i.src === 'file' ? L('Файл копии', 'Backup file') : L('Добавлено вручную', 'Added manually')}</span></div>
         </div>
       </div>
       <div class="bottom">
@@ -780,7 +780,7 @@ export async function renderProfile() {
     if (a === 'backup') return downloadBackup().then(render);
     if (a === 'import') return importData();
     if (a === 'clear-imported') {
-      return ask(L(`Удалить ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`, `Delete ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`), L('Это траты из выписок. Внесённые вручную останутся.', 'These came from statements. Manual entries stay.'))
+      return ask(L(`Удалить ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`, `Delete ${imported} ${plural(imported, 'трату', 'траты', 'трат')}?`), L('Это операции из выписок и файлов копий. Внесённые вручную останутся.', 'These came from statements and backup files. Manual entries stay.'))
         .then(async (yes) => { if (yes) { toast(`${L('Удалено трат', 'Deleted')}: ${await store.removeImported()}`); render(); } });
     }
     if (a === 'wipe') return wipeAll();
@@ -1081,7 +1081,7 @@ async function importXlsx(book) {
     (book['Бюджет'] || []).slice(1).forEach((r) => { if (r[0] && r[1] > 0 && r[1] <= 1e11) next[find(r[0], 'out')] = Math.round(r[1] * 100); });
     if (Object.keys(next).length) saveBudgets(next);
   }
-  return store.importExpenses(items);
+  return store.importExpenses(items, true);
 }
 
 /* ---------- импорт выписки ---------- */

@@ -268,7 +268,7 @@ button.cat-row:hover .name { color: var(--pos); }
 /* таблица операций */
 .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 select.sel { height: 32px; padding: 0 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); outline: none; font-size: 13px; }
-.table-card { padding: 12px 6px; }
+.table-card { padding: 12px 6px; overflow-x: auto; }
 .table-card .card-head { padding: 0 12px; }
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; font-size: 12px; font-weight: 400; color: var(--text-3); padding: 0 12px 10px; }

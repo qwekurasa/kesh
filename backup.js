@@ -99,6 +99,6 @@ export async function restoreBackup(c) {
   if ((c.accounts || []).length) localStorage.setItem('accounts', JSON.stringify(accs.list));
   if (c.login && !auth.account()) auth.register(c.login);
   Object.entries(c.preferences).forEach(([k, v]) => localStorage.setItem(k, v));
-  const tx = await store.importExpenses(c.transactions);
+  const tx = await store.importExpenses(c.transactions, true);
   return { ...tx, categories: cats.added, deposits: deps.added, budgets: newBudgets.length };
 }
