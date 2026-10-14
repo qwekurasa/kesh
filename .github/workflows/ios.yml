@@ -19,11 +19,7 @@ jobs:
           xcodebuild -project Kesh.xcodeproj -scheme Kesh -configuration Release -sdk iphoneos -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           APP=build/Build/Products/Release-iphoneos/Kesh.app
-          # С виджетом: ad-hoc подпись с entitlements (App Group), Sideloadly переподпишет своим Apple ID
-          if [ -d "$APP/PlugIns/KeshWidget.appex" ]; then
-            codesign -f -s - --entitlements KeshWidget/KeshWidget.entitlements "$APP/PlugIns/KeshWidget.appex"
-            codesign -f -s - --entitlements Kesh/Kesh.entitlements "$APP"
-          fi
+          test -d "$APP/PlugIns/KeshWidget.appex" || { echo "widget missing"; exit 1; }
           mkdir Payload && cp -R "$APP" Payload/ && zip -qr ../Kesh.ipa Payload
       - name: Publish to site
         run: |

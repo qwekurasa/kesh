@@ -1,8 +1,5 @@
 import SwiftUI
 import WebKit
-import WidgetKit
-
-let appGroup = "group.io.github.qwekurasa.kesh"
 
 // Действие из виджета (kesh://out и т. п.), ждёт, пока страница загрузится
 final class DeepLink: ObservableObject {
@@ -16,6 +13,17 @@ final class LoadState: ObservableObject {
     @Published var loading = true
     @Published var error: String?
     var retry: (() -> Void)?
+    private var timer: Timer?
+
+    // Если страница не открылась за 25 с — показываем причину и «Повторить» вместо бесконечной заставки
+    func watch() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 25, repeats: false) { [weak self] _ in
+            guard let self, self.loading else { return }
+            self.loading = false
+            self.error = "Страница не загрузилась за 25 секунд. Проверьте интернет и нажмите «Повторить»."
+        }
+    }
 }
 
 // Оболочка над PWA: веб-приложение открывается на весь экран, данные живут внутри WKWebView
@@ -28,7 +36,6 @@ struct WebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        config.userContentController.add(context.coordinator, name: "keshWidget")
         config.limitsNavigationsToAppBoundDomains = true // нужно для Service Worker
         config.websiteDataStore = .default()
         config.allowsInlineMediaPlayback = true
@@ -46,10 +53,12 @@ struct WebView: UIViewRepresentable {
         if #available(iOS 16.4, *) { view.isInspectable = true } // отладка через Safari → Разработка
         #endif
         view.load(URLRequest(url: url))
+        LoadState.shared.watch()
         LoadState.shared.retry = { [weak view] in
             LoadState.shared.error = nil
             LoadState.shared.loading = true
-            view?.load(URLRequest(url: url))
+            LoadState.shared.watch()
+            view?.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
         }
         return view
     }
@@ -63,10 +72,11 @@ struct WebView: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
         private var downloadURL: URL?
         weak var web: WKWebView?
         var pending: String?
+        private var crashes = 0
 
         // Веб-код открывает экран, как только загрузится
         func runPending() {
@@ -89,14 +99,17 @@ struct WebView: UIViewRepresentable {
             LoadState.shared.error = error.localizedDescription
         }
 
-        // Процесс страницы выгружен системой — перезагружаем, иначе останется чёрный экран
-        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { webView.reload() }
-
-        // Сводка для виджета
-        func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.name == "keshWidget", let json = message.body as? String else { return }
-            UserDefaults(suiteName: appGroup)?.set(json, forKey: "summary")
-            WidgetCenter.shared.reloadAllTimelines()
+        // Процесс страницы выгружен системой — перезагружаем, иначе останется чёрный экран.
+        // Если он падает снова и снова, не крутим заставку бесконечно, а показываем ошибку
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            crashes += 1
+            if crashes >= 3 {
+                LoadState.shared.loading = false
+                LoadState.shared.error = "Страница перезапускалась \(crashes) раза. Нажмите «Повторить»; если не поможет — переустановите приложение."
+                crashes = 0
+                return
+            }
+            webView.reload()
         }
 
         // Внешние ссылки (GitHub и т. п.) открываем в Safari

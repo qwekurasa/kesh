@@ -7,8 +7,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.4"
-    CURRENT_PROJECT_VERSION: "5"
+    MARKETING_VERSION: "1.5"
+    CURRENT_PROJECT_VERSION: "6"
     TARGETED_DEVICE_FAMILY: "1"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
@@ -31,18 +31,18 @@ targets:
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
-# Виджет временно отключён (проверка чёрного экрана). Вернуть: раскомментировать ниже.
-#     dependencies:
-#       - target: KeshWidget
-#   KeshWidget:
-#     type: app-extension
-#     platform: iOS
-#     sources: [KeshWidget]
-#     settings:
-#       base:
-#         PRODUCT_BUNDLE_IDENTIFIER: io.github.qwekurasa.kesh.widget
-#         INFOPLIST_FILE: KeshWidget/Info.plist
-#         GENERATE_INFOPLIST_FILE: YES
-#         CODE_SIGN_ENTITLEMENTS: KeshWidget/KeshWidget.entitlements
-#         INFOPLIST_KEY_CFBundleDisplayName: "Кэш"
-#         SKIP_INSTALL: YES
+    dependencies:
+      - target: KeshWidget
+  # Виджет без App Group: бесплатный Apple ID (Sideloadly) не поддерживает App Groups,
+  # поэтому виджет не читает данные приложения, а даёт быстрые действия
+  KeshWidget:
+    type: app-extension
+    platform: iOS
+    sources: [KeshWidget]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.qwekurasa.kesh.widget
+        INFOPLIST_FILE: KeshWidget/Info.plist
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "Кэш"
+        SKIP_INSTALL: YES
