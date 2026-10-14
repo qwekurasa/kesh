@@ -8,41 +8,47 @@ struct CatWidgetBundle: WidgetBundle {
     var body: some Widget { CatLiveActivity() }
 }
 
+private func mood(_ context: ActivityViewContext<CatAttributes>) -> Mood {
+    context.isStale && context.state.mood != .sleep ? .hungry : context.state.mood
+}
+
 struct CatLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CatAttributes.self) { context in
-            // Экран блокировки
-            HStack(spacing: 12) {
-                CatFace(state: context.state, isStale: context.isStale, size: 44)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(context.attributes.name).font(.headline)
+            HStack(spacing: 14) {
+                IslandCat(context: context).frame(width: 64, height: 54)
+                VStack(alignment: .leading, spacing: 8) {
+                    NameLine(context: context)
                     HungerBar(state: context.state)
                 }
-                Spacer()
                 Buttons()
             }
-            .padding()
+            .padding(16)
+            .foregroundStyle(.white)
             .activityBackgroundTint(.black)
             .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    CatFace(state: context.state, isStale: context.isStale, size: 52)
+                    IslandCat(context: context).frame(width: 76, height: 64)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(context.attributes.name).font(.headline)
-                        Text(mood(context).text).font(.caption).foregroundStyle(.secondary)
+                        Text(context.attributes.name).font(.system(.headline, design: .monospaced))
+                        Text(mood(context).text.uppercased())
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.secondary)
                     }
+                    .padding(.top, 8)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 10) {
+                    HStack(alignment: .bottom, spacing: 12) {
                         HungerBar(state: context.state)
                         Buttons()
                     }
                 }
             } compactLeading: {
-                CatFace(state: context.state, isStale: context.isStale, size: 20)
+                IslandCat(context: context).frame(width: 30, height: 26)
             } compactTrailing: {
                 ProgressView(
                     timerInterval: context.state.fedAt...context.state.hungryAt,
@@ -51,59 +57,75 @@ struct CatLiveActivity: Widget {
                     currentValueLabel: { EmptyView() }
                 )
                 .progressViewStyle(.circular)
-                .tint(.orange)
+                .tint(.white)
                 .frame(width: 18, height: 18)
             } minimal: {
-                CatFace(state: context.state, isStale: context.isStale, size: 18)
+                IslandCat(context: context).frame(width: 24, height: 20)
             }
-            .keylineTint(.orange)
+            .keylineTint(.white)
         }
     }
-
-    private func mood(_ context: ActivityViewContext<CatAttributes>) -> Mood {
-        context.isStale ? .hungry : context.state.mood
-    }
 }
 
-// Когда наступает staleDate (кот проголодался), лицо меняется само.
-struct CatFace: View {
-    let state: CatAttributes.ContentState
-    let isStale: Bool
-    let size: CGFloat
+struct IslandCat: View {
+    let context: ActivityViewContext<CatAttributes>
 
     var body: some View {
-        let mood = isStale ? Mood.hungry : state.mood
-        Text(mood.face)
-            .font(.system(size: size))
-            .id(mood)
-            .transition(.push(from: .bottom))
+        let m = mood(context)
+        CatView(mood: m, black: context.state.black)
+            .id(m)
+            .transition(.scale(scale: 0.85).combined(with: .opacity))
     }
 }
 
-// Тает в реальном времени без обновлений Live Activity.
+struct NameLine: View {
+    let context: ActivityViewContext<CatAttributes>
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(context.attributes.name).font(.system(.headline, design: .monospaced))
+            Text(mood(context).text.uppercased())
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// Тает сама, без обновлений Live Activity.
 struct HungerBar: View {
     let state: CatAttributes.ContentState
 
     var body: some View {
-        ProgressView(
-            timerInterval: state.fedAt...state.hungryAt,
-            countsDown: true,
-            label: { Text("Сытость").font(.caption2) },
-            currentValueLabel: { EmptyView() }
-        )
-        .tint(.orange)
+        VStack(alignment: .leading, spacing: 4) {
+            Text("СЫТОСТЬ")
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.secondary)
+            ProgressView(
+                timerInterval: state.fedAt...state.hungryAt,
+                countsDown: true,
+                label: { EmptyView() },
+                currentValueLabel: { EmptyView() }
+            )
+            .tint(.white)
+        }
     }
 }
 
 struct Buttons: View {
     var body: some View {
         HStack(spacing: 8) {
-            Button(intent: FeedIntent()) { Label("Покормить", systemImage: "fish.fill") }
-            Button(intent: PetIntent()) { Label("Погладить", systemImage: "hand.raised.fill") }
-            Button(intent: SleepIntent()) { Label("Спать", systemImage: "moon.zzz.fill") }
+            Button(intent: FeedIntent()) { icon("fork.knife") }
+            Button(intent: PetIntent()) { icon("hand.raised.fill") }
+            Button(intent: SleepIntent()) { icon("moon.zzz.fill") }
         }
-        .labelStyle(.iconOnly)
-        .buttonStyle(.bordered)
-        .tint(.orange)
+        .buttonStyle(.plain)
+    }
+
+    private func icon(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 40, height: 40)
+            .background(Circle().fill(Color(white: 0.18)))
     }
 }
