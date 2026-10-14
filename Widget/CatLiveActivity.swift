@@ -16,12 +16,13 @@ struct CatLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CatAttributes.self) { context in
             HStack(spacing: 14) {
-                IslandCat(context: context).frame(width: 64, height: 54)
+                IslandCat(context: context).frame(width: 58, height: 49)
                 VStack(alignment: .leading, spacing: 8) {
                     NameLine(context: context)
                     HungerBar(state: context.state)
                 }
-                Buttons()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Buttons(size: 36)
             }
             .padding(16)
             .foregroundStyle(.white)
@@ -35,7 +36,9 @@ struct CatLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(context.attributes.name).font(.system(.headline, design: .monospaced))
+                            .lineLimit(1).minimumScaleFactor(0.6)
                         Text(mood(context).text.uppercased())
+                            .lineLimit(1).minimumScaleFactor(0.7)
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
@@ -74,7 +77,7 @@ struct IslandCat: View {
         let m = mood(context)
         CatView(mood: m, black: context.state.black)
             .id(m)
-            .transition(.scale(scale: 0.85).combined(with: .opacity))
+            .transition(.opacity)
     }
 }
 
@@ -82,11 +85,13 @@ struct NameLine: View {
     let context: ActivityViewContext<CatAttributes>
 
     var body: some View {
-        HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(context.attributes.name).font(.system(.headline, design: .monospaced))
+                .lineLimit(1).minimumScaleFactor(0.6)
             Text(mood(context).text.uppercased())
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.7)
         }
     }
 }
@@ -100,6 +105,7 @@ struct HungerBar: View {
             Text("СЫТОСТЬ")
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
             ProgressView(
                 timerInterval: state.fedAt...state.hungryAt,
                 countsDown: true,
@@ -112,6 +118,8 @@ struct HungerBar: View {
 }
 
 struct Buttons: View {
+    var size: CGFloat = 40
+
     var body: some View {
         HStack(spacing: 8) {
             Button(intent: FeedIntent()) { icon("fork.knife") }
@@ -125,7 +133,7 @@ struct Buttons: View {
         Image(systemName: name)
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(.white)
-            .frame(width: 40, height: 40)
+            .frame(width: size, height: size)
             .background(Circle().fill(Color(white: 0.18)))
     }
 }

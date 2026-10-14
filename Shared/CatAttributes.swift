@@ -2,7 +2,7 @@ import ActivityKit
 import Foundation
 
 enum Mood: String, Codable, Hashable {
-    case idle, blink, happy, love, sleep, hungry, surprised, sad
+    case idle, blink, happy, love, sleep, hungry, surprised, sad, lookLeft, lookRight
 
     var text: String {
         switch self {
@@ -14,6 +14,7 @@ enum Mood: String, Codable, Hashable {
         case .hungry: "Хочет есть"
         case .surprised: "Удивлён"
         case .sad: "Скучает"
+        case .lookLeft, .lookRight: "Оглядывается"
         }
     }
 }

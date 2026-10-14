@@ -23,6 +23,7 @@ targets:
       properties:
         CFBundleDisplayName: Cat
         NSSupportsLiveActivities: true
+        UIBackgroundModes: [audio]
         UILaunchScreen: {}
     dependencies:
       - target: CatWidget

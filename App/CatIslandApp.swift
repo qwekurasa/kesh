@@ -47,6 +47,13 @@ enum Stat: CaseIterable, Identifiable {
         }
     }
 
+    static func baseMood(at now: Date) -> Mood {
+        if energy.level(at: now) < 0.15 { return .sleep }
+        if hunger.level(at: now) < 0.2 { return .hungry }
+        if happy.level(at: now) < 0.25 || hygiene.level(at: now) < 0.2 { return .sad }
+        return .idle
+    }
+
     func level(at now: Date) -> Double {
         let t = UserDefaults.standard.double(forKey: key)
         return max(0, min(1, 1 - (now.timeIntervalSince1970 - t) / span))
@@ -59,6 +66,7 @@ struct ContentView: View {
     @AppStorage(PetKeys.bornAt) private var bornAt = Date.now.timeIntervalSince1970
     @AppStorage(PetKeys.fedAt) private var fedAt = Date.now.timeIntervalSince1970
 
+    @AppStorage("liveIsland") private var liveIsland = true
     @State private var reaction: Mood?
     @State private var inIsland = !Activity<CatAttributes>.activities.isEmpty
     @State private var showSettings = false
@@ -90,12 +98,16 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showSettings, onDismiss: restartIfRunning) {
-                SettingsView(name: $name, black: $black, onReset: reset)
+                SettingsView(name: $name, black: $black, live: $liveIsland, onReset: reset)
                     .presentationDetents([.medium])
             }
         }
         .tint(.primary)
         .fontDesign(.monospaced)
+        .onAppear { if inIsland && liveIsland { IslandAnimator.shared.start() } }
+        .onChange(of: liveIsland) { _, on in
+            if on && inIsland { IslandAnimator.shared.start() } else { IslandAnimator.shared.stop() }
+        }
     }
 
     // MARK: Секции
@@ -104,11 +116,13 @@ struct ContentView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(name.uppercased()).font(.largeTitle.weight(.bold))
+                    .lineLimit(1).minimumScaleFactor(0.5)
                 Text("ВОЗРАСТ · \(age(now))").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             Text(mood(now).text.uppercased())
                 .font(.caption.weight(.semibold))
+                .lineLimit(1).fixedSize()
                 .padding(.horizontal, 10).padding(.vertical, 6)
                 .overlay(Capsule().stroke(Color.primary, lineWidth: 1))
         }
@@ -135,8 +149,10 @@ struct ContentView: View {
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(inIsland ? "КОТ В ОСТРОВКЕ" : "ПОСЕЛИТЬ В ОСТРОВОК").font(.headline)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                     Text(inIsland ? "Нажми, чтобы забрать обратно" : "Кот будет жить возле камеры")
                         .font(.caption).opacity(0.65)
+                        .lineLimit(1).minimumScaleFactor(0.8)
                 }
                 Spacer()
                 ZStack(alignment: .leading) {
@@ -160,6 +176,7 @@ struct ContentView: View {
             ForEach(Stat.allCases) { stat in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(stat.title).font(.caption2.weight(.semibold)).tracking(1)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                     let filled = Int((stat.level(at: now) * 10).rounded(.up))
                     HStack(spacing: 3) {
                         ForEach(0..<10, id: \.self) { i in
@@ -191,7 +208,7 @@ struct ContentView: View {
                     .font(.title3)
                     .frame(width: 62, height: 62)
                     .overlay(Circle().stroke(Color.primary, lineWidth: 1.5))
-                Text(label).font(.caption2.weight(.semibold))
+                Text(label).font(.caption2.weight(.semibold)).lineLimit(1)
             }
             .frame(maxWidth: .infinity)
         }
@@ -200,12 +217,7 @@ struct ContentView: View {
 
     // MARK: Логика
 
-    private func baseMood(_ now: Date) -> Mood {
-        if Stat.energy.level(at: now) < 0.15 { return .sleep }
-        if Stat.hunger.level(at: now) < 0.2 { return .hungry }
-        if Stat.happy.level(at: now) < 0.25 || Stat.hygiene.level(at: now) < 0.2 { return .sad }
-        return .idle
-    }
+    private func baseMood(_ now: Date) -> Mood { Stat.baseMood(at: now) }
 
     private func mood(_ now: Date) -> Mood { reaction ?? baseMood(now) }
 
@@ -245,12 +257,14 @@ struct ContentView: View {
             _ = try Activity.request(attributes: CatAttributes(name: name), content: .init(state: s, staleDate: s.hungryAt))
             inIsland = true
             error = nil
+            if liveIsland { IslandAnimator.shared.start() }
         } catch {
             self.error = error.localizedDescription
         }
     }
 
     private func stopIsland() async {
+        IslandAnimator.shared.stop()
         for a in Activity<CatAttributes>.activities {
             await a.end(nil, dismissalPolicy: .immediate)
         }
@@ -277,6 +291,7 @@ struct AnimatedCat: View {
     let mood: Mood
     let black: Bool
     @State private var blinking = false
+    @State private var glance: Mood?
     @State private var breathe = false
 
     var body: some View {
@@ -285,17 +300,26 @@ struct AnimatedCat: View {
             .animation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: breathe)
             .onAppear { breathe = true }
             .task {
+                var n = 0
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(Double.random(in: 2.5...5)))
-                    blinking = true
-                    try? await Task.sleep(for: .milliseconds(140))
-                    blinking = false
+                    n += 1
+                    if n % 3 == 0 && mood == .idle {
+                        glance = Bool.random() ? .lookLeft : .lookRight
+                        try? await Task.sleep(for: .seconds(1.2))
+                        glance = nil
+                    } else {
+                        blinking = true
+                        try? await Task.sleep(for: .milliseconds(140))
+                        blinking = false
+                    }
                 }
             }
     }
 
     private var shown: Mood {
-        blinking && [.idle, .hungry, .surprised, .sad].contains(mood) ? .blink : mood
+        if let glance { return glance }
+        return blinking && [.idle, .hungry, .surprised, .sad].contains(mood) ? .blink : mood
     }
 }
 
@@ -316,6 +340,7 @@ struct DotGrid: View {
 struct SettingsView: View {
     @Binding var name: String
     @Binding var black: Bool
+    @Binding var live: Bool
     let onReset: () -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -331,6 +356,11 @@ struct SettingsView: View {
                         swatch(true, "ЧЁРНЫЙ")
                     }
                     .padding(.vertical, 4)
+                }
+                Section {
+                    Toggle("Живой островок", isOn: $live)
+                } footer: {
+                    Text("Кот в островке моргает и оглядывается. Приложение остаётся работать в фоне и тратит немного батареи.")
                 }
                 Section {
                     Button("Завести заново", role: .destructive) { onReset(); dismiss() }

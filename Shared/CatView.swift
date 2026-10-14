@@ -109,6 +109,9 @@ private struct CatDrawing {
         switch mood {
         case .idle, .hungry:
             eyes.forEach { openEye(&ctx, $0, r: 6.5) }
+        case .lookLeft, .lookRight:
+            let dx = mood == .lookLeft ? -3.5 : 3.5
+            eyes.forEach { openEye(&ctx, P($0.x + dx, $0.y), r: 6.5) }
         case .surprised:
             eyes.forEach { openEye(&ctx, $0, r: 8) }
             var m = Path()
