@@ -7,11 +7,11 @@ import { catAvatar } from '../kesh.js';
 import * as store from '../store.js';
 import * as auth from '../auth.js';
 import { makeBackup, checkBackup, restoreBackup } from '../backup.js';
-import { accounts, addAccount, updateAccount, removeAccount, balances, TYPES } from '../accounts.js';
+import { accounts, addAccount, updateAccount, removeAccount, balances, ownTotal, TYPES } from '../accounts.js';
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '2.4';
+const BUILD_WEB = '2.5';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'settings'];
@@ -191,10 +191,9 @@ const sec = (t, extra = '') => `<div class="sec">${t}${extra}</div>`;
 function dataPage() {
   const has = items.length > 0;
   const from = has ? items[items.length - 1].ts : 0;
-  const cats = new Set(items.map((i) => i.category)).size;
   const exp = (kind, icon, name, desc, file) => `<button class="xcard" data-exp="${kind}"><span class="x-ico">${icon}</span><span class="x-name">${name}<small>${desc}</small></span><span class="x-file mono">${file}</span><span class="x-go">${I.download}${L('Скачать', 'Download')}</span></button>`;
   const body = `
-    ${has ? `<div class="strip"><span><small>${L('Операций', 'Transactions')}</small><b class="mono">${items.length}</b></span><span><small>${L('Расходы за всё время', 'All-time spending')}</small><b class="mono">${money(sum(items.filter((i) => !isIn(i))))}</b></span><span><small>${L('Период', 'Period')}</small><b class="mono">${dm(from)} – ${dateStr(items[0].ts)}</b></span><span><small>${L('Категорий · счетов · вкладов', 'Categories · accounts · savings')}</small><b class="mono">${cats} · ${accounts().length} · ${deposits().length}</b></span></div>
+    ${has ? `<div class="strip"><span><small>${L('Операций', 'Transactions')}</small><b class="mono">${items.length}</b></span><span><small>${L('Расходы за всё время', 'All-time spending')}</small><b class="mono">${money(sum(items.filter((i) => !isIn(i))))}</b></span><span><small>${L('Период', 'Period')}</small><b class="mono">${dm(from)} – ${dateStr(items[0].ts)}</b></span></div>
     ${sec(L('Экспорт', 'Export'), `<em>${L('главное — забрать данные в удобном формате', 'take your data in any format')}</em>`)}
     <div class="xgrid">
       ${exp('xlsx', I.xls, L('Отчёт Excel', 'Excel report'), L('Операции, категории, бюджет и вклады — по листам, с датами и суммами.', 'Transactions, categories, budget and savings on separate sheets.'), `kesh-${new Date().toISOString().slice(0, 10)}.xlsx`)}
@@ -299,21 +298,18 @@ function overview() {
   const all = inRange(r); const prev = pr ? inRange(pr) : null;
   const out = all.filter((i) => !isIn(i)); const inc = all.filter(isIn);
   const spent = sum(out); const income = sum(inc); const diff = income - spent;
-  const now = Date.now();
-  const days = Math.max(1, Math.ceil((Math.min(r[1], now) - r[0]) / 864e5));
   const pOut = prev && prev.filter((i) => !isIn(i)); const pInc = prev && prev.filter(isIn);
   const pSpent = prev && sum(pOut); const pIncome = prev && sum(pInc);
-  const pDays = pr ? Math.max(1, Math.round((pr[1] - pr[0]) / 864e5)) : 1;
   const side = view.kind === 'in' ? inc : out;
   const sideSum = view.kind === 'in' ? income : spent;
   const kpi = (label, val, cls, foot) => `<div class="card kpi"><small>${label}</small><div class="val mono ${cls}">${val}</div><div class="kpi-foot">${foot}</div></div>`;
   const body = `
     ${periodBar()}
-    <div class="grid kpis">
+    <div class="grid kpis${bal.length ? '' : ' k3'}">
       ${kpi(L('Потрачено', 'Spent'), money(spent), '', `${delta(spent, pSpent)}<span>${nOps(out.length)}</span>`)}
       ${kpi(L('Получено', 'Received'), `${income ? '+' : ''}${money(income)}`, income ? 'plus' : '', `${delta(income, pIncome, true)}<span>${nOps(inc.length)}</span>`)}
-      ${kpi(L('Осталось', 'Left over'), `${diff > 0 ? '+' : ''}${money(diff)}`, diff > 0 ? 'plus' : diff < 0 ? 'minus' : '', `<span>${income ? `${Math.round((spent / income) * 100)}% ${L('дохода потрачено', 'of income spent')}` : L('доходов нет', 'no income')}</span>`)}
-      ${kpi(L('В среднем в день', 'Per day'), money(Math.round(spent / days)), '', `${prev ? delta(spent / days, pSpent / pDays) : ''}<span>${days} ${L('дн.', 'd')}</span>`)}
+      ${kpi(L('Осталось', 'Left over'), `${diff > 0 ? '+' : ''}${money(diff)}`, diff > 0 ? 'plus' : diff < 0 ? 'minus' : '', `<span>${L('доходы − расходы', 'income − spending')}${income ? ` · ${Math.round((spent / income) * 100)}% ${L('потрачено', 'spent')}` : ''}</span>`)}
+      ${bal.length ? kpi(L('Денег сейчас', 'Money now'), money(moneyLeft().v), moneyLeft().v < 0 ? 'minus' : '', `<span>${L('счета + доходы − расходы', 'accounts + income − spending')}</span><button class="chip" data-page="budget">${L('Бюджет', 'Budget')} →</button>`) : ''}
     </div>
     <div class="card chart-card"><div class="card-head"><h3>${view.mode === 'month' || (view.mode === 'custom' && r[1] - r[0] <= 62 * 864e5) ? L('Траты по дням', 'Spending by day') : L('Траты по месяцам', 'Spending by month')}</h3><span class="hint">${L('Наведите на столбец, чтобы увидеть сумму', 'Hover a column to see the amount')}</span></div>${dayChart(all, r)}</div>
     <div class="grid row3">
@@ -357,6 +353,18 @@ function opsPage() {
 }
 
 /* ---------- 4. бюджет и счета ---------- */
+// Сколько денег осталось. Без счетов: доходы − расходы за текущий месяц.
+// Со счетами: их остатки (старт + свои операции) + операции без счёта с момента заведения первого счёта.
+function moneyLeft() {
+  const m0 = new Date(); const mFrom = +new Date(m0.getFullYear(), m0.getMonth(), 1);
+  const net = (l) => sum(l.filter(isIn)) - sum(l.filter((i) => !isIn(i)));
+  if (!bal.length) return { v: net(items.filter((i) => i.ts >= mFrom)), from: mFrom, acc: false };
+  // время операции вводится с точностью до минуты — начало считаем с начала минуты
+  const from = Math.floor(Math.min(...bal.map((a) => a.from || Date.now())) / 6e4) * 6e4;
+  const loose = items.filter((i) => !i.acc && i.ts >= from && !bal.some((a) => a.all && i.ts >= a.from));
+  return { v: ownTotal(bal) + net(loose), from, acc: true };
+}
+
 function budgetPage() {
   const b = budgets();
   const m0 = new Date(); const mFrom = +new Date(m0.getFullYear(), m0.getMonth(), 1);
@@ -364,13 +372,18 @@ function budgetPage() {
   const limited = Object.entries(b).filter(([id]) => CAT[id]);
   const totalLim = limited.reduce((s, [, v]) => s + v, 0);
   const totalSp = limited.reduce((s, [id]) => s + sum(monthOut.filter((i) => i.category === id)), 0);
-  const own = bal.filter((a) => a.type !== 'credit').reduce((s, a) => s + a.balance, 0);
+  const monthIn = items.filter((i) => isIn(i) && i.ts >= mFrom);
+  const mIn = sum(monthIn); const mOut = sum(items.filter((i) => !isIn(i) && i.ts >= mFrom));
+  // осталось денег: со счетами — их остаток (старт + доходы − расходы), без счетов — доходы − расходы за месяц
+  const ml = moneyLeft(); const left = ml.v;
+  const limLeft = totalLim - totalSp;
+  const mName = MONTHS[m0.getMonth()].toLowerCase();
   const body = `
     <div class="grid kpis">
-      <div class="card kpi"><small>${L('Свои деньги на счетах', 'Own money')}</small><div class="val mono ${own < 0 ? 'minus' : ''}">${money(own)}</div><div class="kpi-foot"><span>${bal.length} ${plural(bal.length, L('счёт', 'account'), L('счёта', 'accounts'), L('счетов', 'accounts'))}</span></div></div>
-      <div class="card kpi"><small>${L('Лимиты на месяц', 'Monthly limits')}</small><div class="val mono">${money(totalLim)}</div><div class="kpi-foot"><span>${limited.length} ${plural(limited.length, L('категория', 'category'), L('категории', 'categories'), L('категорий', 'categories'))}</span></div></div>
-      <div class="card kpi"><small>${L('Потрачено по лимитам', 'Spent on limits')}</small><div class="val mono">${money(totalSp)}</div>${ticks(totalSp, totalLim, 28, totalSp > totalLim ? 'var(--neg)' : '')}</div>
-      <div class="card kpi"><small>${L('Осталось', 'Left')}</small><div class="val mono ${totalLim - totalSp < 0 ? 'minus' : 'plus'}">${money(totalLim - totalSp)}</div><div class="kpi-foot"><span>${MONTHS[m0.getMonth()]}</span></div></div>
+      <div class="card kpi"><small>${L('Осталось денег', 'Money left')}</small><div class="val mono ${left < 0 ? 'minus' : ''}">${money(left)}</div><div class="kpi-foot"><span>${ml.acc ? L(`счета + доходы − расходы с ${dm(ml.from)}`, `accounts + income − spending since ${dm(ml.from)}`) : L(`доходы − расходы за ${mName}`, `income − spending, ${mName}`)}</span></div></div>
+      <div class="card kpi"><small>${L('Доходы за месяц', 'Income this month')}</small><div class="val mono ${mIn ? 'plus' : ''}">${mIn ? '+' : ''}${money(mIn)}</div><div class="kpi-foot"><span>${nOps(monthIn.length)}</span><button class="chip" data-act="add-income">${I.plus}${L('Доход', 'Income')}</button></div></div>
+      <div class="card kpi"><small>${L('Расходы за месяц', 'Spending this month')}</small><div class="val mono">${money(mOut)}</div><div class="kpi-foot"><span>${mIn ? `${Math.round((mOut / mIn) * 100)}% ${L('от доходов', 'of income')}` : L('доходов пока нет', 'no income yet')}</span></div></div>
+      <div class="card kpi"><small>${L('Осталось по лимитам', 'Left within limits')}</small><div class="val mono ${limLeft < 0 ? 'minus' : ''}">${totalLim ? money(limLeft) : '—'}</div>${totalLim ? `${ticks(totalSp, totalLim, 28, totalSp > totalLim ? 'var(--neg)' : '')}<div class="kpi-foot"><span>${money(totalSp)} ${L('из', 'of')} ${money(totalLim)}</span></div>` : `<div class="kpi-foot"><span>${L('лимиты не заданы', 'no limits set')}</span></div>`}</div>
     </div>
     <div class="grid row3">
       ${card(L('Лимиты категорий', 'Category limits'), limited.length ? limited.sort((x, y) => y[1] - x[1]).map(([id, lim]) => { const sp = sum(monthOut.filter((i) => i.category === id)); const p = sp / lim; const c = cat(id); return `<div class="lim row">${dot(c)}<div class="lim-body"><div class="lim-top">${esc(c.name)}<span class="mono">${money(sp)} / ${money(lim)}</span></div><div class="bar"><i class="${p >= 1 ? 'over' : p >= 0.8 ? 'warn' : ''}" style="width:${Math.min(100, p * 100)}%"></i></div><small>${p >= 1 ? L(`Превышен на ${money(sp - lim)}`, `Over by ${money(sp - lim)}`) : L(`Осталось ${money(lim - sp)}`, `${money(lim - sp)} left`)}</small></div><button class="icon-btn" data-limit="${esc(id)}">${I.edit}</button></div>`; }).join('') : empty(L('Задайте лимит на категорию — Кэш покажет, сколько осталось до конца месяца.', 'Set a category limit to see what’s left this month.')), `<button class="btn" data-act="add-limit">${I.plus}${L('Лимит', 'Limit')}</button>`)}
@@ -530,10 +543,10 @@ function toast(text) {
 
 const catOptions = (kind, sel) => (kind === 'in' ? INCOME_CATEGORIES : CATEGORIES).map(([id]) => `<option value="${esc(id)}"${id === sel ? ' selected' : ''}>${esc(cat(id).name)}</option>`).join('');
 
-function editTx(item) {
+function editTx(item, k0) {
   const isNew = !item;
   const it = item || { amount: 0, category: 'groceries', note: '', ts: Date.now(), type: undefined, acc: localStorage.getItem('lastAcc') || '' };
-  let kind = isIn(it) ? 'in' : 'out';
+  let kind = k0 || (isIn(it) ? 'in' : 'out');
   const accs = accounts();
   modal(isNew ? L('Новая операция', 'New transaction') : L('Операция', 'Transaction'), `
     <div class="seg full" id="tx-kind"><button data-k="out" class="${kind === 'out' ? 'on' : ''}">${L('Расход', 'Expense')}</button><button data-k="in" class="${kind === 'in' ? 'on' : ''}">${L('Доход', 'Income')}</button></div>
@@ -839,6 +852,7 @@ root.addEventListener('click', async (e) => {
     case 'mini': { const m = !mini(); try { localStorage.setItem('webMini', m ? '1' : '0'); } catch { /* */ } return document.getElementById('frame').classList.toggle('mini', m); }
     case 'export-menu': return document.getElementById('exp').classList.toggle('open');
     case 'add': return editTx(null);
+    case 'add-income': return editTx(null, 'in');
     case 'calendar': return pickDates();
     case 'pick-backup': e.preventDefault(); return document.getElementById('file-backup').click();
     case 'pick-bank': return document.getElementById('file-bank').click();
