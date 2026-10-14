@@ -1,99 +1,130 @@
-// Сайт для компьютера: аналитика по резервной копии с телефона и инструкции по установке.
-// Файл копии разбирается прямо в браузере и никуда не отправляется.
+// Кэш для компьютера: те же данные, что у веб-приложения на этом устройстве (IndexedDB).
+// Главное — экспорт и перенос данных; плюс аналитика, операции, бюджет, счета, вклады и категории.
 import '../guard.js';
-import { L, EN, LANG, setLang, CURRENCIES, CURRENCY } from '../i18n.js';
-import { CAT } from '../ui.js'; // раньше kesh.js: у них взаимный импорт
+import { L, EN, setLang, CURRENCIES, CURRENCY, setCurrency, curSymbol } from '../i18n.js';
+import { CAT, CATEGORIES, INCOME_CATEGORIES, PALETTE, customCategories, addCategory, updateCategory, removeCategory } from '../ui.js'; // раньше kesh.js: взаимный импорт
 import { catAvatar } from '../kesh.js';
-import { playIntro } from './intro.js';
-import { snapshot } from './scene.js';
-let SHOT = '';
-import { checkBackup } from '../backup.js';
+import * as store from '../store.js';
+import * as auth from '../auth.js';
+import { makeBackup, checkBackup, restoreBackup } from '../backup.js';
+import { accounts, addAccount, updateAccount, removeAccount, balances, TYPES } from '../accounts.js';
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const KEY = 'webBackup';
-const BUILD_WEB = '1.3';
+const BUILD_WEB = '2.0';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
+const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'settings'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 
-const ic = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ic = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const I = {
+  data: ic('<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'),
   overview: ic('<rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/>'),
   ops: ic('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
+  budget: ic('<path d="M21 12a9 9 0 1 1-9-9v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>'),
+  safe: ic('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5V7M12 17v-1.5M7 20v1M17 20v1"/>'),
+  tag: ic('<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'),
   install: ic('<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M12 18h.01"/>'),
+  settings: ic('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+  app: ic('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18"/>'),
+  side: ic('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/>'),
   upload: ic('<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>'),
   download: ic('<path d="M12 4v12M7 11l5 5 5-5M4 20h16"/>'),
   left: ic('<path d="M15 18l-6-6 6-6"/>'),
   right: ic('<path d="M9 18l6-6-6-6"/>'),
   search: ic('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
   lock: ic('<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
-  app: ic('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18"/>'),
-  side: ic('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/>'),
-  more: ic('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'),
-  globe: ic('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+  plus: ic('<path d="M12 5v14M5 12h14"/>', 2),
+  edit: ic('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/>'),
   trash: ic('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'),
-  chart: ic('<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>'),
+  cal: ic('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
+  x: ic('<path d="M6 6l12 12M18 6 6 18"/>', 2),
+  xls: ic('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l8 8M16 8l-8 8"/>'),
+  csv: ic('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h5"/>'),
+  json: ic('<path d="M8 4c-2 0-2 2-2 4s-2 4-2 4 2 2 2 4 0 4 2 4M16 4c2 0 2 2 2 4s2 4 2 4-2 2-2 4 0 4-2 4"/>'),
+  bank: ic('<path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18"/>'),
+  phone: ic('<rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/>'),
+  apple: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9s-2-.9-3.3-.8C6.1 7 4.6 8 3.7 9.5c-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.5 1.3-.1 1.8-.8 3.3-.8s2 .8 3.3.8c1.4 0 2.3-1.2 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.8-1.1-2.9-4.2zM14 5.3c.7-.9 1.2-2 1-3.3-1 0-2.2.7-3 1.6-.6.7-1.2 1.9-1 3.1 1.1.1 2.3-.6 3-1.4z"/></svg>',
+  android: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 9.5l1.7-3a.4.4 0 0 0-.7-.4l-1.8 3A10.8 10.8 0 0 0 12 8a10.8 10.8 0 0 0-4.8 1.1l-1.8-3a.4.4 0 0 0-.7.4l1.7 3A9.5 9.5 0 0 0 2 17h20a9.5 9.5 0 0 0-4.4-7.5zM7 14.3a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm10 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>',
   filePlus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></svg>',
 };
 
-/* ---------- состояние ---------- */
-let raw = null; // исходный JSON копии (для экспорта обратно)
-let data = null; // проверенные данные
-const view = { page: (location.hash.slice(1) || 'overview'), mode: 'month', anchor: new Date(), q: '', type: 'all', cat: '', limit: 100, inst: 'iphone', error: '' };
-if (!['overview', 'ops', 'install'].includes(view.page)) view.page = 'overview';
+/* ---------- данные ---------- */
+let items = []; // все операции, новые сверху
+let bal = []; // счета с остатками
+let ready = false;
+const budgets = () => readJSON('budgets', {});
+const saveBudgets = (b) => localStorage.setItem('budgets', JSON.stringify(b));
+const deposits = () => readJSON('deposits', []);
+const saveDeposits = (list) => localStorage.setItem('deposits', JSON.stringify(list));
 
-function load(json, persist) {
-  const r = checkBackup(json);
-  if (!r.ok) return r.error;
-  if (!r.transactions.length) return L('В копии нет операций', 'The backup has no transactions');
-  raw = json;
-  data = r;
-  data.transactions.sort((a, b) => b.ts - a.ts);
-  if (persist) { try { localStorage.setItem(KEY, JSON.stringify(json)); } catch { /* большой файл — только на эту сессию */ } }
-  const last = new Date(data.transactions[0].ts);
-  view.anchor = last;
-  return '';
+const hashPage = () => { const p = location.hash.slice(1); return PAGES.includes(p) ? p : 'data'; };
+const view = { page: hashPage(), mode: 'month', anchor: new Date(), range: null, q: '', type: 'all', cat: '', acc: '', sort: 'date', dir: -1, limit: 100, inst: 'iphone', msg: '' };
+
+async function load() {
+  items = (await store.allExpenses()).sort((a, b) => b.ts - a.ts);
+  bal = await balances();
+  ready = true;
+  render();
 }
-try { const saved = localStorage.getItem(KEY); if (saved) load(JSON.parse(saved), false); } catch { /* повреждённая запись */ }
+
+// Старый сайт хранил копию отдельно — переносим её в общее хранилище один раз
+async function migrate() {
+  const old = localStorage.getItem('webBackup');
+  if (!old) return;
+  try { const c = checkBackup(JSON.parse(old)); if (c.ok) await restoreBackup(c); } catch { /* повреждённая запись */ }
+  localStorage.removeItem('webBackup');
+}
 
 /* ---------- форматирование ---------- */
 const LOC = EN ? 'en-US' : 'ru-RU';
-const cur = () => { const c = raw?.preferences?.currency; return CURRENCIES.some(([x]) => x === c) ? c : CURRENCY; };
-const fmt = (min) => new Intl.NumberFormat(LOC, { style: 'currency', currency: cur(), currencyDisplay: 'narrowSymbol', minimumFractionDigits: min, maximumFractionDigits: 2 });
+const fmt = (min) => new Intl.NumberFormat(LOC, { style: 'currency', currency: CURRENCY, currencyDisplay: 'narrowSymbol', minimumFractionDigits: min, maximumFractionDigits: 2 });
 const money = (kop) => (kop % 100 ? fmt(2) : fmt(0)).format(kop / 100).replace(/^-/, '−');
 const short = (kop) => new Intl.NumberFormat(LOC, { notation: 'compact', maximumFractionDigits: 1 }).format(kop / 100);
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
 const MON = L(['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'], ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
-const dateStr = (ts) => { const d = new Date(ts); return L(`${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`, `${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`); };
+const WD = L(['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+const dm = (ts) => { const d = new Date(ts); return L(`${d.getDate()} ${MON[d.getMonth()]}`, `${MON[d.getMonth()]} ${d.getDate()}`); };
+const dateStr = (ts) => { const d = new Date(ts); return `${dm(ts)} ${d.getFullYear()}`; };
+const timeStr = (ts) => new Date(ts).toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' });
 const isIn = (i) => i.type === 'in';
 const sum = (list) => list.reduce((s, i) => s + i.amount, 0);
-
-function cat(id) {
-  const own = data?.categories.find((c) => c.id === id);
-  if (own) return { name: own.name, color: own.color || '#9a9aa4' };
-  return CAT[id] ? { name: CAT[id].name, color: CAT[id].color } : { name: id || L('Без категории', 'Uncategorized'), color: '#9a9aa4' };
-}
+const plural = (n, a, b, c) => (EN ? (n === 1 ? a : b) : (n % 10 === 1 && n % 100 !== 11 ? a : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? b : c));
+const nOps = (n) => `${n} ${plural(n, L('операция', 'transaction'), L('операции', 'transactions'), L('операций', 'transactions'))}`;
+const cat = (id) => (CAT[id] ? { name: CAT[id].name, color: CAT[id].color, kind: CAT[id].kind } : { name: id || L('Без категории', 'Uncategorized'), color: '#9a9aa4', kind: 'out' });
+const accName = (id) => accounts().find((a) => a.id === id)?.name || '';
+const parseAmount = (s) => { const v = Math.round(parseFloat(String(s).replace(/[\s ]/g, '').replace(',', '.')) * 100); return Number.isFinite(v) ? v : 0; };
+const toLocalInput = (ts) => { const d = new Date(ts); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+const day0 = (ts) => { const d = new Date(ts); return +new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+const dot = (c) => `<span class="dot" style="background:${c.color}22;color:${c.color}">${esc(c.name.slice(0, 1).toUpperCase())}</span>`;
 
 /* ---------- период ---------- */
 function range(shift = 0) {
   const a = view.anchor;
   if (view.mode === 'month') return [new Date(a.getFullYear(), a.getMonth() + shift, 1).getTime(), new Date(a.getFullYear(), a.getMonth() + shift + 1, 1).getTime()];
   if (view.mode === 'year') return [new Date(a.getFullYear() + shift, 0, 1).getTime(), new Date(a.getFullYear() + shift + 1, 0, 1).getTime()];
+  if (view.mode === 'custom' && view.range) { const s = view.range.to - view.range.from; return [view.range.from + shift * s, view.range.to + shift * s]; }
   if (shift) return null;
-  const t = data.transactions;
-  const first = new Date(t[t.length - 1].ts);
+  const first = items.length ? new Date(items[items.length - 1].ts) : new Date();
   return [new Date(first.getFullYear(), first.getMonth(), 1).getTime(), Date.now() + 1];
 }
-const inRange = (r) => (r ? data.transactions.filter((i) => i.ts >= r[0] && i.ts < r[1]) : []);
+const inRange = (r) => (r ? items.filter((i) => i.ts >= r[0] && i.ts < r[1]) : []);
 function periodLabel() {
   const a = view.anchor;
   if (view.mode === 'month') return `${MONTHS[a.getMonth()]} ${a.getFullYear()}`;
   if (view.mode === 'year') return String(a.getFullYear());
+  if (view.mode === 'custom' && view.range) { const { from, to } = view.range; return to - from === 864e5 ? dateStr(from) : `${dm(from)} – ${dateStr(to - 1)}`; }
   return L('Всё время', 'All time');
 }
+const periodBar = () => `<div class="toolbar">
+  <div class="seg">${[['month', L('Месяц', 'Month')], ['year', L('Год', 'Year')], ['all', L('Всё время', 'All time')]].map(([m, t]) => `<button class="${view.mode === m ? 'on' : ''}" data-mode="${m}">${t}</button>`).join('')}
+  <button class="${view.mode === 'custom' ? 'on' : ''}" data-act="calendar">${I.cal}${L('Даты', 'Dates')}</button></div>
+  ${view.mode === 'all' ? '' : `<div class="period"><button class="arrow" data-shift="-1" aria-label="${L('Назад', 'Back')}">${I.left}</button><b>${periodLabel()}</b><button class="arrow" data-shift="1" ${range(1)[0] > Date.now() ? 'disabled' : ''} aria-label="${L('Вперёд', 'Forward')}">${I.right}</button></div>`}
+</div>`;
 
-/* ---------- каркас: строится один раз, дальше меняются только части ---------- */
+/* ---------- каркас ---------- */
 const mini = () => { try { return localStorage.getItem('webMini') === '1'; } catch { return false; } };
 function frame() {
   const nav = (id, icon, label) => `<button class="nav" data-page="${id}" title="${label}">${icon}<span>${label}</span><em class="count" data-count="${id}"></em></button>`;
@@ -101,427 +132,820 @@ function frame() {
     <span class="frame-tag">Web</span>
     <aside class="side">
       <div class="side-top"><div class="brand"><img src="../icon-180.png" alt=""><span>${L('Кэш', 'Kesh')}</span></div></div>
-      <div class="group"><div class="g-label">${L('Аналитика', 'Analytics')}</div>
-        ${nav('overview', I.overview, L('Обзор', 'Overview'))}
-        ${nav('ops', I.ops, L('Операции', 'Transactions'))}
-      </div>
-      <div class="group"><div class="g-label">${L('Устройства', 'Devices')}</div>
-        ${nav('install', I.install, L('Установка', 'Install'))}
-        <a class="nav" href="../?app" title="${L('Веб-приложение', 'Web app')}">${I.app}<span>${L('Веб-приложение', 'Web app')}</span></a>
-      </div>
-      <div class="group" id="g-data"></div>
-      <div class="pet" id="pet"></div>
-      <div class="side-foot">
-        <button class="nav" data-act="lang" title="${L('Язык', 'Language')}">${I.globe}<span>${L('Язык', 'Language')}</span><em class="lang-v">${EN ? 'EN' : 'RU'}</em></button>
-        <div class="user" id="user"></div>
-      </div>
+      <div class="group">${nav('data', I.data, L('Экспорт и импорт', 'Export & import'))}</div>
+      <div class="group"><div class="g-label">${L('Аналитика', 'Analytics')}</div>${nav('overview', I.overview, L('Обзор', 'Overview'))}${nav('ops', I.ops, L('Операции', 'Transactions'))}</div>
+      <div class="group"><div class="g-label">${L('Деньги', 'Money')}</div>${nav('budget', I.budget, L('Бюджет и счета', 'Budget & accounts'))}${nav('deposits', I.safe, L('Вклады', 'Savings'))}${nav('cats', I.tag, L('Категории', 'Categories'))}</div>
+      <div class="group"><div class="g-label">${L('Устройства', 'Devices')}</div>${nav('install', I.install, L('Установка', 'Install'))}<a class="nav" href="../?app" title="${L('Веб-приложение', 'Web app')}">${I.app}<span>${L('Веб-приложение', 'Web app')}</span></a></div>
+      <div class="side-foot">${nav('settings', I.settings, L('Настройки', 'Settings'))}<div class="user" id="user"></div></div>
     </aside>
     <section class="panel">
       <header class="phead"><button class="icon-btn" data-act="mini" aria-label="${L('Свернуть меню', 'Toggle sidebar')}">${I.side}</button><span class="sep"></span><h1 id="ptitle"></h1><div class="phead-right" id="pactions"></div></header>
       <div class="pbody" id="pbody"></div>
     </section>
-  </div><div class="tip" id="tip"></div><input type="file" id="file" accept=".json,application/json" hidden>`;
-}
-const shell = (title, actions, body) => ({ title, actions, body });
-function chrome() {
-  document.querySelectorAll('.nav[data-page]').forEach((n) => n.classList.toggle('on', n.dataset.page === view.page));
-  const c = document.querySelector('[data-count="ops"]');
-  c.textContent = data ? data.transactions.length : '';
-  document.getElementById('g-data').innerHTML = data ? `<div class="g-label">${L('Данные', 'Data')}</div>
-    <button class="nav" data-act="pick" title="${L('Обновить копию', 'Update backup')}">${I.upload}<span>${L('Обновить копию', 'Update backup')}</span></button>
-    <button class="nav danger" data-act="forget" title="${L('Удалить с компьютера', 'Remove from computer')}">${I.trash}<span>${L('Удалить с компьютера', 'Remove from computer')}</span></button>` : '';
-  const name = raw?.account?.login || L('Гость', 'Guest');
-  const skin = Number(raw?.preferences?.avatarSkin) || 0;
-  document.getElementById('user').innerHTML = `<span class="u-ava">${data ? catAvatar(skin, true) : esc(name[0])}</span><span class="u-name">${esc(name)}<small>${data ? `${L('копия от', 'backup')} ${dateStr(data.transactions[0].ts)}` : L('данные не загружены', 'no data loaded')}</small></span>`;
+  </div><div class="tip" id="tip"></div><div class="toast" id="toast"></div>
+  <input type="file" id="file-backup" accept=".json,application/json" hidden><input type="file" id="file-bank" accept=".pdf,.csv,application/pdf,text/csv" multiple hidden>`;
 }
 
-const ioButtons = () => `
-  ${data ? `<span class="status ok"><i></i>${data.transactions.length} ${L('опер.', 'tx')}</span>` : `<span class="status"><i></i>${L('Нет данных', 'No data')}</span>`}
-  ${data ? `<div class="menu" id="exp"><button class="btn primary" data-act="export">${I.download}${L('Экспорт', 'Export')}</button>
+const headActions = () => `
+  ${items.length ? `<span class="status ok"><i></i>${nOps(items.length)}</span>` : `<span class="status"><i></i>${L('Нет данных', 'No data')}</span>`}
+  <button class="btn" data-act="add">${I.plus}${L('Операция', 'Transaction')}<kbd>N</kbd></button>
+  ${items.length ? `<div class="menu" id="exp"><button class="btn primary" data-act="export-menu">${I.download}${L('Экспорт', 'Export')}</button>
     <div class="menu-list">
-      <button data-exp="xlsx">Excel <small>.xlsx</small></button>
-      <button data-exp="csv">CSV <small>.csv</small></button>
-      <button data-exp="json">${L('Копия для телефона', 'Backup for phone')} <small>.json</small></button>
+      <button data-exp="xlsx">${I.xls}<span>Excel<small>${L('отчёт на 4 листа', '4-sheet report')}</small></span></button>
+      <button data-exp="csv">${I.csv}<span>CSV<small>${L('для таблиц и банков', 'for spreadsheets')}</small></span></button>
+      <button data-exp="json">${I.json}<span>${L('Резервная копия', 'Backup')}<small>${L('перенос на телефон', 'move to phone')}</small></span></button>
     </div></div>` : ''}`;
 
-const periodBar = () => `
-  <div class="seg">${[['month', L('Месяц', 'Month')], ['year', L('Год', 'Year')], ['all', L('Всё', 'All')]].map(([m, t]) => `<button class="${view.mode === m ? 'on' : ''}" data-mode="${m}">${t}</button>`).join('')}</div>
-  ${view.mode === 'all' ? '' : `<div class="period"><button class="arrow" data-shift="-1" aria-label="${L('Назад', 'Back')}">${I.left}</button><b>${periodLabel()}</b><button class="arrow" data-shift="1" ${range(1)[0] > Date.now() ? 'disabled' : ''} aria-label="${L('Вперёд', 'Forward')}">${I.right}</button></div>`}`;
-
-/* ---------- пусто: как перенести данные ---------- */
-function emptyView() {
-  return `<div class="hero">
-    <label class="drop" id="drop" data-act="pick">
-      <div class="drop-icon">${I.filePlus}</div>
-      <h2>${L('Перетащите сюда копию с телефона', 'Drop your phone backup here')}</h2>
-      <p>${L('Файл .json из приложения «Кэш». Или нажмите, чтобы выбрать.', 'The .json file from the Kesh app. Or click to choose it.')}</p>
-      ${view.error ? `<p class="err">${esc(view.error)}</p>` : ''}
-      <span class="drop-meta">.JSON · ${L('до 30 МБ', 'up to 30 MB')} · ${L('локально', 'local only')}</span>
-    </label>
-    <div class="card">
-      <div class="card-head"><h3>${L('Как получить файл', 'How to get the file')}</h3><span class="chip">1 ${L('минута', 'minute')}</span></div>
-      <ol class="steps">
-        <li>${L('В приложении на телефоне откройте <b>Профиль</b>.', 'On your phone, open <b>Profile</b> in the app.')}</li>
-        <li>${L('Нажмите <b>Резервная копия</b> — появится файл <code>nota-backup-….json</code>.', 'Tap <b>Backup</b> — you get a <code>nota-backup-….json</code> file.')}</li>
-        <li>${L('Отправьте его себе: Telegram «Избранное», AirDrop или почта.', 'Send it to yourself: Telegram Saved Messages, AirDrop or email.')}</li>
-        <li>${L('Перетащите файл в окно слева — графики появятся сразу.', 'Drop the file on the left — charts appear right away.')}</li>
-      </ol>
-      <div class="privacy">${I.lock}<span>${L('Файл открывается прямо в браузере. На сервер ничего не загружается, регистрация не нужна.', 'The file is opened right in your browser. Nothing is uploaded, no sign-up needed.')}</span></div>
-      <p style="margin-top:14px;color:var(--text-3);font-size:13px">${L('Ещё нет приложения?', 'No app yet?')} <a href="#install" data-page="install" style="color:var(--pos)">${L('Установите его за минуту', 'Install it in a minute')}</a></p>
-    </div>
-  </div>`;
+function chrome() {
+  document.querySelectorAll('.nav[data-page]').forEach((n) => n.classList.toggle('on', n.dataset.page === view.page));
+  document.querySelector('[data-count="ops"]').textContent = items.length || '';
+  const name = auth.account()?.login || L('Гость', 'Guest');
+  const skin = Number(localStorage.getItem('avatarSkin')) || 0;
+  document.getElementById('user').innerHTML = `<span class="u-ava">${auth.account() ? catAvatar(skin, true) : esc(name[0])}</span><span class="u-name">${esc(name)}<small>${items.length ? `${L('последняя', 'latest')} ${dateStr(items[0].ts)}` : L('данных пока нет', 'no data yet')}</small></span>`;
 }
 
-/* ---------- обзор ---------- */
+const card = (title, body, extra = '', cls = '') => `<div class="card ${cls}"><div class="card-head"><h3>${title}</h3>${extra}</div>${body}</div>`;
+const empty = (t) => `<div class="empty-list">${t}</div>`;
+const sec = (t, extra = '') => `<div class="sec">${t}${extra}</div>`;
+
+/* ---------- 1. экспорт и импорт ---------- */
+function dataPage() {
+  const has = items.length > 0;
+  const from = has ? items[items.length - 1].ts : 0;
+  const cats = new Set(items.map((i) => i.category)).size;
+  const exp = (kind, icon, name, desc, file) => `<button class="xcard" data-exp="${kind}"><span class="x-ico">${icon}</span><span class="x-name">${name}<small>${desc}</small></span><span class="x-file mono">${file}</span><span class="x-go">${I.download}${L('Скачать', 'Download')}</span></button>`;
+  const body = `
+    ${has ? `<div class="hero-card"><div class="hc-text"><small>${L('Ваши данные на этом компьютере', 'Your data on this computer')}</small><h2>${nOps(items.length)}</h2><p>${dateStr(from)} — ${dateStr(items[0].ts)} · ${cats} ${plural(cats, L('категория', 'category'), L('категории', 'categories'), L('категорий', 'categories'))} · ${accounts().length} ${plural(accounts().length, L('счёт', 'account'), L('счёта', 'accounts'), L('счетов', 'accounts'))} · ${deposits().length} ${plural(deposits().length, L('вклад', 'deposit'), L('вклада', 'deposits'), L('вкладов', 'deposits'))}</p></div><i class="hc-x tl"></i><i class="hc-x tr"></i><i class="hc-x bl"></i><i class="hc-x br"></i></div>
+    ${sec(L('Экспорт', 'Export'), `<em>${L('главное — забрать данные в удобном формате', 'take your data in any format')}</em>`)}
+    <div class="xgrid">
+      ${exp('xlsx', I.xls, L('Отчёт Excel', 'Excel report'), L('Операции, категории, бюджет и вклады — по листам, с датами и суммами.', 'Transactions, categories, budget and savings on separate sheets.'), `kesh-${new Date().toISOString().slice(0, 10)}.xlsx`)}
+      ${exp('csv', I.csv, 'CSV', L('Одна таблица операций. Открывается в Google Таблицах, Numbers и 1С.', 'One transaction table for Google Sheets, Numbers, etc.'), `kesh-${new Date().toISOString().slice(0, 10)}.csv`)}
+      ${exp('json', I.json, L('Резервная копия', 'Backup'), L('Всё целиком: перенос на телефон или в другой браузер без потерь.', 'Everything: move to a phone or another browser losslessly.'), `nota-backup-${new Date().toISOString().slice(0, 10)}.json`)}
+    </div>` : ''}
+    ${sec(has ? L('Импорт', 'Import') : L('Начните с переноса данных', 'Start by bringing your data'))}
+    <div class="hero">
+      <label class="drop" id="drop" data-act="pick-backup">
+        <div class="drop-icon">${I.filePlus}</div>
+        <h2>${L('Перетащите копию с телефона', 'Drop your phone backup')}</h2>
+        <p>${L('Файл .json из приложения «Кэш». Данные объединятся: ничего не удалится и не задвоится.', 'The .json file from the Kesh app. Data is merged: nothing is deleted or duplicated.')}</p>
+        ${view.msg ? `<p class="msg">${esc(view.msg)}</p>` : ''}
+        <span class="drop-meta">.JSON · ${L('локально', 'local only')}</span>
+      </label>
+      <div class="grid" style="margin:0">
+        <button class="tile" data-act="pick-bank"><span class="x-ico">${I.bank}</span><span class="x-name">${L('Выписка банка', 'Bank statement')}<small>${L('PDF или CSV из Т-Банка — категории расставятся сами, повторы не добавятся.', 'PDF or CSV from T-Bank — auto categories, no duplicates.')}</small></span>${I.right}</button>
+        <div class="card"><div class="card-head"><h3>${L('Как получить копию с телефона', 'How to get the phone backup')}</h3></div>
+          <ol class="steps">
+            <li>${L('В приложении откройте <b>Профиль</b> → <b>Резервная копия</b>.', 'In the app open <b>Profile</b> → <b>Backup</b>.')}</li>
+            <li>${L('Отправьте файл себе: Telegram «Избранное», AirDrop или почта.', 'Send it to yourself: Telegram, AirDrop or email.')}</li>
+            <li>${L('Перетащите его в поле слева.', 'Drop it into the field on the left.')}</li>
+          </ol>
+          <div class="privacy">${I.lock}<span>${L('Файлы открываются прямо в браузере и никуда не загружаются.', 'Files are opened in your browser and never uploaded.')}</span></div>
+        </div>
+      </div>
+    </div>`;
+  return { title: L('Экспорт и импорт', 'Export & import'), body };
+}
+
+/* ---------- 2. обзор ---------- */
 function delta(now, prev, good = false) {
   if (prev == null) return '';
-  if (!prev) return now ? `<span class="delta flat">${L('нет данных раньше', 'no earlier data')}</span>` : '';
+  if (!prev) return now ? `<span class="delta flat">${L('раньше пусто', 'no earlier data')}</span>` : '';
   const p = Math.round(((now - prev) / prev) * 100);
-  const cls = p > 0 ? 'up' : p < 0 ? 'down' : 'flat';
-  return `<span class="delta ${cls}${good ? ' good' : ''}">${p > 0 ? '+' : ''}${p}% ${L('к прошлому', 'vs prev')}</span>`;
+  return `<span class="delta ${p > 0 ? 'up' : p < 0 ? 'down' : 'flat'}${good ? ' good' : ''}">${p > 0 ? '+' : ''}${p}% ${L('к прошлому', 'vs prev')}</span>`;
 }
-
-function bars(items, r) {
-  const out = items.filter((i) => !isIn(i));
-  let buckets;
-  const now = Date.now();
-  if (view.mode === 'month') {
-    const d0 = new Date(r[0]);
-    const days = new Date(d0.getFullYear(), d0.getMonth() + 1, 0).getDate();
-    buckets = Array.from({ length: days }, (_, k) => {
-      const from = new Date(d0.getFullYear(), d0.getMonth(), k + 1).getTime();
-      const to = from + 864e5;
-      return { from, to, label: L(`${k + 1} ${MON[d0.getMonth()]}`, `${MON[d0.getMonth()]} ${k + 1}`), axis: k + 1 };
-    });
-  } else {
-    const d0 = new Date(r[0]);
-    const n = view.mode === 'year' ? 12 : Math.max(1, (new Date(r[1]).getFullYear() - d0.getFullYear()) * 12 + new Date(r[1]).getMonth() - d0.getMonth() + 1);
-    buckets = Array.from({ length: n }, (_, k) => {
-      const from = new Date(d0.getFullYear(), d0.getMonth() + k, 1);
-      return { from: from.getTime(), to: new Date(from.getFullYear(), from.getMonth() + 1, 1).getTime(), label: `${MONTHS[from.getMonth()]} ${from.getFullYear()}`, axis: n > 14 ? `${MON[from.getMonth()]} ${String(from.getFullYear()).slice(2)}` : MON[from.getMonth()] };
-    });
-  }
-  buckets.forEach((b) => { const list = out.filter((i) => i.ts >= b.from && i.ts < b.to); b.v = sum(list); b.n = list.length; });
-  const peak = Math.max(...buckets.map((b) => b.v), 1);
-  const ticks = [peak, peak / 2, 0];
-  const step = Math.max(1, Math.ceil(buckets.length / 7));
-  const axis = buckets.filter((_, k) => k % step === 0 || k === buckets.length - 1);
-  return `<div class="bars">
-      <div class="grid-lines">${ticks.map((t) => `<span>${short(t)}</span>`).join('')}</div>
-      ${buckets.map((b) => `<div class="b${b.v ? '' : ' zero'}${now >= b.from && now < b.to ? ' now' : ''}" data-tip="${esc(b.label)}" data-v="${esc(money(b.v))}" data-n="${b.n}"><i style="height:${b.v ? Math.max(2, (b.v / peak) * 100) : 1}%"></i></div>`).join('')}
-    </div>
-    <div class="axis">${axis.map((b) => `<span>${b.axis}</span>`).join('')}</div>`;
-}
-
+const ticks = (now, prev, n = 28, color = '') => {
+  const k = Math.round((now / Math.max(now, prev || 0, 1)) * n);
+  return `<div class="ticks">${Array.from({ length: n }, (_, i) => `<i class="${i < k ? 'on' : ''}"${i < k && color ? ` style="background:${color}"` : ''}></i>`).join('')}</div>`;
+};
 function byCategory(list) {
   const m = new Map();
   list.forEach((i) => m.set(i.category, (m.get(i.category) || 0) + i.amount));
   return [...m].sort((a, b) => b[1] - a[1]);
 }
 
+function bars(items0, r) {
+  const out = items0.filter((i) => !isIn(i));
+  const now = Date.now();
+  const daily = view.mode === 'month' || (view.mode === 'custom' && r[1] - r[0] <= 62 * 864e5);
+  let buckets;
+  if (daily) {
+    const n = Math.max(1, Math.round((r[1] - r[0]) / 864e5));
+    buckets = Array.from({ length: n }, (_, k) => { const from = day0(r[0] + k * 864e5 + 36e5); return { from, to: from + 864e5, label: dateStr(from), axis: new Date(from).getDate() }; });
+  } else {
+    const d0 = new Date(r[0]);
+    const end = new Date(Math.min(r[1], now + 1) - 1);
+    const n = view.mode === 'year' ? 12 : Math.max(1, (end.getFullYear() - d0.getFullYear()) * 12 + end.getMonth() - d0.getMonth() + 1);
+    buckets = Array.from({ length: n }, (_, k) => { const f = new Date(d0.getFullYear(), d0.getMonth() + k, 1); return { from: +f, to: +new Date(f.getFullYear(), f.getMonth() + 1, 1), label: `${MONTHS[f.getMonth()]} ${f.getFullYear()}`, axis: n > 14 ? `${MON[f.getMonth()]} ${String(f.getFullYear()).slice(2)}` : MON[f.getMonth()] }; });
+  }
+  buckets.forEach((b) => { const l = out.filter((i) => i.ts >= b.from && i.ts < b.to); b.v = sum(l); b.n = l.length; });
+  const peak = Math.max(...buckets.map((b) => b.v), 1);
+  const step = Math.max(1, Math.ceil(buckets.length / 8));
+  return `<div class="bars"><div class="grid-lines">${[peak, peak / 2, 0].map((t) => `<span>${short(t)}</span>`).join('')}</div>
+    ${buckets.map((b) => `<div class="b${b.v ? '' : ' zero'}${now >= b.from && now < b.to ? ' now' : ''}" data-tip="${esc(b.label)}" data-v="${esc(money(b.v))}" data-n="${b.n}"><i style="height:${b.v ? Math.max(2, (b.v / peak) * 100) : 1}%"></i></div>`).join('')}</div>
+    <div class="axis">${buckets.filter((_, k) => k % step === 0 || k === buckets.length - 1).map((b) => `<span>${b.axis}</span>`).join('')}</div>`;
+}
+
 function donut(list) {
   const cats = byCategory(list);
   const total = sum(list);
-  if (!total) return `<div class="empty-list">${L('Расходов нет', 'No expenses')}</div>`;
-  const top = cats.slice(0, 6);
+  if (!total) return empty(L('Расходов нет', 'No expenses'));
+  const parts = cats.slice(0, 6).map(([id, v]) => ({ ...cat(id), v }));
   const rest = cats.slice(6).reduce((s, [, v]) => s + v, 0);
-  const parts = top.map(([id, v]) => ({ name: cat(id).name, color: cat(id).color, v }));
   if (rest) parts.push({ name: L('Остальное', 'Other'), color: '#4A4A52', v: rest });
-  const R = 52;
-  const C = 2 * Math.PI * R;
+  const R = 52; const C = 2 * Math.PI * R;
   let off = 0;
-  const arcs = parts.map((p) => {
-    const len = (p.v / total) * C;
-    const s = `<circle cx="75" cy="75" r="${R}" fill="none" stroke="${p.color}" stroke-width="18" stroke-dasharray="${Math.max(0, len - 2)} ${C}" stroke-dashoffset="${-off}" data-tip="${esc(p.name)}" data-v="${esc(money(p.v))}" data-n="${Math.round((p.v / total) * 100)}%"/>`;
-    off += len;
-    return s;
-  }).join('');
-  return `<div class="donut-wrap">
-    <div class="donut"><svg viewBox="0 0 150 150" width="150" height="150">${arcs}</svg><div class="donut-mid"><small>${L('всего', 'total')}</small><b>${short(total)}</b></div></div>
-    <div class="legend">${parts.map((p) => `<div><i style="background:${p.color}"></i><span>${esc(p.name)}</span><em>${Math.round((p.v / total) * 100)}%</em></div>`).join('')}</div>
-  </div>`;
+  const arcs = parts.map((p) => { const len = (p.v / total) * C; const s = `<circle cx="75" cy="75" r="${R}" fill="none" stroke="${p.color}" stroke-width="18" stroke-dasharray="${Math.max(0, len - 2)} ${C}" stroke-dashoffset="${-off}" data-tip="${esc(p.name)}" data-v="${esc(money(p.v))}" data-n="${Math.round((p.v / total) * 100)}%"/>`; off += len; return s; }).join('');
+  return `<div class="donut-wrap"><div class="donut"><svg viewBox="0 0 150 150" width="150" height="150">${arcs}</svg><div class="donut-mid"><small>${L('всего', 'total')}</small><b>${short(total)}</b></div></div>
+    <div class="legend">${parts.map((p) => `<div><i style="background:${p.color}"></i><span>${esc(p.name)}</span><em>${Math.round((p.v / total) * 100)}%</em></div>`).join('')}</div></div>`;
 }
 
-const ticks = (now, prev, n = 28, color = '') => {
-  const k = Math.round((now / Math.max(now, prev || 0, 1)) * n);
-  return `<div class="ticks">${Array.from({ length: n }, (_, i) => `<i class="${i < k ? 'on' : ''}"${i < k && color ? ` style="background:${color}"` : ''}></i>`).join('')}</div>`;
-};
-const sec = (n, t, extra = '') => `<div class="sec"><span>${String(n).padStart(2, '0')}</span>${t}${extra}</div>`;
-
-// Накопленные расходы по ходу периода против прошлого — плавная линия с заливкой
-function cumulative(items, prevItems, r) {
-  const out = items.filter((i) => !isIn(i)).sort((a, b) => a.ts - b.ts);
-  const pout = (prevItems || []).filter((i) => !isIn(i)).sort((a, b) => a.ts - b.ts);
-  const span = r[1] - r[0];
-  const N = 60;
-  const series = (list, start) => { let acc = 0; let k = 0; return Array.from({ length: N + 1 }, (_, i) => { const t = start + (span * i) / N; while (k < list.length && list[k].ts <= t) acc += list[k++].amount; return acc; }); };
-  const now = Math.min(N, Math.floor(((Date.now() - r[0]) / span) * N));
-  const a = series(out, r[0]).slice(0, Math.max(1, now + 1));
-  const b = prevItems ? series(pout, r[0] - span) : null;
+function cumulative(list, prevList, r) {
+  const out = list.filter((i) => !isIn(i)).sort((a, b) => a.ts - b.ts);
+  const pout = (prevList || []).filter((i) => !isIn(i)).sort((a, b) => a.ts - b.ts);
+  const span = r[1] - r[0]; const N = 60;
+  const series = (l, start) => { let acc = 0; let k = 0; return Array.from({ length: N + 1 }, (_, i) => { const t = start + (span * i) / N; while (k < l.length && l[k].ts <= t) acc += l[k++].amount; return acc; }); };
+  const nowI = Math.min(N, Math.max(0, Math.floor(((Date.now() - r[0]) / span) * N)));
+  const a = series(out, r[0]).slice(0, nowI + 1);
+  const b = prevList ? series(pout, r[0] - span) : null;
   const peak = Math.max(...a, ...(b || [0]), 1);
   const W = 600; const H = 180;
   const pts = (arr) => arr.map((v, i) => [((i / N) * W).toFixed(1), (H - (v / peak) * (H - 12)).toFixed(1)]);
-  const line = (arr) => { const p = pts(arr); return p.map((q, i) => `${i ? 'L' : 'M'}${q[0]} ${q[1]}`).join(''); };
-  const pa = pts(a);
-  const last = pa[pa.length - 1];
-  return `<svg class="cum" viewBox="0 0 ${W} ${H + 4}" preserveAspectRatio="none">
-      <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A6F0C0" stop-opacity=".28"/><stop offset="1" stop-color="#A6F0C0" stop-opacity="0"/></linearGradient></defs>
-      ${[0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${W}" y1="${H * f}" y2="${H * f}" class="cum-grid"/>`).join('')}
-      ${b ? `<path d="${line(b)}" class="cum-prev"/>` : ''}
-      <path d="${line(a)}L${last[0]} ${H}L0 ${H}Z" fill="url(#cg)"/>
-      <path d="${line(a)}" class="cum-now"/>
-    </svg>
+  const line = (arr) => pts(arr).map((q, i) => `${i ? 'L' : 'M'}${q[0]} ${q[1]}`).join('');
+  const last = pts(a)[a.length - 1];
+  return `<svg class="cum" viewBox="0 0 ${W} ${H + 4}" preserveAspectRatio="none"><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4ADE80" stop-opacity=".25"/><stop offset="1" stop-color="#4ADE80" stop-opacity="0"/></linearGradient></defs>
+    ${[0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${W}" y1="${H * f}" y2="${H * f}" class="cum-grid"/>`).join('')}
+    ${b ? `<path d="${line(b)}" class="cum-prev"/>` : ''}<path d="${line(a)}L${last[0]} ${H}L0 ${H}Z" fill="url(#cg)"/><path d="${line(a)}" class="cum-now"/></svg>
     <div class="cum-legend"><span><i class="now"></i>${L('Этот период', 'This period')} · ${money(a[a.length - 1])}</span>${b ? `<span><i class="prev"></i>${L('Прошлый', 'Previous')} · ${money(b[b.length - 1])}</span>` : ''}</div>`;
 }
 
-function overview() {
-  if (!data) return shell(L('Аналитика трат', 'Spending analytics'), ioButtons(), emptyView());
-  const r = range();
-  const pr = range(-1);
-  const items = inRange(r);
-  const prev = pr ? inRange(pr) : null;
-  const out = items.filter((i) => !isIn(i));
-  const spent = sum(out);
-  const income = sum(items.filter(isIn));
-  const diff = income - spent;
-  const days = Math.max(1, Math.ceil((Math.min(r[1], Date.now()) - r[0]) / 864e5));
-  const pSpent = prev && sum(prev.filter((i) => !isIn(i)));
-  const pIncome = prev && sum(prev.filter(isIn));
-  const pDays = pr ? Math.max(1, Math.round((pr[1] - pr[0]) / 864e5)) : 1;
-  const cats = byCategory(out);
-  const max = cats[0]?.[1] || 1;
+function weekdays(out) {
+  const s = Array(7).fill(0); const days = Array(7).fill(0);
+  out.forEach((i) => { s[(new Date(i.ts).getDay() + 6) % 7] += i.amount; });
+  new Set(out.map((i) => day0(i.ts))).forEach((d) => { days[(new Date(d).getDay() + 6) % 7]++; });
+  const avg = s.map((v, k) => (days[k] ? v / days[k] : 0));
+  const peak = Math.max(...avg, 1);
+  const top = avg.indexOf(Math.max(...avg));
+  return `<div class="wd">${avg.map((v, k) => `<div class="wd-col${k === top && v ? ' top' : ''}" data-tip="${WD[k]} · ${L('в среднем', 'average')}" data-v="${esc(money(Math.round(v)))}"><i style="height:${v ? Math.max(4, (v / peak) * 100) : 2}%"></i><span>${WD[k]}</span></div>`).join('')}</div>`;
+}
 
+function insights(out, prevOut, r) {
+  const list = [];
+  const now = Date.now();
+  const spent = sum(out);
+  if (view.mode === 'month' && now >= r[0] && now < r[1] && spent) {
+    const days = new Date(new Date(r[0]).getFullYear(), new Date(r[0]).getMonth() + 1, 0).getDate();
+    const passed = Math.max(1, Math.ceil((now - r[0]) / 864e5));
+    list.push(['🔮', L(`Прогноз на месяц: около <b>${money(Math.round((spent / passed) * days))}</b>`, `Month forecast: about <b>${money(Math.round((spent / passed) * days))}</b>`)]);
+  }
+  if (prevOut) {
+    const a = new Map(byCategory(out)); const b = new Map(byCategory(prevOut));
+    let best = null;
+    a.forEach((v, id) => { const d = v - (b.get(id) || 0); if (!best || d > best[1]) best = [id, d]; });
+    if (best && best[1] > 0) list.push(['📈', L(`Сильнее всего выросли <b>${esc(cat(best[0]).name)}</b>: +${money(best[1])} к прошлому периоду`, `<b>${esc(cat(best[0]).name)}</b> grew the most: +${money(best[1])} vs previous`)]);
+  }
+  const end = Math.min(r[1], now);
+  const total = Math.max(0, Math.ceil((end - r[0]) / 864e5));
+  const busy = new Set(out.map((i) => day0(i.ts))).size;
+  if (total > 1 && total < 400) list.push(['🌿', L(`Дней без трат: <b>${Math.max(0, total - busy)}</b> из ${total}`, `No-spend days: <b>${Math.max(0, total - busy)}</b> of ${total}`)]);
+  if (out.length) list.push(['🧾', L(`Средняя трата — <b>${money(Math.round(spent / out.length))}</b>, всего ${nOps(out.length)}`, `Average expense <b>${money(Math.round(spent / out.length))}</b> across ${nOps(out.length)}`)]);
+  const byDay = new Map(); out.forEach((i) => { const d = day0(i.ts); byDay.set(d, (byDay.get(d) || 0) + i.amount); });
+  const peak = [...byDay].sort((x, y) => y[1] - x[1])[0];
+  if (peak) list.push(['⚡', L(`Самый дорогой день — <b>${dateStr(peak[0])}</b>: ${money(peak[1])}`, `Priciest day: <b>${dateStr(peak[0])}</b>, ${money(peak[1])}`)]);
+  return list.length ? `<div class="ins">${list.map(([e, t]) => `<div><span>${e}</span><p>${t}</p></div>`).join('')}</div>` : empty(L('Мало данных для выводов', 'Not enough data'));
+}
+
+function catRows(list, total, kind = 'out') {
+  const cats = byCategory(list);
+  const max = cats[0]?.[1] || 1;
+  return cats.length ? cats.slice(0, 8).map(([id, v]) => { const c = cat(id); const n = list.filter((i) => i.category === id).length; return `<button class="cat-row" data-filter-cat="${esc(id)}">${dot(c)}<div class="name">${esc(c.name)}<small>${nOps(n)} · ${Math.round((v / total) * 100)}%</small>${ticks(v, max, 40, c.color)}</div><span class="sum${kind === 'in' ? ' in' : ''}">${money(v)}</span></button>`; }).join('') : empty(kind === 'in' ? L('Доходов нет', 'No income') : L('Расходов нет', 'No expenses'));
+}
+
+function overview() {
+  if (!items.length) return { title: L('Обзор', 'Overview'), body: dataPage().body };
+  const r = range(); const pr = range(-1);
+  const list = inRange(r); const prev = pr ? inRange(pr) : null;
+  const out = list.filter((i) => !isIn(i)); const inc = list.filter(isIn);
+  const spent = sum(out); const income = sum(inc); const diff = income - spent;
+  const days = Math.max(1, Math.ceil((Math.min(r[1], Date.now()) - r[0]) / 864e5));
+  const pOut = prev && prev.filter((i) => !isIn(i));
+  const pSpent = prev && sum(pOut); const pIncome = prev && sum(prev.filter(isIn));
+  const pDays = pr ? Math.max(1, Math.round((pr[1] - pr[0]) / 864e5)) : 1;
+  const top = [...out].sort((a, b) => b.amount - a.amount).slice(0, 6);
+  const places = new Map();
+  out.filter((i) => i.note).forEach((i) => { const k = i.note.trim(); const p = places.get(k) || { n: 0, v: 0, c: i.category }; p.n++; p.v += i.amount; places.set(k, p); });
+  const placeList = [...places].sort((a, b) => b[1].v - a[1].v).slice(0, 6);
+  const b = budgets();
+  const m0 = new Date(); const mFrom = +new Date(m0.getFullYear(), m0.getMonth(), 1);
+  const monthOut = items.filter((i) => !isIn(i) && i.ts >= mFrom);
+  const limited = Object.entries(b).filter(([id]) => CAT[id]);
+  const name = auth.account()?.login;
   const body = `
-    <div class="banner"${SHOT ? ` style="background-image:url(${SHOT})"` : ''}><div class="banner-text"><small>${periodLabel()}</small><h2>${raw?.account?.login ? `${L('Привет', 'Hi')}, ${esc(raw.account.login)}.` : L('Ваши траты', 'Your spending')}</h2><p>${L('Потрачено', 'Spent')} <b>${money(spent)}</b>${income ? ` · ${L('получено', 'received')} <b>${money(income)}</b>` : ''}</p></div></div>
-    <div class="toolbar">${periodBar()}</div>
-    ${sec(1, L('Показатели', 'Key figures'), `<em>${periodLabel()}</em>`)}
+    <div class="hero-card"><div class="hc-text"><small>${periodLabel()}</small><h2>${name ? `${L('Привет', 'Hi')}, ${esc(name)}.` : L('Ваши траты', 'Your spending')}</h2><p>${L('Потрачено', 'Spent')} <b>${money(spent)}</b>${income ? ` · ${L('получено', 'received')} <b>${money(income)}</b>` : ''} · ${nOps(list.length)}</p></div>
+      <div class="hc-spark">${bars(list, r)}</div><i class="hc-x tl"></i><i class="hc-x tr"></i><i class="hc-x bl"></i><i class="hc-x br"></i></div>
+    ${periodBar()}
     <div class="grid kpis">
       <div class="card kpi"><small>${L('Расходы', 'Spent')}</small><div class="val mono">${money(spent)}</div>${ticks(spent, pSpent)}<div class="kpi-foot">${delta(spent, pSpent)}<span>${L('пред.', 'prev')} ${prev ? short(pSpent) : '—'}</span></div></div>
       <div class="card kpi"><small>${L('Доходы', 'Income')}</small><div class="val mono ${income ? 'plus' : ''}">${income ? '+' : ''}${money(income)}</div>${ticks(income, pIncome, 28, 'var(--pos)')}<div class="kpi-foot">${delta(income, pIncome, true)}<span>${L('пред.', 'prev')} ${prev ? short(pIncome) : '—'}</span></div></div>
       <div class="card kpi"><small>${L('Разница', 'Net')}</small><div class="val mono ${diff > 0 ? 'plus' : diff < 0 ? 'minus' : ''}">${diff > 0 ? '+' : ''}${money(diff)}</div>${ticks(Math.min(spent, income), Math.max(spent, income), 28, diff >= 0 ? 'var(--pos)' : 'var(--neg)')}<div class="kpi-foot"><span class="delta flat">${income ? `${Math.round((spent / income) * 100)}% ${L('дохода потрачено', 'of income spent')}` : L('доходов нет', 'no income')}</span></div></div>
       <div class="card kpi"><small>${L('В среднем в день', 'Daily average')}</small><div class="val mono">${money(Math.round(spent / days))}</div>${ticks(spent / days, prev ? pSpent / pDays : 0)}<div class="kpi-foot">${prev ? delta(spent / days, pSpent / pDays) : ''}<span>${days} ${L('дн.', 'd')}</span></div></div>
     </div>
-    ${sec(2, L('Динамика и структура', 'Trend & breakdown'))}
     <div class="grid row2">
-      <div class="card"><div class="card-head"><h3>${view.mode === 'month' ? L('Расходы по дням', 'Daily spending') : L('Расходы по месяцам', 'Monthly spending')}</h3><span class="chip">${out.length} ${L('опер.', 'tx')}</span></div>${bars(items, r)}</div>
-      <div class="card"><div class="card-head"><h3>${L('Структура', 'Breakdown')}</h3><span class="chip">${cats.length} ${L('кат.', 'cat.')}</span></div>${donut(out)}</div>
+      ${card(view.mode === 'month' || (view.mode === 'custom' && r[1] - r[0] <= 62 * 864e5) ? L('Расходы по дням', 'Daily spending') : L('Расходы по месяцам', 'Monthly spending'), bars(list, r), `<span class="chip">${nOps(out.length)}</span>`)}
+      ${card(L('Структура расходов', 'Breakdown'), donut(out))}
     </div>
-    <div class="grid"><div class="card"><div class="card-head"><h3>${L('Накопительно', 'Cumulative')}</h3><span class="chip">${prev ? L('сравнение с прошлым', 'vs previous') : periodLabel()}</span></div>${cumulative(items, prev, r)}</div></div>
-    ${sec(3, L('Детали', 'Details'))}
     <div class="grid row2">
-      <div class="card"><div class="card-head"><h3>${L('Категории', 'Categories')}</h3><span class="chip">${L('топ', 'top')} ${Math.min(8, cats.length)}</span></div>
-        ${cats.length ? cats.slice(0, 8).map(([id, v]) => { const c = cat(id); const n = out.filter((i) => i.category === id).length; return `<div class="cat-row"><span class="dot" style="background:${c.color}22;color:${c.color}">${esc(c.name.slice(0, 1).toUpperCase())}</span><div class="name">${esc(c.name)}<small>${n} ${L('опер.', 'tx')} · ${Math.round((v / spent) * 100)}%</small>${ticks(v, max, 40, c.color)}</div><span class="sum">${money(v)}</span></div>`; }).join('') : `<div class="empty-list">${L('Расходов нет', 'No expenses')}</div>`}
-      </div>
-      <div class="card"><div class="card-head"><h3>${L('Последние операции', 'Recent')}</h3><button class="chip" data-page="ops">${L('Все', 'All')} →</button></div>
-        ${items.length ? items.slice(0, 8).map((i) => { const c = cat(i.category); return `<div class="cat-row"><span class="dot" style="background:${c.color}22;color:${c.color}">${esc(c.name.slice(0, 1).toUpperCase())}</span><div class="name">${esc(i.note || c.name)}<small>${esc(c.name)} · ${dateStr(i.ts)}</small></div><span class="sum${isIn(i) ? ' in' : ''}">${isIn(i) ? '+' : '−'}${money(i.amount)}</span></div>`; }).join('') : `<div class="empty-list">${L('В этом периоде пусто', 'Nothing in this period')}</div>`}
-      </div>
+      ${card(L('Накопительно', 'Cumulative'), cumulative(list, prev, r), `<span class="chip">${prev ? L('с прошлым периодом', 'vs previous') : periodLabel()}</span>`)}
+      ${card(L('Выводы', 'Insights'), insights(out, pOut, r))}
+    </div>
+    <div class="grid row3">
+      ${card(L('Категории расходов', 'Spending categories'), catRows(out, spent), `<span class="chip">${L('нажмите — операции', 'click for details')}</span>`)}
+      ${card(L('По дням недели', 'By weekday'), weekdays(out), `<span class="chip">${L('в среднем', 'average')}</span>`)}
+    </div>
+    <div class="grid row3">
+      ${card(L('Крупные траты', 'Biggest expenses'), top.length ? top.map((i) => { const c = cat(i.category); return `<button class="cat-row" data-edit="${esc(i.id)}">${dot(c)}<div class="name">${esc(i.note || c.name)}<small>${esc(c.name)} · ${dateStr(i.ts)}</small></div><span class="sum">−${money(i.amount)}</span></button>`; }).join('') : empty(L('Расходов нет', 'No expenses')))}
+      ${card(L('Где тратите чаще', 'Top places'), placeList.length ? placeList.map(([k, p]) => `<button class="cat-row" data-search="${esc(k)}">${dot(cat(p.c))}<div class="name">${esc(k)}<small>${nOps(p.n)}</small></div><span class="sum">${money(p.v)}</span></button>`).join('') : empty(L('Нет описаний у операций', 'No notes on transactions')))}
+    </div>
+    <div class="grid row3">
+      ${card(L('Доходы по категориям', 'Income by category'), catRows(inc, income, 'in'))}
+      ${card(L('Лимиты этого месяца', 'This month’s limits'), limited.length ? limited.map(([id, lim]) => { const sp = sum(monthOut.filter((i) => i.category === id)); const p = sp / lim; return `<div class="lim"><div class="lim-top">${esc(cat(id).name)}<span class="mono">${money(sp)} / ${money(lim)}</span></div><div class="bar"><i class="${p >= 1 ? 'over' : p >= 0.8 ? 'warn' : ''}" style="width:${Math.min(100, p * 100)}%"></i></div></div>`; }).join('') : `${empty(L('Лимитов нет', 'No limits'))}<button class="btn center" data-page="budget">${L('Задать лимиты', 'Set limits')}</button>`)}
     </div>`;
-  return shell(L('Обзор', 'Overview'), ioButtons(), body);
+  return { title: L('Обзор', 'Overview'), body };
 }
 
-/* ---------- операции ---------- */
-function ops() {
-  if (!data) return shell(L('Операции', 'Transactions'), ioButtons(), emptyView());
+/* ---------- 3. операции ---------- */
+function opsPage() {
+  if (!items.length) return { title: L('Операции', 'Transactions'), body: `${empty(L('Операций пока нет — добавьте первую или импортируйте данные.', 'No transactions yet — add one or import data.'))}<div class="center-row"><button class="btn primary" data-act="add">${I.plus}${L('Добавить операцию', 'Add transaction')}</button><button class="btn" data-page="data">${I.upload}${L('Импорт', 'Import')}</button></div>` };
+  const r = range();
   const q = view.q.trim().toLowerCase();
-  const list = data.transactions.filter((i) => (view.type === 'all' || (view.type === 'in') === isIn(i))
-    && (!view.cat || i.category === view.cat)
-    && (!q || `${i.note || ''} ${cat(i.category).name} ${i.amount / 100}`.toLowerCase().includes(q)));
-  const used = [...new Set(data.transactions.map((i) => i.category))].map((id) => [id, cat(id).name]).sort((a, b) => a[1].localeCompare(b[1]));
-  const total = sum(list.filter((i) => !isIn(i)));
-  const body = `
+  let list = inRange(r).filter((i) => (view.type === 'all' || (view.type === 'in') === isIn(i))
+    && (!view.cat || i.category === view.cat) && (!view.acc || (view.acc === '-' ? !i.acc : i.acc === view.acc))
+    && (!q || `${i.note || ''} ${cat(i.category).name} ${(i.amount / 100).toFixed(2)}`.toLowerCase().includes(q)));
+  if (view.sort === 'amount') list = [...list].sort((a, b) => (a.amount - b.amount) * view.dir);
+  else if (view.dir === 1) list = [...list].reverse();
+  const used = [...new Set(items.map((i) => i.category))].map((id) => [id, cat(id).name]).sort((a, b) => a[1].localeCompare(b[1]));
+  const accs = accounts();
+  const arrow = (k) => (view.sort === k ? (view.dir < 0 ? ' ↓' : ' ↑') : '');
+  const spent = sum(list.filter((i) => !isIn(i))); const income = sum(list.filter(isIn));
+  const body = `${periodBar()}
     <div class="filters">
       <label class="search">${I.search}<input id="q" value="${esc(view.q)}" placeholder="${L('Поиск по описанию, категории, сумме', 'Search notes, categories, amounts')}"></label>
       <div class="seg">${[['all', L('Все', 'All')], ['out', L('Расходы', 'Spent')], ['in', L('Доходы', 'Income')]].map(([t, n]) => `<button class="${view.type === t ? 'on' : ''}" data-type="${t}">${n}</button>`).join('')}</div>
       <select class="sel" id="catf"><option value="">${L('Все категории', 'All categories')}</option>${used.map(([id, n]) => `<option value="${esc(id)}"${view.cat === id ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      ${accs.length ? `<select class="sel" id="accf"><option value="">${L('Все счета', 'All accounts')}</option><option value="-"${view.acc === '-' ? ' selected' : ''}>${L('Без счёта', 'No account')}</option>${accs.map((a) => `<option value="${esc(a.id)}"${view.acc === a.id ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : ''}
+      ${view.q || view.cat || view.acc || view.type !== 'all' ? `<button class="btn" data-act="reset-filters">${I.x}${L('Сбросить', 'Reset')}</button>` : ''}
     </div>
-    <div class="card" style="padding:14px 8px">
-      <div class="card-head" style="padding:0 12px"><h3>${list.length} ${L('операций', 'transactions')}</h3><span class="chip">${L('расходы', 'spent')}: ${money(total)}</span></div>
-      ${list.length ? `<table><thead><tr><th>${L('Дата', 'Date')}</th><th>${L('Категория', 'Category')}</th><th class="note-c">${L('Описание', 'Note')}</th><th>${L('Тип', 'Type')}</th><th>${L('Сумма', 'Amount')}</th></tr></thead><tbody>
-        ${list.slice(0, view.limit).map((i) => { const c = cat(i.category); return `<tr><td class="date">${dateStr(i.ts)}</td><td><span class="cat"><i style="background:${c.color}"></i>${esc(c.name)}</span></td><td class="note-c">${esc(i.note || '—')}</td><td><span class="badge${isIn(i) ? ' in' : ''}"><i></i>${isIn(i) ? L('Доход', 'Income') : L('Расход', 'Expense')}</span></td><td class="sum${isIn(i) ? ' in' : ''}">${isIn(i) ? '+' : '−'}${money(i.amount)}</td></tr>`; }).join('')}
-      </tbody></table>${list.length > view.limit ? `<button class="btn more" data-act="more">${L('Показать ещё', 'Show more')} · ${list.length - view.limit}</button>` : ''}` : `<div class="empty-list">${L('Ничего не найдено', 'Nothing found')}</div>`}
+    <div class="card table-card">
+      <div class="card-head"><h3>${nOps(list.length)}</h3><span class="chip">−${money(spent)}${income ? ` · +${money(income)}` : ''}</span></div>
+      ${list.length ? `<table><thead><tr><th class="sortable" data-sort="date">${L('Дата', 'Date')}${arrow('date')}</th><th>${L('Категория', 'Category')}</th><th class="note-c">${L('Описание', 'Note')}</th>${accs.length ? `<th class="note-c">${L('Счёт', 'Account')}</th>` : ''}<th>${L('Тип', 'Type')}</th><th class="sortable" data-sort="amount">${L('Сумма', 'Amount')}${arrow('amount')}</th><th></th></tr></thead><tbody>
+        ${list.slice(0, view.limit).map((i) => { const c = cat(i.category); return `<tr data-edit="${esc(i.id)}"><td class="date">${dateStr(i.ts)}<small>${timeStr(i.ts)}</small></td><td><span class="cat"><i style="background:${c.color}"></i>${esc(c.name)}</span></td><td class="note-c">${esc(i.note || '—')}</td>${accs.length ? `<td class="note-c">${esc(accName(i.acc) || '—')}</td>` : ''}<td><span class="badge${isIn(i) ? ' in' : ''}"><i></i>${isIn(i) ? L('Доход', 'Income') : L('Расход', 'Expense')}</span></td><td class="sum${isIn(i) ? ' in' : ''}">${isIn(i) ? '+' : '−'}${money(i.amount)}</td><td class="act">${I.edit}</td></tr>`; }).join('')}
+      </tbody></table>${list.length > view.limit ? `<button class="btn more" data-act="more">${L('Показать ещё', 'Show more')} · ${list.length - view.limit}</button>` : ''}` : empty(L('Ничего не найдено', 'Nothing found'))}
     </div>`;
-  return shell(L('Операции', 'Transactions'), ioButtons(), body);
+  return { title: L('Операции', 'Transactions'), body };
 }
 
-/* ---------- установка ---------- */
-const card = (title, tag, sub, steps, extra = '') => `<div class="card"><h3>${title}${tag}</h3><p class="sub">${sub}</p><ol class="steps">${steps.map((s) => `<li>${s}</li>`).join('')}</ol>${extra}</div>`;
+/* ---------- 4. бюджет и счета ---------- */
+function budgetPage() {
+  const b = budgets();
+  const m0 = new Date(); const mFrom = +new Date(m0.getFullYear(), m0.getMonth(), 1);
+  const monthOut = items.filter((i) => !isIn(i) && i.ts >= mFrom);
+  const limited = Object.entries(b).filter(([id]) => CAT[id]);
+  const totalLim = limited.reduce((s, [, v]) => s + v, 0);
+  const totalSp = limited.reduce((s, [id]) => s + sum(monthOut.filter((i) => i.category === id)), 0);
+  const own = bal.filter((a) => a.type !== 'credit').reduce((s, a) => s + a.balance, 0);
+  const body = `
+    <div class="grid kpis">
+      <div class="card kpi"><small>${L('Свои деньги на счетах', 'Own money')}</small><div class="val mono ${own < 0 ? 'minus' : ''}">${money(own)}</div><div class="kpi-foot"><span>${bal.length} ${plural(bal.length, L('счёт', 'account'), L('счёта', 'accounts'), L('счетов', 'accounts'))}</span></div></div>
+      <div class="card kpi"><small>${L('Лимиты на месяц', 'Monthly limits')}</small><div class="val mono">${money(totalLim)}</div><div class="kpi-foot"><span>${limited.length} ${plural(limited.length, L('категория', 'category'), L('категории', 'categories'), L('категорий', 'categories'))}</span></div></div>
+      <div class="card kpi"><small>${L('Потрачено по лимитам', 'Spent on limits')}</small><div class="val mono">${money(totalSp)}</div>${ticks(totalSp, totalLim, 28, totalSp > totalLim ? 'var(--neg)' : '')}</div>
+      <div class="card kpi"><small>${L('Осталось', 'Left')}</small><div class="val mono ${totalLim - totalSp < 0 ? 'minus' : 'plus'}">${money(totalLim - totalSp)}</div><div class="kpi-foot"><span>${MONTHS[m0.getMonth()]}</span></div></div>
+    </div>
+    <div class="grid row3">
+      ${card(L('Лимиты категорий', 'Category limits'), limited.length ? limited.sort((x, y) => y[1] - x[1]).map(([id, lim]) => { const sp = sum(monthOut.filter((i) => i.category === id)); const p = sp / lim; const c = cat(id); return `<div class="lim row">${dot(c)}<div class="lim-body"><div class="lim-top">${esc(c.name)}<span class="mono">${money(sp)} / ${money(lim)}</span></div><div class="bar"><i class="${p >= 1 ? 'over' : p >= 0.8 ? 'warn' : ''}" style="width:${Math.min(100, p * 100)}%"></i></div><small>${p >= 1 ? L(`Превышен на ${money(sp - lim)}`, `Over by ${money(sp - lim)}`) : L(`Осталось ${money(lim - sp)}`, `${money(lim - sp)} left`)}</small></div><button class="icon-btn" data-limit="${esc(id)}">${I.edit}</button></div>`; }).join('') : empty(L('Задайте лимит на категорию — Кэш покажет, сколько осталось до конца месяца.', 'Set a category limit to see what’s left this month.')), `<button class="btn" data-act="add-limit">${I.plus}${L('Лимит', 'Limit')}</button>`)}
+      ${card(L('Счета', 'Accounts'), bal.length ? bal.map((a) => `<div class="acc row"><span class="acc-ico">${esc(TYPES[a.type]?.icon || '•')}</span><div class="lim-body"><div class="lim-top">${esc(a.name)}<span class="mono ${a.balance < 0 ? 'minus' : ''}">${money(a.balance)}</span></div><small>${esc(TYPES[a.type]?.name || '')} · ${L('старт', 'start')} ${money(a.base)} · +${money(a.inc)} / −${money(a.out)}</small></div><button class="icon-btn" data-account="${esc(a.id)}">${I.edit}</button></div>`).join('') : empty(L('Счетов нет. Добавьте карту или наличные — остаток будет считаться сам.', 'No accounts. Add a card or cash — the balance updates itself.')), `<button class="btn" data-act="add-account">${I.plus}${L('Счёт', 'Account')}</button>`)}
+    </div>`;
+  return { title: L('Бюджет и счета', 'Budget & accounts'), body };
+}
+
+/* ---------- 5. вклады ---------- */
+const TERMS = [1, 2, 3, 6, 9, 12, 18, 24, 36];
+const addMonths = (ts, m) => { const d = new Date(ts); d.setMonth(d.getMonth() + m); return +d; };
+const depEnd = (d) => (d.kind === 'term' && d.months && d.opened ? addMonths(d.opened, d.months) : 0);
+const depIncome = (d) => {
+  const r = (d.rate || 0) / 100;
+  if (d.kind !== 'term' || !d.months) return Math.round((d.amount * r) / 12);
+  if (d.cap === 'month') return Math.round(d.amount * ((1 + r / 12) ** d.months - 1));
+  const days = d.opened ? Math.round((depEnd(d) - d.opened) / 864e5) : d.months * 30.4;
+  return Math.round((d.amount * r * days) / 365);
+};
+const monthly = (d) => (d.kind === 'term' && d.months ? Math.round(depIncome(d) / d.months) : depIncome(d));
+const termLabel = (m) => (m % 12 === 0 ? `${m / 12} ${plural(m / 12, L('год', 'year'), L('года', 'years'), L('лет', 'years'))}` : `${m} ${L('мес', 'mo')}`);
+
+function depositsPage() {
+  const list = deposits();
+  const total = list.reduce((a, d) => a + d.amount, 0);
+  const income = list.reduce((a, d) => a + monthly(d), 0);
+  const ending = list.filter((d) => depEnd(d) > Date.now()).sort((a, b) => depEnd(a) - depEnd(b))[0];
+  const body = `
+    <div class="grid kpis">
+      <div class="card kpi"><small>${L('Всего на вкладах', 'Total saved')}</small><div class="val mono">${money(total)}</div><div class="kpi-foot"><span>${list.length} ${plural(list.length, L('вклад', 'deposit'), L('вклада', 'deposits'), L('вкладов', 'deposits'))}</span></div></div>
+      <div class="card kpi"><small>${L('Доход в месяц', 'Monthly income')}</small><div class="val mono plus">+${money(income)}</div><div class="kpi-foot"><span>${L('в год', 'per year')} ~${money(income * 12)}</span></div></div>
+      <div class="card kpi"><small>${L('Средняя ставка', 'Average rate')}</small><div class="val mono">${total ? (list.reduce((a, d) => a + d.amount * (d.rate || 0), 0) / total).toFixed(1) : '0'}%</div></div>
+      <div class="card kpi"><small>${L('Ближайшее окончание', 'Next maturity')}</small><div class="val mono">${ending ? dateStr(depEnd(ending)) : '—'}</div><div class="kpi-foot"><span>${ending ? esc(ending.name) : ''}</span></div></div>
+    </div>
+    ${card(L('Вклады и накопительные счета', 'Deposits & savings accounts'), list.length ? `<table><thead><tr><th>${L('Название', 'Name')}</th><th>${L('Тип', 'Type')}</th><th>${L('Ставка', 'Rate')}</th><th class="note-c">${L('Срок', 'Term')}</th><th>${L('Доход в месяц', 'Per month')}</th><th>${L('Сумма', 'Amount')}</th><th></th></tr></thead><tbody>
+      ${list.map((d) => `<tr data-deposit="${esc(d.id)}"><td><b>${esc(d.name)}</b></td><td><span class="badge in"><i></i>${d.kind === 'term' ? L('Срочный', 'Term') : L('Накопительный', 'Savings')}</span></td><td class="mono">${d.rate || 0}%</td><td class="note-c">${d.kind === 'term' && d.months ? `${termLabel(d.months)}${depEnd(d) ? ` · ${L('до', 'until')} ${dateStr(depEnd(d))}` : ''}` : '—'}</td><td class="sum in">+${money(monthly(d))}</td><td class="sum">${money(d.amount)}</td><td class="act">${I.edit}</td></tr>`).join('')}
+    </tbody></table>` : empty(L('Добавьте вклад или накопительный счёт — Кэш посчитает доход.', 'Add a deposit or savings account to see the income.')), `<button class="btn" data-act="add-deposit">${I.plus}${L('Вклад', 'Deposit')}</button>`, 'table-card')}`;
+  return { title: L('Вклады', 'Savings'), body };
+}
+
+/* ---------- 6. категории ---------- */
+function catsPage() {
+  const own = new Set(customCategories().map((c) => c.id));
+  const count = new Map(); items.forEach((i) => count.set(i.category, (count.get(i.category) || 0) + 1));
+  const col = (list, kind) => list.map(([id]) => { const c = cat(id); return `<div class="crow">${dot(c)}<span class="c-name">${esc(c.name)}<small>${count.get(id) ? nOps(count.get(id)) : L('нет операций', 'no transactions')}</small></span>${own.has(id) ? `<span class="tag">${L('своя', 'custom')}</span><button class="icon-btn" data-cat="${esc(id)}">${I.edit}</button>` : ''}</div>`; }).join('') + `<button class="btn center" data-act="add-cat" data-kind="${kind}">${I.plus}${L('Своя категория', 'Custom category')}</button>`;
+  const body = `<div class="grid row2b">${card(L('Расходы', 'Expenses'), col(CATEGORIES, 'out'), `<span class="chip">${CATEGORIES.length}</span>`)}${card(L('Доходы', 'Income'), col(INCOME_CATEGORIES, 'in'), `<span class="chip">${INCOME_CATEGORIES.length}</span>`)}</div>`;
+  return { title: L('Категории', 'Categories'), body };
+}
+
+/* ---------- 7. установка ---------- */
+const step = (title, tag, sub, steps, extra = '') => `<div class="card"><h3 class="ih">${title}${tag}</h3><p class="sub">${sub}</p><ol class="steps">${steps.map((s) => `<li>${s}</li>`).join('')}</ol>${extra}</div>`;
 const easy = `<span class="tag">${L('просто', 'easy')}</span>`;
 const hard = `<span class="tag warn">${L('сложнее', 'advanced')}</span>`;
-const weekly = `<div class="warn-line">${L('С бесплатным Apple ID приложение работает 7 дней — потом установите тот же файл ещё раз. Данные сохраняются.', 'With a free Apple ID the app runs for 7 days — then install the same file again. Your data stays.')}</div>`;
+const weekly = `<div class="warn-line">${L('С бесплатным Apple ID приложение работает 7 дней — потом установите тот же файл ещё раз. Данные сохраняются.', 'With a free Apple ID the app runs for 7 days — then install the same file again. Data stays.')}</div>`;
+const dlCard = (os, icon, file, title, sub, meta) => `<a class="dl-card ${os}" href="${DL}${file}" download>
+  <span class="dl-ico">${icon}</span><span class="dl-text"><small>${sub}</small><b>${title}</b><em class="mono">${file} · ${meta}</em></span><span class="dl-btn">${I.download}${L('Скачать', 'Download')}</span></a>`;
 
-function install() {
+function installPage() {
   const T = {
     iphone: [
-      card(L('Как приложение с сайта', 'Web app from Safari'), easy, L('Без компьютера. Работает офлайн, обновляется само.', 'No computer needed. Works offline, updates itself.'), [
-        L(`Откройте <code>kesh-money.vercel.app</code> в <b>Safari</b>.`, `Open <code>kesh-money.vercel.app</code> in <b>Safari</b>.`),
-        L('Нажмите <b>Поделиться</b> → <b>На экран «Домой»</b>.', 'Tap <b>Share</b> → <b>Add to Home Screen</b>.'),
-        L('Запускайте «Кэш» с экрана «Домой».', 'Launch Kesh from the Home Screen.'),
-      ]),
-      card(L('Приложение через Windows', 'App via Windows'), hard, L('Нужны кабель и программа Sideloadly.', 'Needs a cable and Sideloadly.'), [
-        L('Установите <b>iTunes</b> и <b>iCloud</b> с сайта Apple (не из Microsoft Store) и <a href="https://sideloadly.io/" target="_blank" rel="noopener">Sideloadly</a>.', 'Install <b>iTunes</b> and <b>iCloud</b> from Apple’s site (not the Microsoft Store) and <a href="https://sideloadly.io/" target="_blank" rel="noopener">Sideloadly</a>.'),
-        L('Подключите iPhone кабелем и нажмите «Доверять».', 'Connect the iPhone by cable and tap Trust.'),
-        L('Перетащите <code>Kesh.ipa</code> в Sideloadly, введите Apple ID, нажмите <b>Start</b>.', 'Drag <code>Kesh.ipa</code> into Sideloadly, enter your Apple ID, press <b>Start</b>.'),
-        L('На iPhone: Настройки → Основные → VPN и управление устройством → ваш Apple ID → <b>Доверять</b>.', 'On the iPhone: Settings → General → VPN & Device Management → your Apple ID → <b>Trust</b>.'),
-        L('Настройки → Конфиденциальность и безопасность → <b>Режим разработчика</b> → включить и перезагрузить.', 'Settings → Privacy & Security → <b>Developer Mode</b> → turn on and restart.'),
-      ], `${weekly}<a class="btn" href="${DL}Kesh.ipa">${I.download}Kesh.ipa</a>`),
-      card(L('Приложение через Mac', 'App via Mac'), hard, L('Нужны Xcode и исходники проекта.', 'Needs Xcode and the project sources.'), [
-        L('Установите <b>Xcode</b> из App Store и <code>brew install xcodegen</code>.', 'Install <b>Xcode</b> from the App Store and <code>brew install xcodegen</code>.'),
-        L('В папке <code>ios</code> выполните <code>xcodegen</code> и откройте <code>Kesh.xcodeproj</code>.', 'In the <code>ios</code> folder run <code>xcodegen</code> and open <code>Kesh.xcodeproj</code>.'),
+      dlCard('ios', I.apple, 'Kesh.ipa', L('Кэш для iPhone', 'Kesh for iPhone'), L('Файл приложения', 'App file'), L('ставится через Sideloadly', 'install with Sideloadly')),
+      `<div class="inst">${step(L('Как приложение с сайта', 'Web app from Safari'), easy, L('Без компьютера. Работает офлайн, обновляется само.', 'No computer. Works offline, updates itself.'), [
+        L('Откройте <code>kesh-money.vercel.app</code> в <b>Safari</b>.', 'Open <code>kesh-money.vercel.app</code> in <b>Safari</b>.'),
+        L('<b>Поделиться</b> → <b>На экран «Домой»</b>.', '<b>Share</b> → <b>Add to Home Screen</b>.'),
+        L('Запускайте «Кэш» с экрана «Домой».', 'Launch Kesh from the Home Screen.')])}
+      ${step(L('Файл через Windows', 'File via Windows'), hard, L('Кабель и программа Sideloadly.', 'Cable and Sideloadly.'), [
+        L('Установите <b>iTunes</b> и <b>iCloud</b> с сайта Apple (не из Microsoft Store) и <a href="https://sideloadly.io/" target="_blank" rel="noopener">Sideloadly</a>.', 'Install <b>iTunes</b> and <b>iCloud</b> from Apple (not the Microsoft Store) and <a href="https://sideloadly.io/" target="_blank" rel="noopener">Sideloadly</a>.'),
+        L('Подключите iPhone кабелем и нажмите «Доверять».', 'Connect the iPhone and tap Trust.'),
+        L('Перетащите <code>Kesh.ipa</code> в Sideloadly, введите Apple ID, нажмите <b>Start</b>.', 'Drag <code>Kesh.ipa</code> into Sideloadly, enter Apple ID, press <b>Start</b>.'),
+        L('iPhone: Настройки → Основные → VPN и управление устройством → ваш Apple ID → <b>Доверять</b>.', 'iPhone: Settings → General → VPN & Device Management → your Apple ID → <b>Trust</b>.'),
+        L('Настройки → Конфиденциальность и безопасность → <b>Режим разработчика</b> → включить, перезагрузить.', 'Settings → Privacy & Security → <b>Developer Mode</b> → on, restart.')], weekly)}
+      ${step(L('Через Mac', 'Via Mac'), hard, L('Xcode и исходники проекта.', 'Xcode and project sources.'), [
+        L('Установите <b>Xcode</b> и <code>brew install xcodegen</code>.', 'Install <b>Xcode</b> and <code>brew install xcodegen</code>.'),
+        L('В папке <code>ios</code>: <code>xcodegen</code>, откройте <code>Kesh.xcodeproj</code>.', 'In <code>ios</code>: <code>xcodegen</code>, open <code>Kesh.xcodeproj</code>.'),
         L('Signing & Capabilities → Team → свой Apple ID.', 'Signing & Capabilities → Team → your Apple ID.'),
-        L('Подключите iPhone, выберите его и нажмите <b>▶</b>. Доверие и режим разработчика — как выше.', 'Connect the iPhone, select it and press <b>▶</b>. Trust and Developer Mode as above.'),
-      ], weekly),
+        L('Выберите iPhone и нажмите <b>▶</b>. Доверие и режим разработчика — как выше.', 'Pick the iPhone, press <b>▶</b>. Trust and Developer Mode as above.')], weekly)}</div>`,
     ],
     android: [
-      card(L('Как приложение с сайта', 'Web app from Chrome'), easy, L('Работает офлайн, обновляется само.', 'Works offline, updates itself.'), [
-        L('Откройте <code>kesh-money.vercel.app</code> в <b>Chrome</b>.', 'Open <code>kesh-money.vercel.app</code> in <b>Chrome</b>.'),
-        L('Меню <b>⋮</b> → <b>Установить приложение</b>.', 'Menu <b>⋮</b> → <b>Install app</b>.'),
-      ]),
-      card(L('Файл APK', 'APK file'), easy, L('Обычное приложение. Новые функции приходят сами, переустанавливать не нужно.', 'A regular app. New features arrive on their own, no reinstall needed.'), [
+      dlCard('android', I.android, 'Kesh.apk', L('Кэш для Android', 'Kesh for Android'), L('Файл приложения', 'App file'), L('открыть на телефоне', 'open on the phone')),
+      `<div class="inst">${step(L('Файл APK', 'APK file'), easy, L('Обычное приложение. Новые функции приходят сами.', 'A regular app. New features arrive on their own.'), [
         L('Скачайте <code>Kesh.apk</code> на телефон.', 'Download <code>Kesh.apk</code> to the phone.'),
         L('Откройте файл и разрешите установку из этого источника.', 'Open it and allow installs from this source.'),
-        L('Нажмите <b>Установить</b>.', 'Tap <b>Install</b>.'),
-      ], `<a class="btn" href="${DL}Kesh.apk">${I.download}Kesh.apk</a>`),
+        L('Нажмите <b>Установить</b>.', 'Tap <b>Install</b>.')])}
+      ${step(L('Как приложение с сайта', 'Web app from Chrome'), easy, L('Работает офлайн, обновляется само.', 'Works offline, updates itself.'), [
+        L('Откройте <code>kesh-money.vercel.app</code> в <b>Chrome</b>.', 'Open <code>kesh-money.vercel.app</code> in <b>Chrome</b>.'),
+        L('Меню <b>⋮</b> → <b>Установить приложение</b>.', 'Menu <b>⋮</b> → <b>Install app</b>.')])}</div>`,
     ],
-    pc: [
-      card(L('Аналитика на компьютере', 'Analytics on a computer'), easy, L('Этот сайт: графики и таблицы по копии с телефона.', 'This site: charts and tables from your phone backup.'), [
-        L('В приложении: Профиль → <b>Резервная копия</b>.', 'In the app: Profile → <b>Backup</b>.'),
-        L('Перешлите файл на компьютер и перетащите его на вкладку «Обзор».', 'Send the file to your computer and drop it on Overview.'),
-      ]),
-      card(L('Полное приложение в браузере', 'Full app in the browser'), easy, L('Тот же трекер, что на телефоне, с отдельными данными.', 'The same tracker as on the phone, with its own data.'), [
-        L('Откройте <a href="../?app">веб-приложение</a>.', 'Open the <a href="../?app">web app</a>.'),
-        L('Chrome или Edge: значок установки в адресной строке → <b>Установить</b>.', 'Chrome or Edge: install icon in the address bar → <b>Install</b>.'),
-      ]),
-    ],
-    move: [
-      card(L('С телефона на компьютер', 'Phone to computer'), '', L('Для графиков и Excel.', 'For charts and Excel.'), [
-        L('Профиль → <b>Резервная копия</b>.', 'Profile → <b>Backup</b>.'),
-        L('Отправьте файл себе: Telegram «Избранное», AirDrop, почта.', 'Send it to yourself: Telegram, AirDrop, email.'),
-        L('Здесь: <b>Загрузить копию</b>.', 'Here: <b>Load backup</b>.'),
-      ]),
-      card(L('На новый телефон или в другую версию', 'To a new phone or another version'), '', L('Сайт, приложение iPhone и Android хранят данные отдельно.', 'The web app, iPhone and Android apps keep data separately.'), [
-        L('На старом: Профиль → <b>Резервная копия</b>.', 'Old device: Profile → <b>Backup</b>.'),
-        L('На новом: Профиль → <b>Восстановить из копии</b>.', 'New device: Profile → <b>Restore from backup</b>.'),
-        L('Данные объединяются: ничего не удаляется и не дублируется.', 'Data is merged: nothing is deleted or duplicated.'),
-      ]),
-    ],
+    pc: [`<div class="inst">${step(L('Этот сайт', 'This site'), easy, L('Экспорт, аналитика и все функции приложения на большом экране.', 'Export, analytics and every app feature on a big screen.'), [
+      L('Откройте <code>kesh-money.vercel.app</code> на компьютере.', 'Open <code>kesh-money.vercel.app</code> on a computer.'),
+      L('Перенесите копию с телефона во вкладке «Экспорт и импорт».', 'Bring your phone backup in “Export & import”.')])}
+      ${step(L('Как отдельное приложение', 'As a separate app'), easy, L('Chrome или Edge.', 'Chrome or Edge.'), [
+        L('Значок установки в адресной строке → <b>Установить</b>.', 'Install icon in the address bar → <b>Install</b>.')])}</div>`],
+    move: [`<div class="inst">${step(L('С телефона на компьютер', 'Phone → computer'), '', L('Для отчётов и Excel.', 'For reports and Excel.'), [
+      L('Телефон: Профиль → <b>Резервная копия</b>.', 'Phone: Profile → <b>Backup</b>.'),
+      L('Отправьте файл себе и перетащите его во вкладку «Экспорт и импорт».', 'Send it to yourself and drop it into “Export & import”.')])}
+      ${step(L('С компьютера на телефон', 'Computer → phone'), '', L('Например, после правок здесь.', 'E.g. after editing here.'), [
+        L('Здесь: <b>Экспорт</b> → <b>Резервная копия</b>.', 'Here: <b>Export</b> → <b>Backup</b>.'),
+        L('Телефон: Профиль → <b>Восстановить из копии</b>. Данные объединятся.', 'Phone: Profile → <b>Restore from backup</b>. Data is merged.')])}</div>`],
   };
   const tabs = [['iphone', 'iPhone'], ['android', 'Android'], ['pc', L('Компьютер', 'Computer')], ['move', L('Перенос данных', 'Moving data')]];
-  const body = `<div class="seg inst-tabs">${tabs.map(([id, n]) => `<button class="${view.inst === id ? 'on' : ''}" data-inst="${id}">${n}</button>`).join('')}</div><div class="inst">${T[view.inst].join('')}</div>`;
-  return shell(L('Установка', 'Install'), ioButtons(), body);
+  return { title: L('Установка', 'Install'), body: `<div class="seg inst-tabs">${tabs.map(([id, n]) => `<button class="${view.inst === id ? 'on' : ''}" data-inst="${id}">${n}</button>`).join('')}</div>${T[view.inst].join('')}` };
+}
+
+/* ---------- 8. настройки ---------- */
+function settingsPage() {
+  const body = `<div class="grid row2b">
+    ${card(L('Профиль', 'Profile'), `<label class="field"><span>${L('Имя', 'Name')}</span><input id="set-name" value="${esc(auth.account()?.login || '')}" maxlength="40" placeholder="${L('Как к вам обращаться', 'Your name')}"></label><button class="btn" data-act="save-name">${L('Сохранить', 'Save')}</button>`)}
+    ${card(L('Язык и валюта', 'Language & currency'), `<label class="field"><span>${L('Язык', 'Language')}</span><div class="seg"><button class="${EN ? '' : 'on'}" data-lang="ru">Русский</button><button class="${EN ? 'on' : ''}" data-lang="en">English</button></div></label>
+      <label class="field"><span>${L('Валюта', 'Currency')}</span><select class="sel" id="set-cur">${CURRENCIES.map(([c, ru, en]) => `<option value="${c}"${c === CURRENCY ? ' selected' : ''}>${curSymbol(c)} · ${L(ru, en)}</option>`).join('')}</select></label>
+      <p class="hint">${L('Меняется только знак — суммы не пересчитываются по курсу.', 'Only the symbol changes — amounts are not converted.')}</p>`)}
+    ${card(L('Данные на этом компьютере', 'Data on this computer'), `<p class="hint">${L('Сайт и веб-приложение в этом браузере используют одни и те же данные. На телефоне — свои, переносятся копией.', 'This site and the web app in this browser share data. Phones keep their own; move it with a backup.')}</p>
+      <div class="center-row" style="justify-content:flex-start"><button class="btn primary" data-exp="json">${I.download}${L('Скачать копию', 'Download backup')}</button><button class="btn danger" data-act="wipe">${I.trash}${L('Удалить все данные', 'Erase all data')}</button></div>`)}
+    ${card(L('О Кэше', 'About'), `<p class="hint">${L('Трекер трат без регистрации и облака. Все данные хранятся только у вас.', 'A spending tracker with no sign-up and no cloud. Your data stays with you.')}</p><p class="hint mono">web ${BUILD_WEB}</p>`)}
+  </div>`;
+  return { title: L('Настройки', 'Settings'), body };
+}
+
+/* ---------- окна ---------- */
+function modal(title, body, onMount, onClose) {
+  const wrap = document.createElement('div');
+  wrap.className = 'mw';
+  wrap.innerHTML = `<div class="mw-bd"></div><div class="mw-box" role="dialog" aria-modal="true"><div class="mw-head"><h3>${title}</h3><button class="icon-btn" data-close aria-label="${L('Закрыть', 'Close')}">${I.x}</button></div><div class="mw-body">${body}</div></div>`;
+  document.body.appendChild(wrap);
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    wrap.classList.add('out');
+    document.removeEventListener('keydown', key, true);
+    setTimeout(() => wrap.remove(), 160);
+    onClose?.();
+  };
+  const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  document.addEventListener('keydown', key, true);
+  wrap.querySelector('.mw-bd').onclick = close;
+  wrap.querySelector('[data-close]').onclick = close;
+  onMount?.(wrap.querySelector('.mw-box'), close);
+  setTimeout(() => wrap.querySelector('.mw-body input:not([type=hidden]):not([type=checkbox]),.mw-body select')?.focus(), 30);
+  return close;
+}
+const ask = (title, text, ok = L('Удалить', 'Delete')) => new Promise((res) => {
+  let answer = false;
+  modal(title, `<p class="hint">${text}</p><div class="mw-foot"><span class="grow"></span><button class="btn" data-no>${L('Отмена', 'Cancel')}</button><button class="btn danger-solid" data-yes>${ok}</button></div>`, (box, cl) => {
+    box.querySelector('[data-no]').onclick = cl;
+    box.querySelector('[data-yes]').onclick = () => { answer = true; cl(); };
+    setTimeout(() => box.querySelector('[data-yes]').focus(), 40);
+  }, () => res(answer));
+});
+let toastT;
+function toast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.add('on');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('on'), 3200);
+}
+
+const catOptions = (kind, sel) => (kind === 'in' ? INCOME_CATEGORIES : CATEGORIES).map(([id]) => `<option value="${esc(id)}"${id === sel ? ' selected' : ''}>${esc(cat(id).name)}</option>`).join('');
+
+function editTx(item) {
+  const isNew = !item;
+  const it = item || { amount: 0, category: 'groceries', note: '', ts: Date.now(), type: undefined, acc: localStorage.getItem('lastAcc') || '' };
+  let kind = isIn(it) ? 'in' : 'out';
+  const accs = accounts();
+  modal(isNew ? L('Новая операция', 'New transaction') : L('Операция', 'Transaction'), `
+    <div class="seg full" id="tx-kind"><button data-k="out" class="${kind === 'out' ? 'on' : ''}">${L('Расход', 'Expense')}</button><button data-k="in" class="${kind === 'in' ? 'on' : ''}">${L('Доход', 'Income')}</button></div>
+    <label class="field big"><span>${L('Сумма', 'Amount')}</span><div class="amount-in"><input id="tx-amt" inputmode="decimal" autocomplete="off" value="${it.amount ? (it.amount / 100).toString().replace('.', EN ? '.' : ',') : ''}" placeholder="0"><em>${curSymbol(CURRENCY)}</em></div></label>
+    <div class="two"><label class="field"><span>${L('Категория', 'Category')}</span><select class="sel" id="tx-cat">${catOptions(kind, it.category)}</select></label>
+    <label class="field"><span>${L('Дата и время', 'Date & time')}</span><input type="datetime-local" id="tx-ts" value="${toLocalInput(it.ts)}" max="${toLocalInput(Date.now() + 864e5)}"></label></div>
+    <label class="field"><span>${L('Описание', 'Note')}</span><input id="tx-note" maxlength="500" value="${esc(it.note || '')}" placeholder="${L('Например, Перекрёсток', 'e.g. Grocery store')}"></label>
+    ${accs.length ? `<label class="field"><span>${L('Счёт', 'Account')}</span><select class="sel" id="tx-acc"><option value="">${L('Без счёта', 'No account')}</option>${accs.map((a) => `<option value="${esc(a.id)}"${a.id === it.acc ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : ''}
+    <p class="err" id="tx-err"></p>
+    <div class="mw-foot">${isNew ? '' : `<button class="btn danger" data-del>${I.trash}${L('Удалить', 'Delete')}</button>`}<span class="grow"></span><button class="btn" data-close2>${L('Отмена', 'Cancel')}</button><button class="btn primary" data-save>${L('Сохранить', 'Save')}<kbd>↵</kbd></button></div>`, (box, close) => {
+    box.querySelector('#tx-kind').onclick = (e) => {
+      const k = e.target.closest('[data-k]')?.dataset.k;
+      if (!k || k === kind) return;
+      kind = k;
+      box.querySelectorAll('#tx-kind button').forEach((b) => b.classList.toggle('on', b.dataset.k === k));
+      box.querySelector('#tx-cat').innerHTML = catOptions(kind, kind === 'in' ? 'salary' : 'groceries');
+    };
+    box.querySelector('[data-close2]').onclick = close;
+    const save = async () => {
+      const amount = parseAmount(box.querySelector('#tx-amt').value);
+      const ts = new Date(box.querySelector('#tx-ts').value).getTime();
+      const err = box.querySelector('#tx-err');
+      if (!(amount > 0 && amount <= 1e13)) { err.textContent = L('Введите сумму больше нуля', 'Enter an amount above zero'); return; }
+      if (!Number.isFinite(ts)) { err.textContent = L('Укажите дату', 'Pick a date'); return; }
+      const data = { amount, category: box.querySelector('#tx-cat').value, note: box.querySelector('#tx-note').value.trim().slice(0, 500), ts, acc: box.querySelector('#tx-acc')?.value ?? undefined };
+      if (data.acc !== undefined) localStorage.setItem('lastAcc', data.acc);
+      if (isNew) await store.addExpense({ ...data, type: kind === 'in' ? 'in' : undefined });
+      else await store.updateExpense(it.id, { ...data, type: kind === 'in' ? 'in' : undefined });
+      close();
+      toast(isNew ? L('Операция добавлена', 'Transaction added') : L('Сохранено', 'Saved'));
+    };
+    box.querySelector('[data-save]').onclick = save;
+    box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName !== 'SELECT') { e.preventDefault(); save(); } });
+    box.querySelector('[data-del]')?.addEventListener('click', async () => {
+      close();
+      if (await ask(L('Удалить операцию?', 'Delete transaction?'), `${esc(it.note || cat(it.category).name)} · ${money(it.amount)} · ${dateStr(it.ts)}`)) { await store.removeExpense(it.id); toast(L('Удалено', 'Deleted')); }
+    });
+  });
+}
+
+function editLimit(id) {
+  const b = budgets();
+  const free = CATEGORIES.filter(([c]) => !b[c] || c === id);
+  modal(id ? `${L('Лимит', 'Limit')}: ${esc(cat(id).name)}` : L('Новый лимит', 'New limit'), `
+    ${id ? '' : `<label class="field"><span>${L('Категория', 'Category')}</span><select class="sel" id="l-cat">${free.map(([c]) => `<option value="${esc(c)}">${esc(cat(c).name)}</option>`).join('')}</select></label>`}
+    <label class="field big"><span>${L('Лимит в месяц', 'Monthly limit')}</span><div class="amount-in"><input id="l-amt" inputmode="decimal" value="${id && b[id] ? b[id] / 100 : ''}" placeholder="0"><em>${curSymbol(CURRENCY)}</em></div></label>
+    <p class="err" id="l-err"></p>
+    <div class="mw-foot">${id ? `<button class="btn danger" data-del>${I.trash}${L('Убрать лимит', 'Remove')}</button>` : ''}<span class="grow"></span><button class="btn primary" data-save>${L('Сохранить', 'Save')}</button></div>`, (box, close) => {
+    box.querySelector('[data-save]').onclick = () => {
+      const v = parseAmount(box.querySelector('#l-amt').value);
+      if (!(v > 0 && v <= 1e13)) { box.querySelector('#l-err').textContent = L('Введите сумму больше нуля', 'Enter an amount above zero'); return; }
+      const c = id || box.querySelector('#l-cat').value;
+      saveBudgets({ ...budgets(), [c]: v }); close(); render(); toast(L('Лимит сохранён', 'Limit saved'));
+    };
+    box.querySelector('[data-del]')?.addEventListener('click', () => { const n = budgets(); delete n[id]; saveBudgets(n); close(); render(); });
+  });
+}
+
+function editAccount(id) {
+  const a = accounts().find((x) => x.id === id);
+  modal(a ? L('Счёт', 'Account') : L('Новый счёт', 'New account'), `
+    <label class="field"><span>${L('Название', 'Name')}</span><input id="a-name" maxlength="40" value="${esc(a?.name || '')}" placeholder="${L('Например, Т-Банк', 'e.g. Main card')}"></label>
+    <div class="two"><label class="field"><span>${L('Тип', 'Type')}</span><select class="sel" id="a-type">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}"${(a?.type || 'card') === k ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
+    <label class="field"><span>${L('Стартовый остаток', 'Starting balance')}</span><div class="amount-in"><input id="a-base" inputmode="decimal" value="${a ? a.base / 100 : ''}" placeholder="0"><em>${curSymbol(CURRENCY)}</em></div></label></div>
+    <p class="hint">${L('Остаток = старт + доходы − расходы по операциям с этим счётом.', 'Balance = start + income − expenses on this account.')}</p>
+    <div class="mw-foot">${a ? `<button class="btn danger" data-del>${I.trash}${L('Удалить', 'Delete')}</button>` : ''}<span class="grow"></span><button class="btn primary" data-save>${L('Сохранить', 'Save')}</button></div>`, (box, close) => {
+    box.querySelector('[data-save]').onclick = async () => {
+      const name = box.querySelector('#a-name').value.trim().slice(0, 40); const type = box.querySelector('#a-type').value;
+      const base = parseAmount(box.querySelector('#a-base').value || '0');
+      if (Math.abs(base) > 1e13) return;
+      if (a) updateAccount(a.id, { name: name || TYPES[type].name, type, base }); else addAccount({ name, type, base });
+      close(); await load(); toast(L('Счёт сохранён', 'Account saved'));
+    };
+    box.querySelector('[data-del]')?.addEventListener('click', async () => { close(); if (await ask(L('Удалить счёт?', 'Delete account?'), L('Операции останутся, просто без счёта.', 'Transactions stay, just without the account.'))) { removeAccount(a.id); await load(); } });
+  });
+}
+
+function editDeposit(id) {
+  const d = deposits().find((x) => x.id === id) || { name: '', amount: 0, rate: 0, kind: 'savings', months: 12, opened: Date.now(), cap: 'month' };
+  modal(id ? L('Вклад', 'Deposit') : L('Новый вклад', 'New deposit'), `
+    <div class="seg full" id="d-kind"><button data-k="savings" class="${d.kind !== 'term' ? 'on' : ''}">${L('Накопительный счёт', 'Savings account')}</button><button data-k="term" class="${d.kind === 'term' ? 'on' : ''}">${L('Срочный вклад', 'Term deposit')}</button></div>
+    <label class="field"><span>${L('Название', 'Name')}</span><input id="d-name" maxlength="60" value="${esc(d.name)}" placeholder="${L('Например, Вклад в Т-Банке', 'e.g. Bank deposit')}"></label>
+    <div class="two"><label class="field"><span>${L('Сумма', 'Amount')}</span><div class="amount-in"><input id="d-amt" inputmode="decimal" value="${d.amount ? d.amount / 100 : ''}" placeholder="0"><em>${curSymbol(CURRENCY)}</em></div></label>
+    <label class="field"><span>${L('Ставка, % годовых', 'Rate, % per year')}</span><input id="d-rate" inputmode="decimal" value="${d.rate || ''}" placeholder="18"></label></div>
+    <div class="two term-only"${d.kind === 'term' ? '' : ' hidden'}><label class="field"><span>${L('Срок', 'Term')}</span><select class="sel" id="d-months">${TERMS.map((m) => `<option value="${m}"${m === d.months ? ' selected' : ''}>${termLabel(m)}</option>`).join('')}</select></label>
+    <label class="field"><span>${L('Открыт', 'Opened')}</span><input type="date" id="d-open" value="${toLocalInput(d.opened || Date.now()).slice(0, 10)}"></label></div>
+    <label class="field term-only"${d.kind === 'term' ? '' : ' hidden'}><span>${L('Проценты', 'Interest')}</span><select class="sel" id="d-cap"><option value="month"${d.cap !== 'end' ? ' selected' : ''}>${L('Капитализация каждый месяц', 'Monthly capitalisation')}</option><option value="end"${d.cap === 'end' ? ' selected' : ''}>${L('Выплата в конце срока', 'Paid at maturity')}</option></select></label>
+    <p class="hint" id="d-calc"></p><p class="err" id="d-err"></p>
+    <div class="mw-foot">${id ? `<button class="btn danger" data-del>${I.trash}${L('Удалить', 'Delete')}</button>` : ''}<span class="grow"></span><button class="btn primary" data-save>${L('Сохранить', 'Save')}</button></div>`, (box, close) => {
+    let kind = d.kind === 'term' ? 'term' : 'savings';
+    const read = () => ({ ...d, name: box.querySelector('#d-name').value.trim().slice(0, 60) || L('Вклад', 'Deposit'), amount: parseAmount(box.querySelector('#d-amt').value), rate: Math.min(100, Math.max(0, parseFloat(box.querySelector('#d-rate').value.replace(',', '.')) || 0)), kind, months: Number(box.querySelector('#d-months').value), opened: new Date(box.querySelector('#d-open').value).getTime() || Date.now(), cap: box.querySelector('#d-cap').value });
+    const calc = () => { const v = read(); box.querySelector('#d-calc').innerHTML = v.amount ? (kind === 'term' ? L(`Доход за срок: <b>${money(depIncome(v))}</b> · в месяц ~${money(monthly(v))}`, `Income for the term: <b>${money(depIncome(v))}</b> · ~${money(monthly(v))}/mo`) : L(`Доход в месяц: <b>${money(monthly(v))}</b>`, `Monthly income: <b>${money(monthly(v))}</b>`)) : ''; };
+    box.querySelector('#d-kind').onclick = (e) => { const k = e.target.closest('[data-k]')?.dataset.k; if (!k) return; kind = k; box.querySelectorAll('#d-kind button').forEach((b) => b.classList.toggle('on', b.dataset.k === k)); box.querySelectorAll('.term-only').forEach((el) => { el.hidden = k !== 'term'; }); calc(); };
+    box.addEventListener('input', calc); box.addEventListener('change', calc); calc();
+    box.querySelector('[data-save]').onclick = () => {
+      const v = read();
+      if (!(v.amount > 0 && v.amount <= 1e13)) { box.querySelector('#d-err').textContent = L('Введите сумму больше нуля', 'Enter an amount above zero'); return; }
+      const list = deposits();
+      if (id) saveDeposits(list.map((x) => (x.id === id ? v : x))); else saveDeposits([...list, { ...v, id: `d${Date.now().toString(36)}` }]);
+      close(); render(); toast(L('Вклад сохранён', 'Deposit saved'));
+    };
+    box.querySelector('[data-del]')?.addEventListener('click', async () => { close(); if (await ask(L('Удалить вклад?', 'Delete deposit?'), esc(d.name))) { saveDeposits(deposits().filter((x) => x.id !== id)); render(); } });
+  });
+}
+
+function editCat(id, kind0) {
+  const c = customCategories().find((x) => x.id === id);
+  const kind = c?.kind || kind0 || 'out';
+  let color = c?.color || PALETTE[customCategories().length % PALETTE.length];
+  modal(c ? L('Категория', 'Category') : L('Своя категория', 'Custom category'), `
+    <label class="field"><span>${L('Название', 'Name')}</span><input id="c-name" maxlength="40" value="${esc(c?.name || '')}" placeholder="${L('Например, Хобби', 'e.g. Hobby')}"></label>
+    <label class="field"><span>${L('Цвет', 'Colour')}</span><div class="swatches">${PALETTE.map((p) => `<button style="background:${p}" data-col="${p}" class="${p === color ? 'on' : ''}"></button>`).join('')}</div></label>
+    <p class="hint">${kind === 'in' ? L('Категория доходов', 'Income category') : L('Категория расходов', 'Expense category')}</p><p class="err" id="c-err"></p>
+    <div class="mw-foot">${c ? `<button class="btn danger" data-del>${I.trash}${L('Удалить', 'Delete')}</button>` : ''}<span class="grow"></span><button class="btn primary" data-save>${L('Сохранить', 'Save')}</button></div>`, (box, close) => {
+    box.querySelector('.swatches').onclick = (e) => { const p = e.target.closest('[data-col]')?.dataset.col; if (!p) return; color = p; box.querySelectorAll('.swatches button').forEach((b) => b.classList.toggle('on', b.dataset.col === p)); };
+    box.querySelector('[data-save]').onclick = () => {
+      const name = box.querySelector('#c-name').value.trim();
+      if (!name) { box.querySelector('#c-err').textContent = L('Введите название', 'Enter a name'); return; }
+      if (c) updateCategory(c.id, { name, color }); else addCategory(name, 'star', color, kind);
+      close(); render(); toast(L('Категория сохранена', 'Category saved'));
+    };
+    box.querySelector('[data-del]')?.addEventListener('click', async () => {
+      close();
+      const to = c.kind === 'in' ? 'in_other' : 'other';
+      if (!(await ask(L('Удалить категорию?', 'Delete category?'), L(`Операции перейдут в «${cat(to).name}».`, `Transactions move to “${cat(to).name}”.`)))) return;
+      await store.recategorize(c.id, to);
+      const b = budgets(); if (b[c.id]) { delete b[c.id]; saveBudgets(b); }
+      removeCategory(c.id); render();
+    });
+  });
+}
+
+// Календарь Air Datepicker (MIT), подгружается при первом открытии
+let pickerLib;
+const loadPicker = () => (pickerLib ||= new Promise((res, rej) => {
+  document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: '../vendor/air-datepicker.css' }));
+  const sc = Object.assign(document.createElement('script'), { src: '../vendor/air-datepicker.js' });
+  sc.onload = () => res(window.AirDatepicker);
+  sc.onerror = () => { pickerLib = null; rej(new Error('picker')); };
+  document.head.appendChild(sc);
+}));
+function pickDates() {
+  const today = day0(Date.now());
+  const preset = (n, label) => `<button class="chip" data-days="${n}">${label}</button>`;
+  modal(L('Свой период', 'Custom period'), `<div class="presets">${preset(7, L('7 дней', '7 days'))}${preset(30, L('30 дней', '30 days'))}${preset(90, L('Квартал', 'Quarter'))}${preset('ytd', L('С начала года', 'Year to date'))}${preset(1, L('Сегодня', 'Today'))}</div>
+    <div class="cal" id="cal"><div class="spin"></div></div><p class="hint" id="cal-sel">${L('Выберите первый и последний день — или один день дважды', 'Pick the first and last day — or one day twice')}</p>
+    <div class="mw-foot"><span class="grow"></span><button class="btn primary" data-apply disabled>${L('Показать', 'Show')}</button></div>`, async (box, close) => {
+    let sel = null;
+    const apply = (from, to) => { view.mode = 'custom'; view.range = { from, to }; view.anchor = new Date(from); close(); render(); };
+    box.querySelector('.presets').onclick = (e) => {
+      const d = e.target.closest('[data-days]')?.dataset.days;
+      if (!d) return;
+      if (d === 'ytd') return apply(+new Date(new Date().getFullYear(), 0, 1), today + 864e5);
+      apply(today - (Number(d) - 1) * 864e5, today + 864e5);
+    };
+    box.querySelector('[data-apply]').onclick = () => sel && apply(sel[0], sel[1]);
+    try {
+      const AirDatepicker = await loadPicker();
+      const el = box.querySelector('#cal');
+      el.innerHTML = '';
+      const MS = MONTHS;
+      new AirDatepicker(el, {
+        inline: true, range: true, maxDate: new Date(), toggleSelected: false, firstDay: 1,
+        locale: { days: L(['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'], ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']), daysShort: L(['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'], ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']), daysMin: L(['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'], ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']), months: MS, monthsShort: MON, today: L('Сегодня', 'Today'), clear: L('Очистить', 'Clear'), dateFormat: 'dd.MM.yyyy', timeFormat: 'HH:mm', firstDay: 1 },
+        selectedDates: view.mode === 'custom' && view.range ? [new Date(view.range.from), new Date(view.range.to - 1)] : [],
+        navTitles: { days: 'MMMM yyyy', months: 'yyyy', years: 'yyyy1 – yyyy2' },
+        onSelect: ({ date }) => {
+          const ds = [].concat(date).filter(Boolean);
+          const btn = box.querySelector('[data-apply]');
+          if (ds.length === 2) { sel = [day0(ds[0]), day0(ds[1]) + 864e5]; box.querySelector('#cal-sel').textContent = `${dm(sel[0])} – ${dateStr(sel[1] - 1)}`; btn.disabled = false; } else { sel = null; btn.disabled = true; }
+        },
+      });
+    } catch { box.querySelector('#cal').innerHTML = empty(L('Календарь не загрузился', 'Calendar failed to load')); }
+  });
 }
 
 /* ---------- экспорт ---------- */
 function save(blob, name) {
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 const stamp = () => new Date().toISOString().slice(0, 10);
 const rub = (kop) => kop / 100;
-function exportAs(kind) {
-  const t = data.transactions;
+async function exportAs(kind) {
+  if (!items.length && kind !== 'json') return toast(L('Пока нечего выгружать', 'Nothing to export yet'));
   const typeName = (i) => (isIn(i) ? L('Пополнение', 'Income') : L('Расход', 'Expense'));
-  if (kind === 'json') return save(new Blob([JSON.stringify(raw)], { type: 'application/json' }), `nota-backup-${stamp()}.json`);
+  if (kind === 'json') {
+    const data = await makeBackup(`web-${BUILD_WEB}`);
+    save(new Blob([JSON.stringify(data)], { type: 'application/json' }), `nota-backup-${stamp()}.json`);
+    localStorage.setItem('lastBackup', String(Date.now()));
+    return toast(L(`Копия сохранена: ${nOps(items.length)}`, `Backup saved: ${nOps(items.length)}`));
+  }
   if (kind === 'csv') {
     const q = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
-    const rows = [[L('Дата', 'Date'), L('Тип', 'Type'), L('Категория', 'Category'), L('Описание', 'Note'), L('Сумма', 'Amount')],
-      ...t.map((i) => [new Date(i.ts).toISOString().slice(0, 16).replace('T', ' '), typeName(i), cat(i.category).name, i.note || '', (rub(i.amount)).toFixed(2).replace('.', EN ? '.' : ',')])];
-    return save(new Blob([`﻿${rows.map((r) => r.map(q).join(EN ? ',' : ';')).join('\r\n')}`], { type: 'text/csv' }), `kesh-${stamp()}.csv`);
+    const rows = [[L('Дата', 'Date'), L('Тип', 'Type'), L('Категория', 'Category'), L('Описание', 'Note'), L('Счёт', 'Account'), `${L('Сумма', 'Amount')}, ${curSymbol(CURRENCY)}`],
+      ...items.map((i) => [toLocalInput(i.ts).replace('T', ' '), typeName(i), cat(i.category).name, i.note || '', accName(i.acc), rub(i.amount).toFixed(2).replace('.', EN ? '.' : ',')])];
+    save(new Blob([`﻿${rows.map((r) => r.map(q).join(EN ? ',' : ';')).join('\r\n')}`], { type: 'text/csv' }), `kesh-${stamp()}.csv`);
+    return toast(L('CSV сохранён', 'CSV saved'));
   }
   const serial = (ts) => ({ v: (ts - new Date(ts).getTimezoneOffset() * 6e4) / 864e5 + 25569, f: 'date' });
   const cats = new Map();
-  t.forEach((i) => { const k = `${i.category}|${isIn(i)}`; const c = cats.get(k) || { name: cat(i.category).name, kind: typeName(i), n: 0, sum: 0 }; c.n++; c.sum += i.amount; cats.set(k, c); });
+  items.forEach((i) => { const k = `${i.category}|${isIn(i)}`; const c = cats.get(k) || { name: cat(i.category).name, kind: typeName(i), n: 0, sum: 0 }; c.n++; c.sum += i.amount; cats.set(k, c); });
+  const m0 = new Date(); const mFrom = +new Date(m0.getFullYear(), m0.getMonth(), 1);
+  const b = budgets();
+  const S = curSymbol(CURRENCY);
   const sheets = [
-    { name: 'Операции', cols: [17, 13, 18, 36, 14, 10], rows: [['Дата', 'Тип', 'Категория', 'Описание', 'Сумма', 'ID'], ...t.map((i) => [serial(i.ts), typeName(i), cat(i.category).name, i.note || '', rub(i.amount), i.id])] },
-    { name: 'Категории', cols: [22, 13, 11, 14], rows: [['Категория', 'Тип', 'Операций', 'Сумма'], ...[...cats.values()].sort((a, b) => b.sum - a.sum).map((c) => [c.name, c.kind, c.n, rub(c.sum)])] },
+    { name: 'Операции', cols: [17, 13, 18, 36, 16, 14, 10], rows: [['Дата', 'Тип', 'Категория', 'Описание', 'Счёт', `Сумма, ${S}`, 'ID'], ...items.map((i) => [serial(i.ts), typeName(i), cat(i.category).name, i.note || '', accName(i.acc), rub(i.amount), i.id])] },
+    { name: 'Категории', cols: [22, 13, 11, 14], rows: [['Категория', 'Тип', 'Операций', `Сумма, ${S}`], ...[...cats.values()].sort((x, y) => y.sum - x.sum).map((c) => [c.name, c.kind, c.n, rub(c.sum)])] },
+    { name: 'Бюджет', cols: [22, 16, 16, 14], rows: [['Категория', `Лимит, ${S}`, `Потрачено (${MONTHS[m0.getMonth()].toLowerCase()}), ${S}`, `Осталось, ${S}`], ...Object.entries(b).filter(([id]) => CAT[id]).map(([id, v]) => { const sp = sum(items.filter((i) => !isIn(i) && i.category === id && i.ts >= mFrom)); return [cat(id).name, rub(v), rub(sp), rub(v - sp)]; })] },
+    { name: 'Вклады', cols: [28, 14, 11, 16], rows: [['Название', `Сумма, ${S}`, 'Ставка, %', `Доход в месяц, ${S}`], ...deposits().map((d) => [d.name, rub(d.amount), d.rate || 0, rub(monthly(d))])] },
   ];
   save(new Blob([writeXlsx(sheets)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `kesh-${stamp()}.xlsx`);
+  toast(L('Отчёт Excel сохранён', 'Excel report saved'));
 }
 
-/* ---------- загрузка файла ---------- */
-async function readFile(file) {
+/* ---------- импорт ---------- */
+async function importBackup(file) {
   if (!file) return;
-  let err = '';
-  if (file.size > 30e6) err = L('Файл слишком большой', 'File is too large');
-  else {
-    try { err = load(JSON.parse(await file.text()), true); } catch { err = L('Это не файл копии «Кэша»', 'This is not a Kesh backup file'); }
-  }
-  view.error = err;
-  if (!err) { view.page = 'overview'; view.mode = 'month'; location.hash = 'overview'; }
-  render();
+  let c;
+  try {
+    if (file.size > 30e6) throw new Error(L('Файл слишком большой', 'File is too large'));
+    c = checkBackup(JSON.parse(await file.text()));
+    if (!c.ok) throw new Error(c.error);
+  } catch (e) { view.msg = e.message?.startsWith('Unexpected') || e instanceof SyntaxError ? L('Это не файл копии «Кэша»', 'This is not a Kesh backup') : e.message; return render(); }
+  const r = await restoreBackup(c);
+  view.msg = '';
+  toast(L(`Добавлено ${r.added}, обновлено ${r.updated}, уже были ${r.unchanged}`, `Added ${r.added}, updated ${r.updated}, already there ${r.unchanged}`));
+  view.page = 'overview'; location.hash = 'overview';
+  await load();
+}
+
+async function importBank(files) {
+  const list = [...files].slice(0, 5);
+  if (!list.length) return;
+  const close = modal(L('Выписка банка', 'Bank statement'), `<div class="spin"></div><p class="hint center">${L('Читаем выписку…', 'Reading the statement…')}</p>`);
+  let found;
+  try { const { parseStatement } = await import('../statement.js'); found = await parseStatement(list); } catch (e) { close(); return toast(L('Не удалось прочитать файл', 'Could not read the file')); }
+  close();
+  const known = await store.existingIds(found.flatMap((i) => [i.id, i.legacyId]));
+  const opts = { external: false, internal: false };
+  const pick = () => found.filter((i) => (i.kind === 'external' ? opts.external : i.kind === 'internal' ? opts.internal : true)).map(({ legacyId, kind, ...i }) => (known.has(legacyId) ? { ...i, id: legacyId } : i));
+  const ext = found.filter((i) => i.kind === 'external'); const int = found.filter((i) => i.kind === 'internal');
+  modal(L('Выписка банка', 'Bank statement'), `<div id="bk"></div>`, (box, cl) => {
+    const draw = () => {
+      const add = pick(); const fresh = add.filter((i) => !known.has(i.id));
+      box.querySelector('#bk').innerHTML = `<div class="bk-sum"><div><b class="mono">${found.length}</b><small>${L('найдено', 'found')}</small></div><div><b class="mono">${fresh.length}</b><small>${L('новых', 'new')}</small></div><div><b class="mono">${money(sum(add))}</b><small>${L('сумма', 'total')}</small></div></div>
+        ${ext.length ? `<label class="check"><input type="checkbox" data-o="external"${opts.external ? ' checked' : ''}>${L('Переводы людям', 'Transfers to people')} · ${ext.length}</label>` : ''}
+        ${int.length ? `<label class="check"><input type="checkbox" data-o="internal"${opts.internal ? ' checked' : ''}>${L('Между своими счетами', 'Between own accounts')} · ${int.length}</label>` : ''}
+        <div class="bk-list">${add.slice(0, 8).map((i) => `<div class="cat-row">${dot(cat(i.category))}<div class="name">${esc(i.note || cat(i.category).name)}<small>${esc(cat(i.category).name)} · ${dateStr(i.ts)}${known.has(i.id) ? ` · ${L('уже есть', 'already there')}` : ''}</small></div><span class="sum">${money(i.amount)}</span></div>`).join('')}${add.length > 8 ? `<p class="hint center">${L('и ещё', 'and')} ${add.length - 8}</p>` : ''}</div>
+        <div class="mw-foot"><span class="grow"></span><button class="btn primary" data-add ${fresh.length ? '' : 'disabled'}>${fresh.length ? `${L('Добавить', 'Add')} ${fresh.length}` : L('Новых нет', 'Nothing new')}</button></div>`;
+      box.querySelectorAll('[data-o]').forEach((c) => { c.onchange = () => { opts[c.dataset.o] = c.checked; draw(); }; });
+      box.querySelector('[data-add]').onclick = async () => { const r = await store.importExpenses(pick()); cl(); toast(L(`Добавлено ${r.added}`, `Added ${r.added}`)); };
+    };
+    draw();
+  });
 }
 
 /* ---------- отрисовка и события ---------- */
 function render() {
+  if (!ready) return;
   const keep = document.activeElement?.id === 'q' ? document.activeElement.selectionStart : null;
-  const v = view.page === 'ops' ? ops() : view.page === 'install' ? install() : overview();
-  document.getElementById('ptitle').textContent = v.title;
-  document.getElementById('pactions').innerHTML = v.actions;
-  document.getElementById('pbody').innerHTML = v.body;
+  const p = { data: dataPage, overview, ops: opsPage, budget: budgetPage, deposits: depositsPage, cats: catsPage, install: installPage, settings: settingsPage }[view.page]();
+  document.getElementById('ptitle').textContent = p.title;
+  document.getElementById('pactions').innerHTML = headActions();
+  document.getElementById('pbody').innerHTML = p.body;
   chrome();
   if (keep != null) { const q = document.getElementById('q'); q.focus(); q.setSelectionRange(keep, keep); }
 }
+const go = (page) => { view.page = page; view.limit = 100; location.hash = page; window.scrollTo(0, 0); render(); };
 
-root.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp]');
-  if (!t) { document.getElementById('exp')?.classList.remove('open'); return; }
+root.addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp],[data-lang],[data-edit],[data-limit],[data-account],[data-deposit],[data-cat],[data-filter-cat],[data-search],[data-sort]');
+  if (!t?.closest('#exp')) document.getElementById('exp')?.classList.remove('open');
+  if (!t) return;
   const d = t.dataset;
-  if (d.page) { e.preventDefault(); view.page = d.page; view.limit = 100; location.hash = d.page; window.scrollTo(0, 0); return render(); }
-  if (d.mode) { view.mode = d.mode; if (d.mode !== 'all' && data) view.anchor = new Date(data.transactions[0].ts); return render(); }
-  if (d.shift) { const a = view.anchor; view.anchor = view.mode === 'month' ? new Date(a.getFullYear(), a.getMonth() + Number(d.shift), 1) : new Date(a.getFullYear() + Number(d.shift), 0, 1); return render(); }
+  if (d.page) { e.preventDefault(); return go(d.page); }
+  if (d.lang) return d.lang !== (EN ? 'en' : 'ru') && setLang(d.lang);
+  if (d.exp) { document.getElementById('exp')?.classList.remove('open'); return exportAs(d.exp); }
+  if (d.mode) { view.mode = d.mode; view.range = null; if (items.length) view.anchor = new Date(items[0].ts); return render(); }
+  if (d.shift) {
+    const a = view.anchor; const k = Number(d.shift);
+    if (view.mode === 'custom' && view.range) { const s = view.range.to - view.range.from; view.range = { from: view.range.from + k * s, to: view.range.to + k * s }; } else view.anchor = view.mode === 'month' ? new Date(a.getFullYear(), a.getMonth() + k, 1) : new Date(a.getFullYear() + k, 0, 1);
+    return render();
+  }
   if (d.type) { view.type = d.type; view.limit = 100; return render(); }
   if (d.inst) { view.inst = d.inst; return render(); }
-  if (d.exp) { document.getElementById('exp')?.classList.remove('open'); return exportAs(d.exp); }
-  if (d.act === 'mini') { const m = !mini(); try { localStorage.setItem('webMini', m ? '1' : '0'); } catch { /* */ } return document.getElementById('frame').classList.toggle('mini', m); }
-  if (d.act === 'lang') return setLang(EN ? 'ru' : 'en');
-  if (d.act === 'pick') { e.preventDefault(); return document.getElementById('file').click(); }
-  if (d.act === 'export') { e.stopPropagation(); return document.getElementById('exp').classList.toggle('open'); }
-  if (d.act === 'more') { view.limit += 200; return render(); }
-  if (d.act === 'forget') { try { localStorage.removeItem(KEY); } catch { /* нет доступа */ } raw = null; data = null; view.page = 'overview'; return render(); }
+  if (d.sort) { view.dir = view.sort === d.sort ? -view.dir : -1; view.sort = d.sort; return render(); }
+  if (d.edit) return editTx(items.find((i) => i.id === d.edit));
+  if (d.limit) return editLimit(d.limit);
+  if (d.account) return editAccount(d.account);
+  if (d.deposit) return editDeposit(d.deposit);
+  if (d.cat) return editCat(d.cat);
+  if (d.filterCat) { view.cat = d.filterCat; view.q = ''; return go('ops'); }
+  if (d.search) { view.q = d.search; view.cat = ''; return go('ops'); }
+  switch (d.act) {
+    case 'mini': { const m = !mini(); try { localStorage.setItem('webMini', m ? '1' : '0'); } catch { /* */ } return document.getElementById('frame').classList.toggle('mini', m); }
+    case 'export-menu': return document.getElementById('exp').classList.toggle('open');
+    case 'add': return editTx(null);
+    case 'calendar': return pickDates();
+    case 'pick-backup': e.preventDefault(); return document.getElementById('file-backup').click();
+    case 'pick-bank': return document.getElementById('file-bank').click();
+    case 'more': view.limit += 200; return render();
+    case 'reset-filters': Object.assign(view, { q: '', cat: '', acc: '', type: 'all' }); return render();
+    case 'add-limit': return editLimit(null);
+    case 'add-account': return editAccount(null);
+    case 'add-deposit': return editDeposit(null);
+    case 'add-cat': return editCat(null, d.kind);
+    case 'save-name': { const n = document.getElementById('set-name').value.trim().slice(0, 40); if (n) { auth.register(n); toast(L('Имя сохранено', 'Name saved')); render(); } return; }
+    case 'wipe':
+      if (!(await ask(L('Удалить все данные?', 'Erase all data?'), L('Операции, категории, лимиты, счета и вклады на этом компьютере будут удалены. Сначала скачайте копию, если она нужна.', 'Transactions, categories, limits, accounts and savings on this computer will be deleted. Download a backup first if you need it.'), L('Удалить всё', 'Erase all')))) return;
+      await store.wipe();
+      ['customCats', 'budgets', 'deposits', 'wallet', 'accounts', 'accountsOff', 'lastAcc', 'lastBackup', 'webBackup'].forEach((k) => localStorage.removeItem(k));
+      location.reload();
+      return;
+    default:
+  }
 });
 root.addEventListener('change', (e) => {
-  if (e.target.id === 'file') readFile(e.target.files[0]);
+  if (e.target.id === 'file-backup') { importBackup(e.target.files[0]); e.target.value = ''; }
+  if (e.target.id === 'file-bank') { importBank(e.target.files); e.target.value = ''; }
   if (e.target.id === 'catf') { view.cat = e.target.value; view.limit = 100; render(); }
+  if (e.target.id === 'accf') { view.acc = e.target.value; view.limit = 100; render(); }
+  if (e.target.id === 'set-cur' && e.target.value !== CURRENCY) setCurrency(e.target.value);
 });
 root.addEventListener('input', (e) => { if (e.target.id === 'q') { view.q = e.target.value; view.limit = 100; render(); } });
 
-// Перетаскивание файла в любое место окна
+// Перетаскивание: .json — копия, .pdf/.csv — выписка
 let dragDepth = 0;
 window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; document.getElementById('drop')?.classList.add('over'); });
 window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.getElementById('drop')?.classList.remove('over'); } });
 window.addEventListener('dragover', (e) => e.preventDefault());
-window.addEventListener('drop', (e) => { e.preventDefault(); dragDepth = 0; readFile(e.dataTransfer.files[0]); });
+window.addEventListener('drop', (e) => {
+  e.preventDefault(); dragDepth = 0;
+  const files = [...e.dataTransfer.files];
+  if (!files.length) return;
+  if (/\.json$/i.test(files[0].name)) importBackup(files[0]);
+  else if (files.some((f) => /\.(pdf|csv)$/i.test(f.name))) importBank(files.filter((f) => /\.(pdf|csv)$/i.test(f.name)));
+  else toast(L('Нужен файл .json, .pdf или .csv', 'Use a .json, .pdf or .csv file'));
+});
 
-// Подсказка над столбиком и сектором
 const tipAt = (el, x, y) => {
   const tip = document.getElementById('tip');
   if (!tip) return;
   if (!el) { tip.style.display = 'none'; return; }
   const n = el.dataset.n;
-  tip.innerHTML = `<small>${esc(el.dataset.tip)}</small><b>${esc(el.dataset.v)}</b>${n && n !== '0' ? ` <small>${/%$/.test(n) ? n : `${n} ${L('опер.', 'tx')}`}</small>` : ''}`;
-  tip.style.display = 'block';
-  tip.style.left = `${x}px`;
-  tip.style.top = `${y - 8}px`;
+  tip.innerHTML = `<small>${esc(el.dataset.tip)}</small><b>${esc(el.dataset.v)}</b>${n && n !== '0' ? ` <small>${/%$/.test(n) ? n : nOps(Number(n))}</small>` : ''}`;
+  tip.style.display = 'block'; tip.style.left = `${x}px`; tip.style.top = `${y - 8}px`;
 };
 root.addEventListener('mousemove', (e) => tipAt(e.target.closest('[data-tip]'), e.clientX, e.clientY));
 root.addEventListener('mouseleave', () => tipAt(null));
-window.addEventListener('hashchange', () => { const p = location.hash.slice(1); if (['overview', 'ops', 'install'].includes(p) && p !== view.page) { view.page = p; render(); } });
-
+window.addEventListener('hashchange', () => { const p = hashPage(); if (p !== view.page) { view.page = p; render(); } });
 document.addEventListener('keydown', (e) => {
-  if (e.target.closest('input, select, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
-  const p = { 1: 'overview', 2: 'ops', 3: 'install' }[e.key];
-  if (p && p !== view.page) { view.page = p; location.hash = p; render(); }
+  if (document.querySelector('.mw') || e.target.closest('input, select, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'n' || e.key === 'т') { e.preventDefault(); editTx(null); }
 });
+store.onChange(() => load());
 
-// Заставка-мультик, затем Кэш перебирается в уголок меню
+// Заставка с деталями — пока поднимаются данные
+const loader = document.getElementById('loader');
+const first = !sessionStorage.getItem('kIntro');
 frame();
-render();
-playIntro(() => (document.getElementById('frame').classList.contains('mini') ? null : document.getElementById('pet')));
-// Приглушённый кадр сцены — фоном сайта и в баннере
-setTimeout(() => {
-  SHOT = snapshot();
-  if (!SHOT) return;
-  document.body.style.setProperty('--shot', `url(${SHOT})`);
-  document.body.classList.add('has-shot');
-  if (view.page === 'overview') render();
-}, 60);
+const t0 = performance.now();
+migrate().then(load).then(() => {
+  sessionStorage.setItem('kIntro', '1');
+  setTimeout(() => loader.classList.add('done'), Math.max(0, (first ? 1400 : 250) - (performance.now() - t0)));
+  if (!items.length && view.page === 'data' && location.hash !== '#data') history.replaceState(null, '', '#data');
+});

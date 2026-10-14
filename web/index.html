@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="theme-color" content="#09090A">
   <meta name="description" content="Кэш — трекер трат без регистрации. Аналитика на компьютере и установка на все устройства.">
   <title>Кэш — трекер трат</title>
@@ -12,7 +12,12 @@
   <link rel="stylesheet" href="./web.css">
 </head>
 <body>
-  <div id="loader" class="loader" aria-label="Загрузка"></div>
+  <div id="loader" class="loader" aria-label="Загрузка">
+    <div class="ld-frame"><i class="x tl"></i><i class="x tr"></i><i class="x bl"></i><i class="x br"></i></div>
+    <div class="ld-top mono"><span>KESH / WEB</span><span class="ld-dot"></span><span>LOCAL · NO CLOUD</span></div>
+    <div class="ld-mid"><div class="ld-mark"><img src="../icon-180.png" alt=""></div><h1>Кэш</h1><div class="ld-bar"><i></i></div><div class="ld-lines mono"><span>storage · indexeddb</span><span>analytics · ready</span><span>export · xlsx csv json</span></div></div>
+    <div class="ld-bot mono"><span>01 — 03</span><span class="ld-grid"></span><span>v2</span></div>
+  </div>
   <div id="root"></div>
   <script type="module" src="./web.js"></script>
 </body>

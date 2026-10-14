@@ -18,7 +18,7 @@ import androidx.core.content.FileProvider;
 import java.io.File;
 import java.io.FileOutputStream;
 
-// Оболочка над PWA: данные живут внутри WebView (IndexedDB, localStorage)
+// Оболочка над PWA (сайт kesh-money.vercel.app): данные живут внутри WebView (IndexedDB, localStorage)
 public class MainActivity extends Activity {
     private static final String URL = "https://kesh-money.vercel.app/";
     private static final String HOST = "kesh-money.vercel.app";
