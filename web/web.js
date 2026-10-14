@@ -3,13 +3,14 @@
 import '../guard.js';
 import { L, EN, LANG, setLang, CURRENCIES, CURRENCY } from '../i18n.js';
 import { CAT } from '../ui.js'; // раньше kesh.js: у них взаимный импорт
-import { keshSVG } from '../kesh.js';
+import { catAvatar } from '../kesh.js';
+import { playIntro, scene } from './intro.js';
 import { checkBackup } from '../backup.js';
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
 const KEY = 'webBackup';
-const BUILD_WEB = '1.1';
+const BUILD_WEB = '1.2';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -26,6 +27,11 @@ const I = {
   search: ic('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
   lock: ic('<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
   app: ic('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18"/>'),
+  side: ic('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/>'),
+  more: ic('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'),
+  globe: ic('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+  trash: ic('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'),
+  chart: ic('<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>'),
   filePlus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></svg>',
 };
 
@@ -85,40 +91,50 @@ function periodLabel() {
   return L('Всё время', 'All time');
 }
 
-/* ---------- каркас ---------- */
-const clock = () => new Date().toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' });
-function shell(title, actions, body) {
-  const nav = (id, icon, label, key, extra = '') => `<button class="nav${view.page === id ? ' on' : ''}" data-page="${id}">${icon}<span>${label}</span>${extra}<kbd>${key}</kbd></button>`;
-  const status = data
-    ? `<span class="status ok"><i></i>${L('Копия', 'Backup')} · ${data.transactions.length} ${L('опер.', 'tx')} · ${dateStr(data.transactions[0].ts)}</span>`
-    : `<span class="status"><i></i>${L('Нет данных', 'No data')}</span>`;
-  return `<div class="shell">
+/* ---------- каркас: строится один раз, дальше меняются только части ---------- */
+const mini = () => { try { return localStorage.getItem('webMini') === '1'; } catch { return false; } };
+function frame() {
+  const nav = (id, icon, label) => `<button class="nav" data-page="${id}" title="${label}">${icon}<span>${label}</span><em class="count" data-count="${id}"></em></button>`;
+  root.innerHTML = `<div class="frame${mini() ? ' mini' : ''}" id="frame">
+    <span class="frame-tag">Web</span>
     <aside class="side">
-      <div class="brand"><img src="../icon-180.png" alt=""><span>${L('Кэш', 'Kesh')}</span><em>web</em></div>
-      <div class="side-label">${L('Навигация', 'Navigate')}</div>
-      ${nav('overview', I.overview, L('Обзор', 'Overview'), '1')}
-      ${nav('ops', I.ops, L('Операции', 'Transactions'), '2', data ? `<span class="count">${data.transactions.length}</span>` : '')}
-      ${nav('install', I.install, L('Установка', 'Install'), '3')}
-      <div class="side-label">${L('Ещё', 'More')}</div>
-      <a class="nav" href="../?app">${I.app}<span>${L('Веб-приложение', 'Web app')}</span><kbd>↗</kbd></a>
+      <div class="side-top"><div class="brand"><img src="../icon-180.png" alt=""><span>${L('Кэш', 'Kesh')}</span></div></div>
+      <div class="group"><div class="g-label">${L('Аналитика', 'Analytics')}</div>
+        ${nav('overview', I.overview, L('Обзор', 'Overview'))}
+        ${nav('ops', I.ops, L('Операции', 'Transactions'))}
+      </div>
+      <div class="group"><div class="g-label">${L('Устройства', 'Devices')}</div>
+        ${nav('install', I.install, L('Установка', 'Install'))}
+        <a class="nav" href="../?app" title="${L('Веб-приложение', 'Web app')}">${I.app}<span>${L('Веб-приложение', 'Web app')}</span></a>
+      </div>
+      <div class="group" id="g-data"></div>
+      <div class="pet" id="pet"></div>
       <div class="side-foot">
-        ${data ? `<div class="note"><b>${L('Данные только здесь', 'Data stays here')}</b>${L('Копия хранится в этом браузере и никуда не отправляется.', 'The backup is kept in this browser and never uploaded.')}<button data-act="forget">${L('Удалить с компьютера', 'Remove from this computer')}</button></div>` : ''}
-        <div class="side-row"><div class="lang"><button class="${EN ? '' : 'on'}" data-lang="ru">RU</button><button class="${EN ? 'on' : ''}" data-lang="en">EN</button></div><span class="ver">v${BUILD_WEB}</span></div>
+        <button class="nav" data-act="lang" title="${L('Язык', 'Language')}">${I.globe}<span>${L('Язык', 'Language')}</span><em class="lang-v">${EN ? 'EN' : 'RU'}</em></button>
+        <div class="user" id="user"></div>
       </div>
     </aside>
-    <main class="main">
-      <header class="bar">
-        <div class="crumbs"><span>${L('Кэш', 'Kesh')}</span><i>/</i><b>${title}</b></div>
-        <div class="bar-right">${status}<span class="clock" id="clock">${clock()}</span></div>
-      </header>
-      <div class="top"><h1>${title}</h1>${actions}</div>
-      ${body}
-    </main>
+    <section class="panel">
+      <header class="phead"><button class="icon-btn" data-act="mini" aria-label="${L('Свернуть меню', 'Toggle sidebar')}">${I.side}</button><span class="sep"></span><h1 id="ptitle"></h1><div class="phead-right" id="pactions"></div></header>
+      <div class="pbody" id="pbody"></div>
+    </section>
   </div><div class="tip" id="tip"></div><input type="file" id="file" accept=".json,application/json" hidden>`;
+}
+const shell = (title, actions, body) => ({ title, actions, body });
+function chrome() {
+  document.querySelectorAll('.nav[data-page]').forEach((n) => n.classList.toggle('on', n.dataset.page === view.page));
+  const c = document.querySelector('[data-count="ops"]');
+  c.textContent = data ? data.transactions.length : '';
+  document.getElementById('g-data').innerHTML = data ? `<div class="g-label">${L('Данные', 'Data')}</div>
+    <button class="nav" data-act="pick" title="${L('Обновить копию', 'Update backup')}">${I.upload}<span>${L('Обновить копию', 'Update backup')}</span></button>
+    <button class="nav danger" data-act="forget" title="${L('Удалить с компьютера', 'Remove from computer')}">${I.trash}<span>${L('Удалить с компьютера', 'Remove from computer')}</span></button>` : '';
+  const name = raw?.account?.login || L('Гость', 'Guest');
+  const skin = Number(raw?.preferences?.avatarSkin) || 0;
+  document.getElementById('user').innerHTML = `<span class="u-ava">${data ? catAvatar(skin, true) : esc(name[0])}</span><span class="u-name">${esc(name)}<small>${data ? `${L('копия от', 'backup')} ${dateStr(data.transactions[0].ts)}` : L('данные не загружены', 'no data loaded')}</small></span>`;
 }
 
 const ioButtons = () => `
-  ${data ? `<button class="btn" data-act="pick">${I.upload}${L('Обновить копию', 'Update backup')}</button>` : ''}
+  ${data ? `<span class="status ok"><i></i>${data.transactions.length} ${L('опер.', 'tx')}</span>` : `<span class="status"><i></i>${L('Нет данных', 'No data')}</span>`}
   ${data ? `<div class="menu" id="exp"><button class="btn primary" data-act="export">${I.download}${L('Экспорт', 'Export')}</button>
     <div class="menu-list">
       <button data-exp="xlsx">Excel <small>.xlsx</small></button>
@@ -230,6 +246,32 @@ const ticks = (now, prev, n = 28, color = '') => {
 };
 const sec = (n, t, extra = '') => `<div class="sec"><span>${String(n).padStart(2, '0')}</span>${t}${extra}</div>`;
 
+// Накопленные расходы по ходу периода против прошлого — плавная линия с заливкой
+function cumulative(items, prevItems, r) {
+  const out = items.filter((i) => !isIn(i)).sort((a, b) => a.ts - b.ts);
+  const pout = (prevItems || []).filter((i) => !isIn(i)).sort((a, b) => a.ts - b.ts);
+  const span = r[1] - r[0];
+  const N = 60;
+  const series = (list, start) => { let acc = 0; let k = 0; return Array.from({ length: N + 1 }, (_, i) => { const t = start + (span * i) / N; while (k < list.length && list[k].ts <= t) acc += list[k++].amount; return acc; }); };
+  const now = Math.min(N, Math.floor(((Date.now() - r[0]) / span) * N));
+  const a = series(out, r[0]).slice(0, Math.max(1, now + 1));
+  const b = prevItems ? series(pout, r[0] - span) : null;
+  const peak = Math.max(...a, ...(b || [0]), 1);
+  const W = 600; const H = 180;
+  const pts = (arr) => arr.map((v, i) => [((i / N) * W).toFixed(1), (H - (v / peak) * (H - 12)).toFixed(1)]);
+  const line = (arr) => { const p = pts(arr); return p.map((q, i) => `${i ? 'L' : 'M'}${q[0]} ${q[1]}`).join(''); };
+  const pa = pts(a);
+  const last = pa[pa.length - 1];
+  return `<svg class="cum" viewBox="0 0 ${W} ${H + 4}" preserveAspectRatio="none">
+      <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A6F0C0" stop-opacity=".28"/><stop offset="1" stop-color="#A6F0C0" stop-opacity="0"/></linearGradient></defs>
+      ${[0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${W}" y1="${H * f}" y2="${H * f}" class="cum-grid"/>`).join('')}
+      ${b ? `<path d="${line(b)}" class="cum-prev"/>` : ''}
+      <path d="${line(a)}L${last[0]} ${H}L0 ${H}Z" fill="url(#cg)"/>
+      <path d="${line(a)}" class="cum-now"/>
+    </svg>
+    <div class="cum-legend"><span><i class="now"></i>${L('Этот период', 'This period')} · ${money(a[a.length - 1])}</span>${b ? `<span><i class="prev"></i>${L('Прошлый', 'Previous')} · ${money(b[b.length - 1])}</span>` : ''}</div>`;
+}
+
 function overview() {
   if (!data) return shell(L('Аналитика трат', 'Spending analytics'), ioButtons(), emptyView());
   const r = range();
@@ -248,6 +290,7 @@ function overview() {
   const max = cats[0]?.[1] || 1;
 
   const body = `
+    <div class="banner">${scene('xMidYMid slice', '0 300 1600 280')}<div class="banner-text"><small>${periodLabel()}</small><h2>${raw?.account?.login ? `${L('Привет', 'Hi')}, ${esc(raw.account.login)}.` : L('Ваши траты', 'Your spending')}</h2><p>${L('Потрачено', 'Spent')} <b>${money(spent)}</b>${income ? ` · ${L('получено', 'received')} <b>${money(income)}</b>` : ''}</p></div></div>
     <div class="toolbar">${periodBar()}</div>
     ${sec(1, L('Показатели', 'Key figures'), `<em>${periodLabel()}</em>`)}
     <div class="grid kpis">
@@ -261,6 +304,7 @@ function overview() {
       <div class="card"><div class="card-head"><h3>${view.mode === 'month' ? L('Расходы по дням', 'Daily spending') : L('Расходы по месяцам', 'Monthly spending')}</h3><span class="chip">${out.length} ${L('опер.', 'tx')}</span></div>${bars(items, r)}</div>
       <div class="card"><div class="card-head"><h3>${L('Структура', 'Breakdown')}</h3><span class="chip">${cats.length} ${L('кат.', 'cat.')}</span></div>${donut(out)}</div>
     </div>
+    <div class="grid"><div class="card"><div class="card-head"><h3>${L('Накопительно', 'Cumulative')}</h3><span class="chip">${prev ? L('сравнение с прошлым', 'vs previous') : periodLabel()}</span></div>${cumulative(items, prev, r)}</div></div>
     ${sec(3, L('Детали', 'Details'))}
     <div class="grid row2">
       <div class="card"><div class="card-head"><h3>${L('Категории', 'Categories')}</h3><span class="chip">${L('топ', 'top')} ${Math.min(8, cats.length)}</span></div>
@@ -408,21 +452,26 @@ async function readFile(file) {
 /* ---------- отрисовка и события ---------- */
 function render() {
   const keep = document.activeElement?.id === 'q' ? document.activeElement.selectionStart : null;
-  root.innerHTML = view.page === 'ops' ? ops() : view.page === 'install' ? install() : overview();
+  const v = view.page === 'ops' ? ops() : view.page === 'install' ? install() : overview();
+  document.getElementById('ptitle').textContent = v.title;
+  document.getElementById('pactions').innerHTML = v.actions;
+  document.getElementById('pbody').innerHTML = v.body;
+  chrome();
   if (keep != null) { const q = document.getElementById('q'); q.focus(); q.setSelectionRange(keep, keep); }
 }
 
 root.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp],[data-lang]');
+  const t = e.target.closest('[data-page],[data-act],[data-mode],[data-shift],[data-type],[data-inst],[data-exp]');
   if (!t) { document.getElementById('exp')?.classList.remove('open'); return; }
   const d = t.dataset;
   if (d.page) { e.preventDefault(); view.page = d.page; view.limit = 100; location.hash = d.page; window.scrollTo(0, 0); return render(); }
-  if (d.lang) return d.lang !== LANG && setLang(d.lang);
   if (d.mode) { view.mode = d.mode; if (d.mode !== 'all' && data) view.anchor = new Date(data.transactions[0].ts); return render(); }
   if (d.shift) { const a = view.anchor; view.anchor = view.mode === 'month' ? new Date(a.getFullYear(), a.getMonth() + Number(d.shift), 1) : new Date(a.getFullYear() + Number(d.shift), 0, 1); return render(); }
   if (d.type) { view.type = d.type; view.limit = 100; return render(); }
   if (d.inst) { view.inst = d.inst; return render(); }
   if (d.exp) { document.getElementById('exp')?.classList.remove('open'); return exportAs(d.exp); }
+  if (d.act === 'mini') { const m = !mini(); try { localStorage.setItem('webMini', m ? '1' : '0'); } catch { /* */ } return document.getElementById('frame').classList.toggle('mini', m); }
+  if (d.act === 'lang') return setLang(EN ? 'ru' : 'en');
   if (d.act === 'pick') { e.preventDefault(); return document.getElementById('file').click(); }
   if (d.act === 'export') { e.stopPropagation(); return document.getElementById('exp').classList.toggle('open'); }
   if (d.act === 'more') { view.limit += 200; return render(); }
@@ -461,9 +510,8 @@ document.addEventListener('keydown', (e) => {
   const p = { 1: 'overview', 2: 'ops', 3: 'install' }[e.key];
   if (p && p !== view.page) { view.page = p; location.hash = p; render(); }
 });
-setInterval(() => { const c = document.getElementById('clock'); if (c) c.textContent = clock(); }, 20000);
 
-// Заставка: Кэш прыгает с клубком, пока грузятся шрифты, но не меньше секунды
-document.getElementById('ld-cat').innerHTML = keshSVG('Рад');
+// Заставка-мультик, затем Кэш перебирается в уголок меню
+frame();
 render();
-Promise.all([document.fonts?.ready, new Promise((r) => setTimeout(r, 1100))]).then(() => document.getElementById('loader').classList.add('done'));
+playIntro(() => (document.getElementById('frame').classList.contains('mini') ? null : document.getElementById('pet')));
