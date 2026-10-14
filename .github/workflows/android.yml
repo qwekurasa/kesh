@@ -23,8 +23,8 @@ jobs:
         run: gradle --no-daemon assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../Kesh.apk
       - name: Publish to site
         run: |
-          git config user.name github-actions
-          git config user.email github-actions@users.noreply.github.com
+          git config user.name qwekurasa
+          git config user.email 49284090+qwekurasa@users.noreply.github.com
           mkdir -p dl && cp Kesh.apk dl/Kesh.apk
           git add dl/Kesh.apk
           git commit -m "Build Kesh.apk ${{ github.run_number }}" || exit 0
