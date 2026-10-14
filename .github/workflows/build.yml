@@ -7,6 +7,10 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - run: |
+          X=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$X"
+          xcodebuild -version
       - run: brew install xcodegen && xcodegen generate
       - run: xcodebuild -project CatIsland.xcodeproj -scheme CatIsland -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
       - run: |
