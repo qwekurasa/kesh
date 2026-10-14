@@ -10,6 +10,14 @@ final class DeepLink: ObservableObject {
     @Published var action: String?
 }
 
+// Состояние загрузки: заставка, пока страница не открылась, или ошибка с повтором
+final class LoadState: ObservableObject {
+    static let shared = LoadState()
+    @Published var loading = true
+    @Published var error: String?
+    var retry: (() -> Void)?
+}
+
 // Оболочка над PWA: веб-приложение открывается на весь экран, данные живут внутри WKWebView
 struct WebView: UIViewRepresentable {
     let url: URL
@@ -38,6 +46,11 @@ struct WebView: UIViewRepresentable {
         if #available(iOS 16.4, *) { view.isInspectable = true } // отладка через Safari → Разработка
         #endif
         view.load(URLRequest(url: url))
+        LoadState.shared.retry = { [weak view] in
+            LoadState.shared.error = nil
+            LoadState.shared.loading = true
+            view?.load(URLRequest(url: url))
+        }
         return view
     }
 
@@ -62,7 +75,22 @@ struct WebView: UIViewRepresentable {
             web.evaluateJavaScript("(function t(n){if(window.keshOpen)keshOpen('\(a)');else if(n)setTimeout(function(){t(n-1)},200)})(30)")
         }
 
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { runPending() }
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            LoadState.shared.loading = false
+            runPending()
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
+
+        private func failed(_ error: Error) {
+            if (error as NSError).code == NSURLErrorCancelled { return }
+            LoadState.shared.loading = false
+            LoadState.shared.error = error.localizedDescription
+        }
+
+        // Процесс страницы выгружен системой — перезагружаем, иначе останется чёрный экран
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { webView.reload() }
 
         // Сводка для виджета
         func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
