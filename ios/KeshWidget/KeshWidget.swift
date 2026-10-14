@@ -18,20 +18,62 @@ private extension Color {
     static let bg = Color(red: 0.035, green: 0.035, blue: 0.04)
     static let text = Color(red: 0.93, green: 0.93, blue: 0.94)
     static let text2 = Color(red: 0.6, green: 0.6, blue: 0.64)
-    static let raised = Color.white.opacity(0.08)
+    static let text3 = Color(red: 0.4, green: 0.4, blue: 0.44)
 }
 
-private let actions: [(id: String, icon: String, title: String)] = [
-    ("out", "minus", "Расход"), ("in", "plus", "Доход"), ("charts", "chart.bar.fill", "Аналитика"), ("budget", "wallet.pass", "Бюджет"),
-]
-
 private func link(_ id: String) -> URL { URL(string: "kesh://\(id)")! }
+
+// Фон: пиксельный серо-чёрный градиент с еле заметным котиком (картинки в Assets)
+struct Backdrop: View {
+    @Environment(\.widgetFamily) var family
+    var body: some View {
+        Image(family == .systemSmall ? "BgSmall" : "BgMedium").resizable().scaledToFill()
+    }
+}
 
 struct Brand: View {
     var body: some View {
         HStack(spacing: 6) {
-            Image("Logo").resizable().frame(width: 20, height: 20).clipShape(RoundedRectangle(cornerRadius: 5))
-            Text("Кэш").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.text)
+            Image("Logo").resizable().frame(width: 18, height: 18).clipShape(RoundedRectangle(cornerRadius: 5))
+            Text("Kesh").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.text)
+        }
+    }
+}
+
+// Дата как в приложении: моноширинная, день — ярче
+struct DateLabel: View {
+    var body: some View {
+        Text(Date.now, format: .dateTime.day().month(.abbreviated))
+            .font(.system(size: 11, design: .monospaced)).foregroundStyle(Color.text2)
+    }
+}
+
+// Главная кнопка: белый круг с минусом
+struct AddButton: View {
+    var size: CGFloat
+    var body: some View {
+        ZStack {
+            Circle().fill(Color.white.opacity(0.06)).frame(width: size + 18, height: size + 18)
+            Circle().fill(LinearGradient(colors: [.white, Color(white: 0.82)], startPoint: .top, endPoint: .bottom))
+                .frame(width: size, height: size)
+                .shadow(color: .white.opacity(0.18), radius: 10)
+            Image(systemName: "minus").font(.system(size: size * 0.38, weight: .bold)).foregroundStyle(Color.bg)
+        }
+    }
+}
+
+// Плитка быстрого действия
+struct Tile: View {
+    let id: String, icon: String, title: String
+    var body: some View {
+        Link(destination: link(id)) {
+            VStack(spacing: 5) {
+                Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.text)
+                Text(title).font(.system(size: 10.5)).foregroundStyle(Color.text2).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.08), lineWidth: 1))
         }
     }
 }
@@ -44,51 +86,49 @@ struct WidgetBody: View {
         case .systemSmall: small
         case .accessoryCircular: circular
         case .accessoryRectangular: rectangular
-        case .accessoryInline: Text("Кэш · новая трата")
+        case .accessoryInline: Text("Kesh · новая трата")
         default: medium
         }
     }
 
-    // 2×2: крупная кнопка «Добавить трату»
+    // 2×2: кнопка по центру
     var small: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Brand()
-            Spacer()
-            Image(systemName: "minus")
-                .font(.system(size: 20, weight: .bold))
-                .frame(width: 46, height: 46)
-                .background(Color.text, in: Circle())
-                .foregroundStyle(Color.bg)
-            Spacer(minLength: 10)
-            Text("Новая трата").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.text)
-            Text("нажмите, чтобы добавить").font(.system(size: 11)).foregroundStyle(Color.text2)
+        VStack(spacing: 0) {
+            HStack { Brand(); Spacer() }
+            Spacer(minLength: 4)
+            AddButton(size: 50)
+            Spacer(minLength: 6)
+            Text("Новая трата").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.text)
+            DateLabel().padding(.top, 2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .widgetURL(link("out"))
     }
 
-    // 4×2: четыре быстрых действия
+    // 4×2: по краям плитки, по центру карточка с кнопкой
     var medium: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Brand()
-                Spacer()
-                Text("быстрые действия").font(.system(size: 11)).foregroundStyle(Color.text2)
-            }
-            Spacer(minLength: 8)
-            HStack(spacing: 0) {
-                ForEach(Array(actions.enumerated()), id: \.offset) { i, a in
-                    Link(destination: link(a.id)) {
-                        VStack(spacing: 6) {
-                            Image(systemName: a.icon)
-                                .font(.system(size: 16, weight: .semibold))
-                                .frame(width: 44, height: 44)
-                                .background(i == 0 ? Color.text : Color.raised, in: Circle())
-                                .foregroundStyle(i == 0 ? Color.bg : Color.text)
-                            Text(a.title).font(.system(size: 11)).foregroundStyle(Color.text2).lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity)
+        VStack(spacing: 8) {
+            HStack { Brand(); Spacer(); DateLabel() }
+            HStack(spacing: 8) {
+                VStack(spacing: 8) {
+                    Tile(id: "in", icon: "plus", title: "Доход")
+                    Tile(id: "charts", icon: "chart.bar.fill", title: "Аналитика")
+                }
+                Link(destination: link("out")) {
+                    VStack(spacing: 8) {
+                        AddButton(size: 46)
+                        Text("Новая трата").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.text)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(
+                        LinearGradient(colors: [Color.white.opacity(0.09), Color.white.opacity(0.02)], startPoint: .top, endPoint: .bottom),
+                        in: RoundedRectangle(cornerRadius: 18))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.14), lineWidth: 1))
+                }
+                .frame(maxWidth: .infinity)
+                .layoutPriority(1)
+                VStack(spacing: 8) {
+                    Tile(id: "budget", icon: "wallet.pass", title: "Бюджет")
+                    Tile(id: "deposits", icon: "banknote", title: "Вклады")
                 }
             }
         }
@@ -97,9 +137,9 @@ struct WidgetBody: View {
     // Экран блокировки
     var rectangular: some View {
         HStack(spacing: 8) {
-            Image(systemName: "plus.circle.fill").font(.system(size: 22))
+            Image(systemName: "minus.circle.fill").font(.system(size: 22))
             VStack(alignment: .leading, spacing: 1) {
-                Text("Кэш").font(.system(size: 13, weight: .semibold))
+                Text("Kesh").font(.system(size: 13, weight: .semibold))
                 Text("Новая трата").font(.system(size: 13))
             }
         }
@@ -110,7 +150,7 @@ struct WidgetBody: View {
     var circular: some View {
         ZStack {
             AccessoryWidgetBackground()
-            Image(systemName: "plus").font(.system(size: 20, weight: .bold))
+            Image(systemName: "minus").font(.system(size: 20, weight: .bold))
         }
         .widgetURL(link("out"))
     }
@@ -120,11 +160,9 @@ struct KeshWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "KeshWidget", provider: Provider()) { _ in
             WidgetBody()
-                .containerBackground(for: .widget) {
-                    LinearGradient(colors: [Color(red: 0.1, green: 0.1, blue: 0.11), .bg], startPoint: .top, endPoint: .bottom)
-                }
+                .containerBackground(for: .widget) { Backdrop() }
         }
-        .configurationDisplayName("Кэш")
+        .configurationDisplayName("Kesh")
         .description("Быстро добавить трату или открыть нужный экран")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryCircular, .accessoryInline])
     }
