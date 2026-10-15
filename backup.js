@@ -3,10 +3,11 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import { customCategories, cleanCategory, saveCategories, SKINS } from './ui.js';
 import { CURRENCIES } from './i18n.js';
+import { cleanLoan, BLOCKS } from './loans.js';
 
 const FORMAT = 'nota-backup';
 const SCHEMA = 1;
-const PREFS = ['avatarSkin', 'avatar', 'kitty', 'kittyCoat', 'currency', 'lang', 'kesh', 'keshHints', 'keshCalm', 'keshCoat', 'accountsOff'];
+const PREFS = ['avatarSkin', 'avatar', 'kitty', 'kittyCoat', 'currency', 'lang', 'kesh', 'keshHints', 'keshCalm', 'keshCoat', 'accountsOff', 'blocks'];
 const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
 
 export async function makeBackup(appVersion) {
@@ -23,6 +24,7 @@ export async function makeBackup(appVersion) {
     budgets: read('budgets', {}),
     deposits: read('deposits', []),
     accounts: read('accounts', []),
+    loans: read('loans', []),
     preferences,
   };
 }
@@ -68,11 +70,13 @@ export function checkBackup(data) {
   if (p.lang === 'ru' || p.lang === 'en') preferences.lang = p.lang;
   ['kesh', 'keshHints', 'keshCalm', 'accountsOff'].forEach((k) => { if (p[k] === '0' || p[k] === '1') preferences[k] = p[k]; });
   if (p.keshCoat === 'white' || p.keshCoat === 'black') preferences.keshCoat = p.keshCoat;
+  try { const b = JSON.parse(p.blocks); if (Array.isArray(b) && b.every((x) => BLOCKS.includes(x))) preferences.blocks = JSON.stringify(b); } catch { /* нет разделов */ }
   const login = !legacy && data.account && typeof data.account.login === 'string' ? data.account.login.trim().slice(0, 40) : '';
   return {
     ok: true,
     exportedAt: legacy ? null : String(data.exportedAt || ''),
     transactions, categories, deposits, budgets, preferences, login,
+    loans: (Array.isArray(data.loans) ? data.loans : []).map(cleanLoan).filter(Boolean),
     // старые копии хранили один «кошелёк» — превращаем в счёт
     accounts: Array.isArray(data.accounts) ? data.accounts.map(cleanAccount).filter(Boolean)
       : (cleanWallet(data.wallet) ? [{ id: `a${data.wallet.from.toString(36)}`, name: 'Кошелёк', type: 'cash', base: data.wallet.base, from: data.wallet.from, all: true }] : []),
@@ -95,6 +99,8 @@ export async function restoreBackup(c) {
   if (c.deposits.length) localStorage.setItem('deposits', JSON.stringify(deps.list));
   const newBudgets = Object.keys(c.budgets).filter((id) => !(id in read('budgets', {})));
   if (Object.keys(c.budgets).length) localStorage.setItem('budgets', JSON.stringify({ ...read('budgets', {}), ...c.budgets }));
+  const lns = upsert(read('loans', []), c.loans || []);
+  if ((c.loans || []).length) localStorage.setItem('loans', JSON.stringify(lns.list));
   const accs = upsert(read('accounts', []), c.accounts || []);
   if ((c.accounts || []).length) localStorage.setItem('accounts', JSON.stringify(accs.list));
   if (c.login && !auth.account()) auth.register(c.login);

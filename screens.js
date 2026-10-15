@@ -9,10 +9,11 @@ import { writeXlsx, readXlsx } from './xlsx.js';
 import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCalm, keshCoat, setCoat, keshSVG, catAvatar } from './kesh.js';
 
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
+import { KINDS, loans, putLoan, removeLoan, monthsLeft, blocks, setBlocks, BLOCKS } from './loans.js';
 import { TYPES, accounts, balances, moneyLeft, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v56';
+export const BUILD = 'v57';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -117,7 +118,7 @@ export async function renderHome() {
       </header>
       <div class="scroll" id="list">
         <div class="hero">
-          <div class="hero-top"><span class="hero-label">${isMonth ? L('Расходы за месяц', 'Spent this month') : oneDay ? L('Расходы за день', 'Spent that day') : L('Расходы за период', 'Spent in period')}</span>${wal.length || ml.v ? `<button class="wallet-pill" id="wallet" aria-label="${L('Осталось денег', 'Money left')}">${icons.wallet}<span>${L('осталось', 'left')}</span><b class="${ml.v < 0 ? 'minus' : ''}">${money(ml.v)}</b></button>` : ''}</div>
+          <div class="hero-top"><span class="hero-label">${isMonth ? L('Расходы за месяц', 'Spent this month') : oneDay ? L('Расходы за день', 'Spent that day') : L('Расходы за период', 'Spent in period')}</span>${wal.length || (!accountsOff() && ml.v) ? `<button class="wallet-pill" id="wallet" aria-label="${L('Осталось денег', 'Money left')}">${icons.wallet}<span>${L('осталось', 'left')}</span><b class="${ml.v < 0 ? 'minus' : ''}">${money(ml.v)}</b></button>` : ''}</div>
           <div class="hero-row"><div class="month-total">${money(total)}</div>${deltaChip(total, prevTotal)}</div>
           <div class="month-sub">${sub}</div>
         </div>
@@ -1407,7 +1408,7 @@ export async function renderBudget() {
   if (!live()) return;
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="appbar"><h1>${L('Бюджет', 'Budget')} · ${MONTHS_LOW[now.getMonth()]}</h1></header>
+      <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>${L('Бюджет', 'Budget')} · ${MONTHS_LOW[now.getMonth()]}</h1></button></header>
       <div class="scroll">
         ${accountsCard(bal, ml)}
         <div class="card budget-card">
@@ -1442,6 +1443,7 @@ export async function renderBudget() {
     </section>`;
 
   bindTabs();
+  app.querySelector("#back").onclick = () => { haptic(); go("more"); };
   countUp(app.querySelector('.budget-card .month-total'), limit ? Math.abs(left) : sum(items));
   if (!limit) keshHint('budget-first', L('Задай лимит категории — предупрежу на 80 %.', 'Set a category limit — I’ll warn you at 80%.'));
   const askLimit = async (id) => {
@@ -1534,7 +1536,7 @@ export function renderDeposits() {
 
   app.innerHTML = `
     <section class="screen tabbed">
-      <header class="appbar"><h1>${L('Вклады', 'Savings')}</h1><button class="icon-btn sm" id="add-top" aria-label="${L('Добавить вклад', 'Add account')}">${icons.plus}</button></header>
+      <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>${L('Вклады', 'Savings')}</h1></button><button class="icon-btn sm" id="add-top" aria-label="${L('Добавить вклад', 'Add account')}">${icons.plus}</button></header>
       <div class="scroll">
         <div class="hero">
           <div class="hero-label">${L('Всего на вкладах', 'Total savings')}</div>
@@ -1557,6 +1559,7 @@ export function renderDeposits() {
     </section>`;
 
   bindTabs();
+  app.querySelector('#back').onclick = () => { haptic(); go('more'); };
   countUp(app.querySelector('.month-total'), total);
   const open = (dep) => { haptic(); state.dep = dep; state.flow = 'deposit'; render(); };
   const blank = () => ({ name: '', amount: 0, rate: '', kind: 'term', months: 6, opened: Date.now(), cap: 'month' });
@@ -1672,4 +1675,164 @@ export function renderDeposit() {
     close();
     toast(L('Вклад удалён', 'Account deleted'));
   });
+}
+
+/* ---------- Финансы: разделы, которые можно включать и выключать ---------- */
+const BLOCK_INFO = {
+  budget: [L('Бюджет и счета', 'Budget & accounts'), L('лимиты, счета, сколько осталось', 'limits, accounts, money left')],
+  deposits: [L('Вклады', 'Savings'), L('срочные и накопительные', 'term and savings accounts')],
+  mortgage: [L('Ипотека', 'Mortgage'), L('остаток, платёж, срок', 'balance, payment, term')],
+  credit: [L('Кредиты', 'Loans'), L('остаток, платёж, срок', 'balance, payment, term')],
+  debt: [L('Долги', 'Debts'), L('кому я должен и кто мне', 'who owes whom')],
+};
+
+export async function renderMore() {
+  const live = ticket();
+  const on = blocks();
+  const bal = on.includes('budget') ? await balances() : [];
+  const ml = on.includes('budget') ? await moneyLeft(bal) : null;
+  // счета выключены — показываем траты за месяц, а не «осталось»
+  const m0 = new Date(); const monthSpent = on.includes('budget') && !bal.length && accountsOff()
+    ? spent(await store.expensesBetween(+new Date(m0.getFullYear(), m0.getMonth(), 1), Date.now() + 864e5)).reduce((a, i) => a + i.amount, 0) : null;
+  if (!live()) return;
+  const card = (id, value, sub) => `<button class="card fin-card" data-go="${id}"><span class="tr-ico">${FIN_ICONS[id].replace('<svg', '<svg class="ci"')}</span><span class="tr-name">${BLOCK_INFO[id][0]}<small>${sub}</small></span><span class="tr-right"><span class="tr-sum">${value}</span>${icons.right}</span></button>`;
+  const sumLeft = (k) => loans(k).reduce((a, x) => a + x.left, 0);
+  const sumPay = (k) => loans(k).reduce((a, x) => a + x.pay, 0);
+  const view = {
+    budget: () => (monthSpent !== null ? card('budget', money(monthSpent), L('потрачено за месяц', 'spent this month')) : card('budget', money(ml.v), ml.acc ? L('осталось на счетах', 'left in accounts') : L('доходы − расходы за месяц', 'income − spending this month'))),
+    deposits: () => { const d = deposits(); return card('deposits', money(d.reduce((a, x) => a + x.amount, 0)), d.length ? `${d.length} ${plural(d.length, 'вклад', 'вклада', 'вкладов')}` : L('пока пусто', 'empty')); },
+    mortgage: () => card('mortgage', money(sumLeft('mortgage')), sumPay('mortgage') ? `${money(sumPay('mortgage'))} / ${L('мес', 'mo')}` : L('пока пусто', 'empty')),
+    credit: () => card('credit', money(sumLeft('credit')), sumPay('credit') ? `${money(sumPay('credit'))} / ${L('мес', 'mo')}` : L('пока пусто', 'empty')),
+    debt: () => {
+      const d = loans('debt'); const me = d.filter((x) => x.dir === 'me').reduce((a, x) => a + x.left, 0); const them = d.filter((x) => x.dir === 'them').reduce((a, x) => a + x.left, 0);
+      return card('debt', money(them - me), d.length ? `${L('я должен', 'I owe')} ${money(me)} · ${L('мне', 'owed')} ${money(them)}` : L('пока пусто', 'empty'));
+    },
+  };
+  app.innerHTML = `
+    <section class="screen tabbed">
+      <header class="appbar"><h1>${L('Финансы', 'Finance')}</h1><button class="icon-btn sm" id="setup" aria-label="${L('Настроить разделы', 'Customize')}">${icons.edit}</button></header>
+      <div class="scroll">
+        ${on.length ? on.map((id) => view[id]()).join('') : `<div class="empty">${L('Все разделы скрыты.', 'All sections are hidden.')}</div>`}
+        <button class="btn alt add-dep" id="setup2">${icons.plus} ${L('Добавить или убрать раздел', 'Add or remove sections')}</button>
+      </div>
+      ${tabbar()}
+    </section>`;
+  bindTabs();
+  app.querySelector('.scroll').addEventListener('click', (e) => {
+    const id = e.target.closest('[data-go]')?.dataset.go;
+    if (!id) return;
+    haptic();
+    if (id === 'budget' || id === 'deposits') return go(id);
+    state.loanKind = id; go('loans');
+  });
+  const setup = () => {
+    haptic();
+    const cur = blocks();
+    const { panel } = bottomSheet(L('Разделы', 'Sections'), `<p class="bs-sub">${L('Включите то, что нужно. Данные выключенных разделов не удаляются.', 'Turn on what you need. Hidden sections keep their data.')}</p>
+      ${BLOCKS.map((id) => `<button class="switch-row" data-s="${id}"><span>${BLOCK_INFO[id][0]}<small>${BLOCK_INFO[id][1]}</small></span><span class="sw${cur.includes(id) ? ' on' : ''}"></span></button>`).join('')}`, () => render());
+    panel.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-s]');
+      if (!b) return;
+      haptic();
+      const now = blocks();
+      const next = now.includes(b.dataset.s) ? now.filter((x) => x !== b.dataset.s) : BLOCKS.filter((x) => now.includes(x) || x === b.dataset.s);
+      setBlocks(next);
+      b.querySelector('.sw').classList.toggle('on', next.includes(b.dataset.s));
+    });
+  };
+  app.querySelector('#setup').onclick = setup;
+  app.querySelector('#setup2').onclick = setup;
+}
+
+const FIN_ICONS = {
+  budget: icons.budget, deposits: icons.safe, mortgage: icons.home, credit: icons.bank, debt: icons.sync,
+};
+
+// Ипотека, кредиты, долги — один экран, вид задаёт state.loanKind
+export function renderLoans() {
+  const kind = KINDS[state.loanKind] ? state.loanKind : 'credit';
+  const list = loans(kind);
+  const debt = kind === 'debt';
+  const me = list.filter((x) => x.dir === 'me').reduce((a, x) => a + x.left, 0);
+  const them = list.filter((x) => x.dir === 'them').reduce((a, x) => a + x.left, 0);
+  const total = list.reduce((a, x) => a + x.left, 0);
+  const pay = list.reduce((a, x) => a + x.pay, 0);
+  const term = (x) => {
+    const m = monthsLeft(x);
+    if (m === Infinity) return L('платёж не покрывает проценты', 'payment doesn’t cover interest');
+    if (!m) return '';
+    return m >= 12 ? `≈ ${Math.floor(m / 12)} ${plural(Math.floor(m / 12), 'год', 'года', 'лет')}${m % 12 ? ` ${m % 12} ${L('мес', 'mo')}` : ''}` : `≈ ${m} ${L('мес', 'mo')}`;
+  };
+  const sub = (x) => (debt
+    ? [x.dir === 'me' ? L('я должен', 'I owe') : L('должны мне', 'owed to me'), x.due ? `${L('до', 'by')} ${dmy(x.due)}` : ''].filter(Boolean).join(' · ')
+    : [x.rate ? `${String(x.rate).replace('.', ',')}%` : '', x.pay ? `${num(x.pay)} / ${L('мес', 'mo')}` : '', term(x)].filter(Boolean).join(' · '));
+  app.innerHTML = `
+    <section class="screen tabbed">
+      <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>${KINDS[kind].name}</h1></button><button class="icon-btn sm" id="add-top" aria-label="${L('Добавить', 'Add')}">${icons.plus}</button></header>
+      <div class="scroll">
+        <div class="hero">
+          <div class="hero-label">${debt ? L('Итог по долгам', 'Debt balance') : L('Осталось выплатить', 'Left to pay')}</div>
+          <div class="month-total${debt && them - me < 0 ? ' over' : ''}">${money(debt ? them - me : total)}</div>
+          <div class="month-sub">${debt ? `${L('Я должен', 'I owe')} ${money(me)} · ${L('мне должны', 'owed to me')} ${money(them)}` : pay ? `${L('Платежи', 'Payments')}: ${money(pay)} / ${L('мес', 'mo')}` : L('Добавьте, чтобы видеть остаток и срок', 'Add one to see balance and term')}</div>
+        </div>
+        ${list.length ? `<div class="card">${list.map((x) => `
+          <button class="res dep-row" data-id="${x.id}"><span class="tr-ico">${FIN_ICONS[kind].replace('<svg', '<svg class="ci"')}</span>
+            <span class="tr-name">${esc(x.name)}<small>${sub(x)}</small></span>
+            <span class="tr-right"><span class="tr-sum${debt && x.dir === 'them' ? ' plus' : ''}">${num(x.left)}</span></span>
+          </button>`).join('')}</div>` : ''}
+        <button class="btn alt add-dep" id="add">${L('Добавить', 'Add')} ${KINDS[kind].one}</button>
+      </div>
+      ${tabbar()}
+    </section>`;
+  bindTabs();
+  countUp(app.querySelector('.month-total'), debt ? them - me : total);
+  app.querySelector('#back').onclick = () => { haptic(); go('more'); };
+  const open = (x) => openLoan(kind, x);
+  app.querySelector('#add').onclick = () => open(null);
+  app.querySelector('#add-top').onclick = () => open(null);
+  app.querySelector('.scroll').addEventListener('click', (e) => {
+    const id = e.target.closest('[data-id]')?.dataset.id;
+    if (id) open(list.find((x) => x.id === id));
+  });
+}
+
+function openLoan(kind, x) {
+  const debt = kind === 'debt';
+  let dir = x?.dir || 'me';
+  const v = (k) => (k ? String(k / 100).replace('.', ',') : '');
+  const dateVal = x?.due ? new Date(x.due - new Date(x.due).getTimezoneOffset() * 6e4).toISOString().slice(0, 10) : '';
+  const { panel, close } = bottomSheet(x ? x.name : `${L('Добавить', 'Add')} ${KINDS[kind].one}`, `
+    ${debt ? `<div class="seg kind full" id="ln-dir"><button class="${dir === 'me' ? 'on' : ''}" data-d="me">${L('Я должен', 'I owe')}</button><button class="${dir === 'them' ? 'on' : ''}" data-d="them">${L('Мне должны', 'Owed to me')}</button></div>` : ''}
+    <label class="lbl">${debt ? L('Кто', 'Who') : L('Название', 'Name')}</label>
+    <input class="field" id="ln-name" maxlength="60" value="${esc(x?.name || '')}" placeholder="${debt ? L('Например, Саша', 'e.g. Alex') : kind === 'mortgage' ? L('Например, Сбербанк', 'e.g. Bank') : L('Например, кредитка', 'e.g. Credit card')}">
+    <label class="lbl">${debt ? L(`Сумма, ${SYM}`, `Amount, ${SYM}`) : L(`Осталось выплатить, ${SYM}`, `Left to pay, ${SYM}`)}</label>
+    <input class="field" id="ln-left" inputmode="decimal" value="${v(x?.left)}" placeholder="0">
+    ${debt ? `<label class="lbl">${L('Вернуть до (необязательно)', 'Due date (optional)')}</label><input class="field" id="ln-due" type="date" value="${dateVal}">`
+      : `<div class="two"><div><label class="lbl">${L('Ставка, % годовых', 'Rate, % a year')}</label><input class="field" id="ln-rate" inputmode="decimal" value="${x?.rate ? String(x.rate).replace('.', ',') : ''}" placeholder="0"></div>
+      <div><label class="lbl">${L(`Платёж в месяц, ${SYM}`, `Monthly payment, ${SYM}`)}</label><input class="field" id="ln-pay" inputmode="decimal" value="${v(x?.pay)}" placeholder="0"></div></div>`}
+    <button class="btn" id="ln-save">${L('Сохранить', 'Save')}</button>
+    ${x ? `<button class="btn alt danger" id="ln-del">${L('Удалить', 'Delete')}</button>` : ''}`);
+  panel.querySelector('#ln-dir')?.addEventListener('click', (e) => {
+    const d = e.target.closest('[data-d]')?.dataset.d;
+    if (!d) return;
+    dir = d; haptic();
+    panel.querySelectorAll('#ln-dir button').forEach((b) => b.classList.toggle('on', b.dataset.d === d));
+  });
+  panel.querySelector('#ln-save').onclick = () => {
+    const left = toKop(panel.querySelector('#ln-left').value || '0');
+    if (!(left > 0)) { panel.querySelector('#ln-left').focus(); return; }
+    const due = panel.querySelector('#ln-due')?.value;
+    putLoan({
+      id: x?.id || '', kind, name: panel.querySelector('#ln-name').value.trim().slice(0, 60) || KINDS[kind].name, left,
+      rate: debt ? 0 : Math.min(100, Math.max(0, parseFloat((panel.querySelector('#ln-rate').value || '0').replace(',', '.')) || 0)),
+      pay: debt ? 0 : Math.max(0, toKop(panel.querySelector('#ln-pay').value || '0') || 0),
+      dir: debt ? dir : 'me', due: due ? +new Date(`${due}T12:00`) : 0,
+    });
+    haptic(); close(); render();
+  };
+  panel.querySelector('#ln-del')?.addEventListener('click', async () => {
+    if (!(await ask(L('Удалить запись?', 'Delete this entry?'), ''))) return;
+    removeLoan(x.id); close(); render();
+  });
+  if (!x) setTimeout(() => panel.querySelector('#ln-left').focus(), 300);
 }

@@ -2,7 +2,7 @@ import './guard.js';
 import * as store from './store.js';
 import { L, LANG, setLang, EN, SYM } from './i18n.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, limitHint, renderKeshSettings, langSwitch, flipLang, mountCalendar, openAccountPicker, accSub } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, renderMore, renderLoans, limitHint, renderKeshSettings, langSwitch, flipLang, mountCalendar, openAccountPicker, accSub } from './screens.js';
 import { accounts, balances, defaultAccount, rememberAccount, accountsOff } from './accounts.js';
 import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
@@ -29,6 +29,8 @@ function main() {
   if (state.flow === 'keshset') return renderKeshSettings();
   if (state.tab === 'budget') return renderBudget();
   if (state.tab === 'deposits') return renderDeposits();
+  if (state.tab === 'more') return renderMore();
+  if (state.tab === 'loans') return renderLoans();
   if (state.tab === 'charts') return renderCharts();
   if (state.tab === 'profile') return renderProfile();
   return renderHome();
@@ -288,7 +290,7 @@ async function frequent(income) {
   const list = (income ? INCOME_CATEGORIES : CATEGORIES).map(([id]) => id);
   const recent = (await store.recentCategories(16)).filter((id) => CAT[id] && (CAT[id].kind === 'in') === income);
   const out = [...new Set([...(state.cat && list.includes(state.cat) ? [state.cat] : []), ...recent, ...list])];
-  return out.slice(0, 4);
+  return out.slice(0, 3);
 }
 
 // Счёт операции: undefined — счетов нет; '' — без счёта
@@ -364,8 +366,8 @@ async function renderAmount() {
         <button class="meta" id="when"><small>${L('Когда', 'When')}</small><span class="meta-main">${icons.clock}<b>${wMain}</b>${icons.right}</span><span class="meta-sub">${wSub}</span></button>
         ${showAcc ? `<button class="meta" id="acc-btn"><small>${income ? L('Зачислить на', 'Deposit to') : L('Списать с', 'Pay from')}</small><span class="meta-main">${icons.wallet}<b>${acc ? esc(acc.name) : bal.length ? L('Без счёта', 'No account') : L('Счёт', 'Account')}</b>${icons.right}</span><span class="meta-sub">${acc ? accSub(acc, true) : bal.length ? L('Не меняет остатки', 'No balance change') : L('Добавить счёт', 'Add an account')}</span></button>` : ''}
       </div>
-      <div class="quick-head"><span class="section-label">${L('Частые', 'Frequent')}</span><button class="link" id="all">${L('Все категории', 'All categories')}</button></div>
-      <div class="quick">${top.map((id) => `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${esc(CAT[id].name)}</span></button>`).join('')}</div>
+      <div class="quick-head"><span class="section-label">${L('Частые', 'Frequent')}</span></div>
+      <div class="quick">${top.map((id) => `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${esc(CAT[id].name)}</span></button>`).join('')}<button class="cat more" id="all"><div class="ico">${icons.more}</div><span>${L('Другие', 'Other')}</span></button></div>
       <input class="field" id="note" placeholder="${L('Комментарий (необязательно)', 'Note (optional)')}" maxlength="200" value="${esc(state.note)}">
       <div class="pad">
         ${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map((k) =>
@@ -387,7 +389,7 @@ async function renderAmount() {
   app.querySelector('#note').oninput = (e) => { state.note = e.target.value; };
   app.querySelector('.quick').onclick = (e) => {
     const b = e.target.closest('.cat');
-    if (!b) return;
+    if (!b || !b.dataset.id) return;
     haptic();
     state.cat = state.cat === b.dataset.id ? null : b.dataset.id;
     app.querySelectorAll('.quick .cat').forEach((c) => c.classList.toggle('on', c.dataset.id === state.cat));
@@ -720,6 +722,7 @@ function goBack() {
   if (state.flow === 'import' || state.flow === 'cats') { state.flow = null; state.tab = 'profile'; return render(); }
   if (state.flow === 'cat') { state.flow = null; state.catId = null; return render(); }
   if (state.flow === 'add') { if (state.edit) Object.assign(state, { amt: '', cat: null, note: '' }); state.edit = null; return go(state.tab || 'home'); }
+  if (['budget', 'deposits', 'loans'].includes(state.tab)) return go('more');
   if (state.tab !== 'home') return go('home');
 }
 

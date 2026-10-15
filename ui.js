@@ -492,14 +492,15 @@ export function toast(text, undo) {
 }
 
 export function tabbar() {
+  const fin = ['more', 'budget', 'deposits', 'loans'];
   const item = (id, label, icon) =>
-    `<button class="tab${state.tab === id && !state.flow ? ' on' : ''}" data-tab="${id}" aria-label="${label}">${icon}</button>`;
+    `<button class="tab${(state.tab === id || (id === 'more' && fin.includes(state.tab))) && !state.flow ? ' on' : ''}" data-tab="${id}" aria-label="${label}">${icon}</button>`;
   return `<nav class="tabbar">
     ${item('home', L('Главная', 'Home'), icons.home)}
     ${item('charts', L('Аналитика', 'Analytics'), icons.chart)}
     <button class="tab add" data-tab="add" aria-label="${L('Добавить операцию', 'Add transaction')}">${icons.plus}</button>
-    ${item('budget', L('Бюджет', 'Budget'), icons.budget)}
-    ${item('deposits', L('Вклады', 'Savings'), icons.safe)}
+    ${item('more', L('Финансы', 'Finance'), icons.wallet)}
+    ${item('profile', L('Профиль', 'Profile'), icons.user)}
   </nav>`;
 }
 

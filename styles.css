@@ -929,3 +929,13 @@ html[data-lang="en"] .amount .cur { order: -1; }
 .acc-opt .addr { font: 400 11px var(--mono); word-break: break-all; }
 .don-copy { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2, rgba(255,255,255,.06)); color: var(--text-2); margin-left: 8px; }
 .don-copy svg { width: 18px; height: 18px; } .don-copy.ok { color: var(--text); }
+
+/* финансы: разделы и кредиты */
+.fin-card { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; color: inherit; }
+.fin-card .tr-name { flex: 1; min-width: 0; }
+.fin-card .tr-right { display: flex; align-items: center; gap: 6px; }
+.fin-card .tr-right > svg { width: 16px; height: 16px; color: var(--text-3); }
+.bs .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bs .seg.full { display: flex; width: 100%; margin-bottom: 6px; } .bs .seg.full button { flex: 1; }
+.btn.alt.danger { color: var(--neg, #F2A3A3); margin-top: 8px; }
+.quick .cat.more .ico { color: var(--text-2); }
