@@ -2,7 +2,7 @@ import './guard.js';
 import * as store from './store.js';
 import { L, LANG, setLang, EN, SYM } from './i18n.js';
 import * as auth from './auth.js';
-import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, renderMore, renderLoans, limitHint, renderKeshSettings, langSwitch, flipLang, mountCalendar, openAccountPicker, accSub } from './screens.js';
+import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, renderMore, renderLoans, renderLoan, limitHint, renderKeshSettings, langSwitch, flipLang, mountCalendar, openAccountPicker, accSub } from './screens.js';
 import { accounts, balances, defaultAccount, rememberAccount, accountsOff } from './accounts.js';
 import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
@@ -26,6 +26,7 @@ function main() {
   if (state.flow === 'import') return renderImport();
   if (state.flow === 'cat') return renderCategoryDetail();
   if (state.flow === 'deposit') return renderDeposit();
+  if (state.flow === 'loan') return renderLoan();
   if (state.flow === 'keshset') return renderKeshSettings();
   if (state.tab === 'budget') return renderBudget();
   if (state.tab === 'deposits') return renderDeposits();
@@ -367,7 +368,7 @@ async function renderAmount() {
         ${showAcc ? `<button class="meta" id="acc-btn"><small>${income ? L('Зачислить на', 'Deposit to') : L('Списать с', 'Pay from')}</small><span class="meta-main">${icons.wallet}<b>${acc ? esc(acc.name) : bal.length ? L('Без счёта', 'No account') : L('Счёт', 'Account')}</b>${icons.right}</span><span class="meta-sub">${acc ? accSub(acc, true) : bal.length ? L('Не меняет остатки', 'No balance change') : L('Добавить счёт', 'Add an account')}</span></button>` : ''}
       </div>
       <div class="quick-head"><span class="section-label">${L('Частые', 'Frequent')}</span></div>
-      <div class="quick">${top.map((id) => `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${esc(CAT[id].name)}</span></button>`).join('')}<button class="cat more" id="all"><div class="ico">${icons.more}</div><span>${L('Другие', 'Other')}</span></button></div>
+      <div class="quick">${top.map((id) => `<button class="cat${state.cat === id ? ' on' : ''}" data-id="${id}"><div class="ico">${catIcon(id)}</div><span>${esc(CAT[id].name)}</span></button>`).join('')}<button class="cat cat-all" id="all"><div class="ico">${icons.more}</div><span>${L('Другие', 'Other')}</span></button></div>
       <input class="field" id="note" placeholder="${L('Комментарий (необязательно)', 'Note (optional)')}" maxlength="200" value="${esc(state.note)}">
       <div class="pad">
         ${['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map((k) =>
@@ -718,6 +719,7 @@ function goBack() {
   if (state.flow === 'newcat') { state.flow = state.draft.from === 'budget' ? null : state.draft.from; return render(); }
   if (state.flow === 'keshset') { state.flow = null; state.tab = 'profile'; return render(); }
   if (state.flow === 'deposit') { state.flow = null; state.dep = null; return render(); }
+  if (state.flow === 'loan') { state.flow = null; state.loanId = null; return render(); }
   if (state.flow === 'category') { state.flow = 'add'; return render(); }
   if (state.flow === 'import' || state.flow === 'cats') { state.flow = null; state.tab = 'profile'; return render(); }
   if (state.flow === 'cat') { state.flow = null; state.catId = null; return render(); }

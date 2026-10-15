@@ -34,6 +34,7 @@ export const cleanLoan = (x) => (x && typeof x.id === 'string' && /^[\w-]{1,64}$
     id: x.id, kind: x.kind, name: String(x.name ?? '').trim().slice(0, 60) || KINDS[x.kind].name,
     left: x.left, rate: Math.min(100, Math.max(0, Number(x.rate) || 0)),
     pay: Number.isSafeInteger(x.pay) && x.pay >= 0 && x.pay <= 1e13 ? x.pay : 0,
+    total: Number.isSafeInteger(x.total) && x.total >= 0 && x.total <= 1e13 ? x.total : 0,
     dir: x.dir === 'them' ? 'them' : 'me',
     due: Number.isFinite(x.due) && x.due > 0 ? x.due : 0,
   }
@@ -46,3 +47,25 @@ export function blocks() {
   return ['budget', 'deposits'];
 }
 export const setBlocks = (list) => localStorage.setItem('blocks', JSON.stringify(list.filter((b) => BLOCKS.includes(b))));
+
+// Досрочное погашение: lump — разово сейчас, extra — каждый месяц сверху платежа.
+// mode 'term' — платёж прежний, срок короче; 'pay' — срок прежний, платёж пересчитывается.
+// Возвращает месяцы, проценты, первый платёж после пересчёта; null — платёж не покрывает проценты
+export function simulate({ left, rate, pay }, { lump = 0, extra = 0, mode = 'term' } = {}) {
+  const r = (rate || 0) / 1200;
+  const n0 = monthsLeft({ left, rate, pay });
+  if (!pay || n0 === Infinity || !n0) return null;
+  const ann = (L, n) => (r ? (L * r) / (1 - (1 + r) ** -n) : L / n);
+  let bal = Math.max(0, left - lump);
+  let p = mode === 'pay' && bal > 0 ? ann(bal, n0) : pay;
+  const first = p;
+  let months = 0; let interest = 0;
+  while (bal > 0.5 && months < 1200) {
+    const i = bal * r;
+    interest += i;
+    bal = bal + i - Math.min(bal + i, p + extra);
+    months++;
+    if (mode === 'pay' && bal > 0 && n0 - months > 0) p = ann(bal, n0 - months);
+  }
+  return { months, interest: Math.round(interest), pay: Math.round(first) };
+}
