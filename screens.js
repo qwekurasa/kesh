@@ -13,7 +13,7 @@ import { KINDS, loans, putLoan, removeLoan, monthsLeft, simulate, blocks, setBlo
 import { TYPES, accounts, balances, moneyLeft, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v58';
+export const BUILD = 'v59';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -1891,9 +1891,29 @@ function openLoan(kind, x) {
     <input class="field" id="ln-left" inputmode="decimal" value="${v(x?.left)}" placeholder="0">
     ${debt ? `<label class="lbl">${L('Вернуть до (необязательно)', 'Due date (optional)')}</label><input class="field" id="ln-due" type="date" value="${dateVal}">`
       : `<div class="two"><div><label class="lbl">${L('Ставка, % годовых', 'Rate, % a year')}</label><input class="field" id="ln-rate" inputmode="decimal" value="${x?.rate ? String(x.rate).replace('.', ',') : ''}" placeholder="0"></div>
-      <div><label class="lbl">${L(`Платёж в месяц, ${SYM}`, `Monthly payment, ${SYM}`)}</label><input class="field" id="ln-pay" inputmode="decimal" value="${v(x?.pay)}" placeholder="0"></div></div>`}
+      <div><label class="lbl">${L('Осталось лет', 'Years left')}</label><input class="field" id="ln-term" inputmode="decimal" value="${x && monthsLeft(x) && monthsLeft(x) !== Infinity ? String(Math.round((monthsLeft(x) / 12) * 10) / 10).replace('.', ',') : ''}" placeholder="0"></div></div>
+      <label class="lbl">${L(`Обязательный платёж в месяц, ${SYM}`, `Required monthly payment, ${SYM}`)}</label><input class="field" id="ln-pay" inputmode="decimal" value="${v(x?.pay)}" placeholder="0">
+      <p class="calc-hint" id="ln-hint">${L('Считается сам по долгу, ставке и сроку. Можно вписать свой — тогда посчитаю срок.', 'Calculated from balance, rate and term. Type your own and I’ll work out the term.')}</p>`}
     <button class="btn" id="ln-save">${L('Сохранить', 'Save')}</button>
     ${x ? `<button class="btn alt danger" id="ln-del">${L('Удалить', 'Delete')}</button>` : ''}`);
+  // Аннуитетный платёж по долгу, ставке и сроку; свой платёж — пересчёт срока
+  if (!debt) {
+    const f = (id) => panel.querySelector(id);
+    const n = (id) => parseFloat((f(id).value || '').replace(/\s/g, '').replace(',', '.')) || 0;
+    const fmt = (k) => String(Math.round(k) / 100).replace('.', ',');
+    const fromTerm = () => {
+      const left = toKop(f('#ln-left').value || '0') || 0; const r = n('#ln-rate') / 1200; const m = Math.round(n('#ln-term') * 12);
+      if (!(left > 0) || !(m > 0)) return;
+      f('#ln-pay').value = fmt(r ? (left * r) / (1 - (1 + r) ** -m) : left / m);
+    };
+    const fromPay = () => {
+      const m = monthsLeft({ left: toKop(f('#ln-left').value || '0') || 0, rate: n('#ln-rate'), pay: toKop(f('#ln-pay').value || '0') || 0 });
+      f('#ln-term').value = m && m !== Infinity ? String(Math.round((m / 12) * 10) / 10).replace('.', ',') : '';
+      f('#ln-hint').textContent = m === Infinity ? L('Платёж меньше процентов — долг не уменьшится.', 'Payment is below interest — the balance won’t go down.') : '';
+    };
+    ['#ln-left', '#ln-rate', '#ln-term'].forEach((id) => f(id).addEventListener('input', fromTerm));
+    f('#ln-pay').addEventListener('input', fromPay);
+  }
   panel.querySelector('#ln-dir')?.addEventListener('click', (e) => {
     const d = e.target.closest('[data-d]')?.dataset.d;
     if (!d) return;
