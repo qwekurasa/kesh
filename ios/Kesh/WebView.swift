@@ -36,6 +36,7 @@ struct WebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        config.userContentController.add(context.coordinator, name: "keshHaptic")
         config.limitsNavigationsToAppBoundDomains = true // нужно для Service Worker
         config.websiteDataStore = .default()
         config.allowsInlineMediaPlayback = true
@@ -72,11 +73,19 @@ struct WebView: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, WKScriptMessageHandler {
         private var downloadURL: URL?
         weak var web: WKWebView?
         var pending: String?
         private var crashes = 0
+        private let tick = UISelectionFeedbackGenerator()
+        private let tap = UIImpactFeedbackGenerator(style: .light)
+
+        // Виброотклик из веб-кода: tick — прокрутка категорий, tap — нажатия (в WKWebView нет navigator.vibrate)
+        func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "keshHaptic" else { return }
+            if (message.body as? String) == "tick" { tick.selectionChanged() } else { tap.impactOccurred(intensity: 0.6) }
+        }
 
         // Веб-код открывает экран, как только загрузится
         func runPending() {

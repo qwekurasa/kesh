@@ -4,6 +4,7 @@ import { L, LANG, setLang, EN, SYM } from './i18n.js';
 import * as auth from './auth.js';
 import { renderHome, renderCharts, renderCategoryDetail, renderProfile, renderImport, renderCustomCats, renderInfo, renderBudget, renderDeposits, renderDeposit, renderMore, renderLoans, renderLoan, limitHint, renderKeshSettings, langSwitch, flipLang, mountCalendar, openAccountPicker, accSub } from './screens.js';
 import { accounts, balances, defaultAccount, rememberAccount, accountsOff } from './accounts.js';
+import { applyDebt } from './loans.js';
 import {
   CATEGORIES, INCOME_CATEGORIES, CAT, app, state, money, esc, haptic, icons, PALETTE, updateCategory,
   setRender, render, ticket, bottomSheet, go, toast, startOfMonth, matchCategory, addCategory, catIcon, rawIcon, SKINS, skinStyle, applySkin, ask, openAdd,
@@ -291,7 +292,7 @@ async function frequent(income) {
   const list = (income ? INCOME_CATEGORIES : CATEGORIES).map(([id]) => id);
   const recent = (await store.recentCategories(16)).filter((id) => CAT[id] && (CAT[id].kind === 'in') === income);
   const out = [...new Set([...(state.cat && list.includes(state.cat) ? [state.cat] : []), ...recent, ...list])];
-  return out.slice(0, 3);
+  return out.slice(0, 10);
 }
 
 // Счёт операции: undefined — счетов нет; '' — без счёта
@@ -396,6 +397,13 @@ async function renderAmount() {
     app.querySelectorAll('.quick .cat').forEach((c) => c.classList.toggle('on', c.dataset.id === state.cat));
     updateAmount();
   };
+  // лёгкий отклик на каждую категорию, проехавшую при прокрутке
+  const quick = app.querySelector('.quick');
+  let lastStep = 0;
+  quick.addEventListener('scroll', () => {
+    const step = Math.round(quick.scrollLeft / 78);
+    if (step !== lastStep) { lastStep = step; haptic(true); }
+  }, { passive: true });
   app.querySelector('#del')?.addEventListener('click', removeEdited);
   app.querySelector('#kind').onclick = (e) => {
     const b = e.target.closest('[data-k]');
@@ -551,6 +559,8 @@ async function save() {
     return toast(L('Изменения сохранены', 'Changes saved'));
   }
   const item = await store.addExpense({ amount, category, note, ts, type, acc });
+  const loansBefore = localStorage.getItem('loans');
+  const debtMsg = category === 'debt' || category === 'in_debt' ? applyDebt(note, amount, !!type) : '';
   if (acc !== undefined) rememberAccount(acc);
   Object.assign(state, { flow: null, tab: 'home', amt: '', cat: null, note: '', catQuery: '', month: startOfMonth(new Date(ts)), date: Date.now(), dateSet: false, acc: undefined, kind: 'out' });
   // средняя трата за 30 дней — для реакции «Ого, крупная»
@@ -562,8 +572,9 @@ async function save() {
     if (await limitHint(item.category, item.amount)) return;
     if (item.amount > avg * 3) keshSay(L('Ого, крупная трата. Запомню.', 'Whoa, a big one. Noted.'), 'Удивлён');
   });
-  toast(`${type ? '+' : ''}${money(item.amount)} · ${CAT[item.category].name}`, async () => {
+  toast(`${type ? '+' : ''}${money(item.amount)} · ${debtMsg || CAT[item.category].name}`, async () => {
     await store.removeExpense(item.id);
+    if (debtMsg) { if (loansBefore === null) localStorage.removeItem('loans'); else localStorage.setItem('loans', loansBefore); }
     render();
   });
 }

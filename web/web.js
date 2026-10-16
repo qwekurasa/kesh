@@ -11,7 +11,7 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, moneyLeft
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '3.3';
+const BUILD_WEB = '3.4';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'support', 'settings'];
@@ -480,7 +480,7 @@ function installPage() {
       ${step(L('Как отдельное приложение', 'As a separate app'), easy, L('Chrome или Edge.', 'Chrome or Edge.'), [
         L('Значок установки в адресной строке → <b>Установить</b>.', 'Install icon in the address bar → <b>Install</b>.')])}</div>`],
     features: [`<div class="inst">${step(L('Что умеет Кэш', 'What Kesh does'), '', L('Всё хранится только на вашем устройстве.', 'Everything stays on your device.'), [
-      L('<b>Трата за пару секунд</b>: сумма → одна из 3 частых категорий или «Другие». Доход — переключатель «Доход».', '<b>Expense in seconds</b>: amount → one of 3 frequent categories or “Other”. Income — the “Income” switch.'),
+      L('<b>Трата за пару секунд</b>: сумма → одна из 10 частых категорий (прокрутка) или «Другие». Доход — переключатель «Доход». Категория «Долг» записывает операцию в «Долги», имя — из комментария.', '<b>Expense in seconds</b>: amount → one of 10 frequent categories (scroll) or “Other”. Income — the “Income” switch. The “Debt” category records the entry in Debts, name taken from the note.'),
       L('<b>Главная</b>: расходы за месяц, сегодня, доходы, сколько осталось.', '<b>Home</b>: monthly spending, today, income, what’s left.'),
       L('<b>Аналитика</b>: по дням, неделям, году и категориям.', '<b>Analytics</b>: by day, week, year and category.'),
       L('<b>Бюджет</b>: счета, лимиты по категориям, «осталось денег». Счета можно выключить.', '<b>Budget</b>: accounts, category limits, money left. Accounts can be turned off.'),

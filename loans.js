@@ -69,3 +69,31 @@ export function simulate({ left, rate, pay }, { lump = 0, extra = 0, mode = 'ter
   }
   return { months, interest: Math.round(interest), pay: Math.round(first) };
 }
+
+// Операция с категорией «Долг» → запись во вкладке «Долги».
+// Расход: я дал в долг (или вернул свой долг), доход: мне дали в долг (или вернули мой).
+// Имя берётся из комментария; возвращает текст для подсказки
+export function applyDebt(note, amount, income) {
+  const name = String(note || '').trim().slice(0, 60) || L('Без имени', 'No name');
+  const list = read();
+  const key = name.toLowerCase();
+  const same = (x, dir) => x.kind === 'debt' && x.dir === dir && x.name.toLowerCase() === key;
+  // сначала гасим встречный долг с этим человеком
+  const back = list.find((x) => same(x, income ? 'them' : 'me'));
+  let rest = amount;
+  if (back) {
+    const k = Math.min(back.left, rest);
+    back.left -= k; rest -= k;
+    if (!back.left) list.splice(list.indexOf(back), 1);
+  }
+  if (rest > 0) {
+    const dir = income ? 'me' : 'them';
+    const cur = list.find((x) => same(x, dir));
+    if (cur) cur.left += rest;
+    else list.push({ id: `l${Date.now().toString(36)}`, kind: 'debt', name, left: rest, rate: 0, pay: 0, total: 0, dir, due: 0 });
+  }
+  saveLoans(list);
+  if (!blocks().includes('debt')) setBlocks([...blocks(), 'debt']);
+  if (back && rest === 0) return L(`${name}: долг уменьшен`, `${name}: debt reduced`);
+  return income ? L(`Записал: я должен — ${name}`, `Saved: I owe ${name}`) : L(`Записал: ${name} должен мне`, `Saved: ${name} owes me`);
+}

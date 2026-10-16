@@ -13,7 +13,7 @@ import { KINDS, loans, putLoan, removeLoan, monthsLeft, simulate, blocks, setBlo
 import { TYPES, accounts, balances, moneyLeft, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v60';
+export const BUILD = 'v61';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -748,6 +748,7 @@ export async function renderProfile() {
         <div class="card rows group">
           ${item('donate', icons.heart, L('Поддержать проект', 'Support the project'))}
         </div>
+        ${installGuide()}
         <div class="card rows group">
           ${item('wipe', icons.trash, L('Сбросить все данные', 'Erase all data'))}
         </div>
@@ -1945,4 +1946,33 @@ function openLoan(kind, x) {
     removeLoan(x.id); close(); if (state.flow === 'loan') { state.flow = null; state.loanId = null; } render();
   });
   if (!x) setTimeout(() => panel.querySelector('#ln-left').focus(), 300);
+}
+
+/* ---------- инструкция по установке (раскрывающиеся блоки в профиле) ---------- */
+const DL_URL = 'https://kesh-money.vercel.app/dl/';
+function installGuide() {
+  const sec = (title, sub, steps, extra = '') => `<details class="guide"><summary><span class="tr-name">${title}<small>${sub}</small></span>${icons.down}</summary>
+    <ol>${steps.map((x) => `<li>${x}</li>`).join('')}</ol>${extra}</details>`;
+  const dl = (file, label) => `<a class="btn alt guide-dl" href="${DL_URL}${file}" download>${icons.down} ${label}</a>`;
+  return `<details class="card guide-card guide-all"><summary><span class="tr-name">${L('Установка на другие устройства', 'Install on other devices')}<small>iPhone · Android · ${L('компьютер · виджет', 'computer · widget')}</small></span>${icons.down}</summary>
+      ${sec(L('iPhone — с сайта', 'iPhone — from Safari'), L('просто, без компьютера', 'easy, no computer'), [
+        L('Откройте <b>kesh-money.vercel.app</b> в Safari.', 'Open <b>kesh-money.vercel.app</b> in Safari.'),
+        L('«Поделиться» → «На экран „Домой“».', 'Share → Add to Home Screen.'),
+        L('Данные перенесите копией: Профиль → Резервная копия.', 'Move data with a backup: Profile → Backup.')])}
+      ${sec(L('iPhone — приложение с виджетом', 'iPhone — app with widget'), L('через AltStore и компьютер', 'via AltStore and a computer'), [
+        L('На компьютер: iTunes и iCloud с сайта Apple, затем AltServer с altstore.io.', 'On a computer: iTunes and iCloud from Apple, then AltServer from altstore.io.'),
+        L('iPhone по кабелю → «Доверять». AltServer в трее → Install AltStore → Apple ID.', 'iPhone via cable → Trust. AltServer tray → Install AltStore → Apple ID.'),
+        L('Настройки → Основные → VPN и управление устройством → ваш Apple ID → «Доверять». Включите «Режим разработчика».', 'Settings → General → VPN & Device Management → your Apple ID → Trust. Turn on Developer Mode.'),
+        L('Скачайте Kesh.ipa в «Файлы», в AltStore: My Apps → «+» → Kesh.ipa.', 'Download Kesh.ipa to Files, then AltStore: My Apps → + → Kesh.ipa.'),
+        L('Раз в 7 дней: AltStore → My Apps → Refresh All.', 'Every 7 days: AltStore → My Apps → Refresh All.')], dl('Kesh.ipa', L('Скачать Kesh.ipa', 'Download Kesh.ipa')))}
+      ${sec(L('Виджет на iPhone', 'iPhone widget'), L('только в приложении из Kesh.ipa', 'only in the Kesh.ipa app'), [
+        L('Долгое нажатие на экране «Домой» → «Изменить» → «Добавить виджет».', 'Long-press the Home Screen → Edit → Add Widget.'),
+        L('Найдите Kesh, выберите размер → «Добавить виджет».', 'Find Kesh, pick a size → Add Widget.')])}
+      ${sec('Android', L('приложение или с сайта', 'app or from Chrome'), [
+        L('Скачайте Kesh.apk, откройте и разрешите установку.', 'Download Kesh.apk, open it and allow the install.'),
+        L('Или в Chrome: меню ⋮ → «Установить приложение».', 'Or in Chrome: menu ⋮ → Install app.')], dl('Kesh.apk', L('Скачать Kesh.apk', 'Download Kesh.apk')))}
+      ${sec(L('Компьютер', 'Computer'), L('сайт с отчётами и Excel', 'site with reports and Excel'), [
+        L('Откройте <b>kesh-money.vercel.app</b> на компьютере.', 'Open <b>kesh-money.vercel.app</b> on a computer.'),
+        L('Перенесите копию с телефона во вкладке «Экспорт и импорт».', 'Bring your phone backup in “Export & import”.')])}
+    </details>`;
 }

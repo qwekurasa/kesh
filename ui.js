@@ -7,7 +7,7 @@ const BASE = [
   ['health', 'Здоровье'], ['beauty', 'Красота'], ['sport', 'Спорт'], ['fun', 'Развлечения'],
   ['travel', 'Путешествия'], ['education', 'Обучение'], ['gifts', 'Подарки'], ['pets', 'Питомцы'],
   ['kids', 'Дети'], ['tech', 'Техника'], ['household', 'Хозтовары'], ['transfers', 'Переводы'],
-  ['marketplace', 'Маркетплейсы'], ['finance', 'Финансы'], ['cash', 'Наличные'], ['other', 'Другое'],
+  ['marketplace', 'Маркетплейсы'], ['finance', 'Финансы'], ['cash', 'Наличные'], ['debt', 'Долг', 'handshake'], ['other', 'Другое'],
 ];
 
 const NAMES_EN = {
@@ -15,7 +15,7 @@ const NAMES_EN = {
   taxi: 'Taxi', car: 'Car', home: 'Home & bills', mobile: 'Phone & internet', subs: 'Subscriptions', clothes: 'Clothes',
   health: 'Health', beauty: 'Beauty', sport: 'Sport', fun: 'Fun', travel: 'Travel', education: 'Education', gifts: 'Gifts',
   pets: 'Pets', kids: 'Kids', tech: 'Tech', household: 'Household', transfers: 'Transfers', marketplace: 'Marketplaces',
-  finance: 'Finance', cash: 'Cash', other: 'Other', salary: 'Salary', in_transfer: 'Transfers', cashback: 'Cashback',
+  finance: 'Finance', cash: 'Cash', debt: 'Debt', in_debt: 'Debt', other: 'Other', salary: 'Salary', in_transfer: 'Transfers', cashback: 'Cashback',
   interest: 'Interest', side: 'Side income', in_gift: 'Gifts', sale: 'Sales', in_other: 'Other',
 };
 
@@ -25,7 +25,7 @@ const COLORS = {
   subs: '#b38cff', clothes: '#ff8ac2', health: '#ff6b7a', beauty: '#f49bd8', sport: '#7be0a6',
   fun: '#c77dff', travel: '#4fd1c5', education: '#8c9eff', gifts: '#ff8f8f', pets: '#e0b97a',
   kids: '#ffc46b', tech: '#74b3ff', household: '#a6c48a', transfers: '#9aa6b8', marketplace: '#a98bff',
-  finance: '#66d9a6', cash: '#b9d36b', other: '#9a9aa4',
+  finance: '#66d9a6', cash: '#b9d36b', debt: '#e0a96d', in_debt: '#e0a96d', other: '#9a9aa4',
   salary: '#5ee38f', in_transfer: '#6ad1ff', cashback: '#ffd84d', interest: '#66d9a6',
   side: '#ffb547', in_gift: '#ff8fb0', sale: '#b38cff', in_other: '#9a9aa4',
 };
@@ -37,7 +37,7 @@ export const PALETTE = ['#ff6b7a', '#ff9f5a', '#ffd84d', '#b9d36b', '#6fd08c', '
 const INCOME = [
   ['salary', 'Зарплата', 'briefcase'], ['in_transfer', 'Переводы', 'handshake'], ['cashback', 'Кэшбэк', 'credit_card'],
   ['interest', 'Проценты', 'wallet'], ['side', 'Подработка', 'wrench'], ['in_gift', 'Подарки', 'gifts'],
-  ['sale', 'Продажа', 'receipt'], ['in_other', 'Другое', 'other'],
+  ['sale', 'Продажа', 'receipt'], ['in_debt', 'Долг', 'handshake'], ['in_other', 'Другое', 'other'],
 ];
 if (EN) [BASE, INCOME].forEach((list) => list.forEach((c) => { c[1] = NAMES_EN[c[0]] || c[1]; }));
 
@@ -66,6 +66,7 @@ const KEYWORDS = {
   tech: 'техника гаджеты электроника компьютер',
   household: 'хозтовары бытовая химия дом ремонт',
   transfers: 'перевод деньги другу',
+  debt: 'долг займ одолжил дал в долг вернул',
   marketplace: 'маркетплейс озон ozon вайлдберриз wb яндекс маркет авито',
   finance: 'финансы банк счёт вклад',
   cash: 'наличные снятие банкомат',
@@ -260,7 +261,11 @@ export const moneyShort = (kop) => {
 export const isIncome = (i) => i.type === 'in';
 export const sumCell = (i) => `<span class="tr-sum${isIncome(i) ? ' in' : ''}">${isIncome(i) ? '+' : ''}${money(i.amount)}</span>`;
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-export const haptic = () => { if (navigator.userActivation?.hasBeenActive !== false) navigator.vibrate?.(8); };
+export const haptic = (soft) => {
+  const ios = window.webkit?.messageHandlers?.keshHaptic;
+  if (ios) return ios.postMessage(soft ? 'tick' : 'tap');
+  if (navigator.userActivation?.hasBeenActive !== false) navigator.vibrate?.(soft ? 4 : 8);
+};
 
 const svg = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 export const icons = {
