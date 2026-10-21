@@ -463,7 +463,7 @@ function updateAmount() {
   const [gs, ds] = EN ? [',', '.'] : ['\u202f', ','];
   const text = state.amt ? (int || '0').replace(/\B(?=(\d{3})+(?!\d))/g, gs) + (dec !== undefined ? `${ds}${dec}` : '') : '0';
   el.querySelector('.val').textContent = text;
-  el.classList.toggle('empty', !state.amt);
+  el.classList.toggle('zero', !state.amt);
   const base = window.innerHeight < 760 ? 58 : 72;
   el.style.setProperty('--size', `${Math.max(36, base - Math.max(0, text.length - 5) * 6)}px`);
   const [pose, line] = amountPose(state.kind, kopecks());

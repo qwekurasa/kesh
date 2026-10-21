@@ -13,7 +13,7 @@ import { KINDS, loans, putLoan, removeLoan, monthsLeft, simulate, blocks, setBlo
 import { TYPES, accounts, balances, moneyLeft, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v61';
+export const BUILD = 'v62';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);

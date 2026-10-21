@@ -151,10 +151,10 @@ button:focus-visible { outline: 1px solid var(--border-strong); outline-offset: 
   border-top: 1px solid var(--border-strong); padding-top: 14px; min-width: 70%;
 }
 .amount .cur { color: var(--text-3); font-size: .45em; }
-.amount.empty .val { color: var(--text-3); }
+.amount.zero .val { color: var(--text-3); }
 .amount.shake { animation: shake .3s; }
 @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
-.amount-wrap.income .amount:not(.empty) .val { color: var(--pos); }
+.amount-wrap.income .amount:not(.zero) .val { color: var(--pos); }
 .amount-hint { margin-top: 14px; color: var(--text-2); font-size: 14.5px; height: 20px; }
 .seg.kind { width: 250px; margin: 14px auto 0; }
 
@@ -888,6 +888,7 @@ button.switch-row { width: 100%; text-align: left; }
 /* экран суммы: подпись, «Когда» и «Списать с» */
 .amount-label { font: 500 10.5px var(--mono); color: var(--text-3); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 8px; }
 .add-screen .amount-edge { width: 100%; }
+.add-screen .amount-hint { position: absolute; bottom: 112px; left: 0; right: 0; margin: 0; text-align: center; }
 .add-screen .amount-hint:empty { display: none; }
 .meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0 10px; }
 .meta-row.one { grid-template-columns: 1fr; }
