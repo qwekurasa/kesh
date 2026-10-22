@@ -9,11 +9,11 @@ import { writeXlsx, readXlsx } from './xlsx.js';
 import { keshOn, setKesh, hintsOn, setHints, keshHint, keshSay, calmMode, setCalm, keshCoat, setCoat, keshSVG, catAvatar } from './kesh.js';
 
 import { makeBackup, checkBackup, restoreBackup } from './backup.js';
-import { KINDS, loans, putLoan, removeLoan, monthsLeft, simulate, blocks, setBlocks, BLOCKS } from './loans.js';
+import { KINDS, loans, putLoan, removeLoan, monthsLeft, simulate, cardInfo, cardPayoff, blocks, setBlocks, BLOCKS } from './loans.js';
 import { TYPES, accounts, balances, moneyLeft, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v62';
+export const BUILD = 'v63';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -1698,7 +1698,7 @@ export async function renderMore() {
   if (!live()) return;
   const card = (id, value, sub) => `<button class="card fin-card" data-go="${id}"><span class="tr-ico">${FIN_ICONS[id].replace('<svg', '<svg class="ci"')}</span><span class="tr-name">${BLOCK_INFO[id][0]}<small>${sub}</small></span><span class="tr-right"><span class="tr-sum">${value}</span>${icons.right}</span></button>`;
   const sumLeft = (k) => loans(k).reduce((a, x) => a + x.left, 0);
-  const sumPay = (k) => loans(k).reduce((a, x) => a + x.pay, 0);
+  const sumPay = (k) => loans(k).reduce((a, x) => a + monthPay(x), 0);
   const view = {
     budget: () => (monthSpent !== null ? card('budget', money(monthSpent), L('потрачено за месяц', 'spent this month')) : card('budget', money(ml.v), ml.acc ? L('осталось на счетах', 'left in accounts') : L('доходы − расходы за месяц', 'income − spending this month'))),
     deposits: () => { const d = deposits(); return card('deposits', money(d.reduce((a, x) => a + x.amount, 0)), d.length ? `${d.length} ${plural(d.length, 'вклад', 'вклада', 'вкладов')}` : L('пока пусто', 'empty')); },
@@ -1750,6 +1750,12 @@ const FIN_ICONS = {
 };
 
 // Ипотека, кредиты, долги — один экран, вид задаёт state.loanKind
+const isCard = (x) => x.kind === 'credit' && x.sub === 'card';
+const termText = (m) => (m >= 12 ? `${Math.floor(m / 12)} ${plural(Math.floor(m / 12), 'год', 'года', 'лет')}${m % 12 ? ` ${m % 12} ${L('мес', 'mo')}` : ''}` : `${m} ${L('мес', 'mo')}`);
+// платёж в месяц для итогов: у карты — минимальный, у кредита — обязательный + досрочный сверху
+const monthPay = (x) => (isCard(x) ? (x.left ? cardInfo(x).min : 0) : x.pay + (x.extra || 0));
+const ratePct = (r) => `${String(r || 0).replace('.', ',')}%`;
+
 export function renderLoans() {
   const kind = KINDS[state.loanKind] ? state.loanKind : 'credit';
   const list = loans(kind);
@@ -1757,16 +1763,22 @@ export function renderLoans() {
   const me = list.filter((x) => x.dir === 'me').reduce((a, x) => a + x.left, 0);
   const them = list.filter((x) => x.dir === 'them').reduce((a, x) => a + x.left, 0);
   const total = list.reduce((a, x) => a + x.left, 0);
-  const pay = list.reduce((a, x) => a + x.pay, 0);
+  const pay = list.reduce((a, x) => a + monthPay(x), 0);
   const term = (x) => {
-    const m = monthsLeft(x);
-    if (m === Infinity) return L('платёж не покрывает проценты', 'payment doesn’t cover interest');
-    if (!m) return '';
-    return m >= 12 ? `≈ ${Math.floor(m / 12)} ${plural(Math.floor(m / 12), 'год', 'года', 'лет')}${m % 12 ? ` ${m % 12} ${L('мес', 'mo')}` : ''}` : `≈ ${m} ${L('мес', 'mo')}`;
+    const s = simulate(x, { extra: x.extra || 0 });
+    if (!s) return x.pay && monthsLeft(x) === Infinity ? L('платёж не покрывает проценты', 'payment doesn’t cover interest') : '';
+    return `≈ ${termText(s.months)}`;
   };
-  const sub = (x) => (debt
-    ? [x.dir === 'me' ? L('я должен', 'I owe') : L('должны мне', 'owed to me'), x.due ? `${L('до', 'by')} ${dmy(x.due)}` : ''].filter(Boolean).join(' · ')
-    : [x.rate ? `${String(x.rate).replace('.', ',')}%` : '', x.pay ? `${num(x.pay)} / ${L('мес', 'mo')}` : '', term(x), x.total > x.left ? `${L('выплачено', 'paid')} ${Math.round(((x.total - x.left) / x.total) * 100)}%` : ''].filter(Boolean).join(' · '));
+  const sub = (x) => {
+    if (debt) return [x.dir === 'me' ? L('я должен', 'I owe') : L('должны мне', 'owed to me'), x.due ? `${L('до', 'by')} ${dmy(x.due)}` : ''].filter(Boolean).join(' · ');
+    if (isCard(x)) {
+      const c = cardInfo(x);
+      return [L('карта', 'card'), c.avail !== null ? `${L('доступно', 'available')} ${num(c.avail)}` : '',
+        c.grace && x.left ? `${L('без % до', 'interest-free to')} ${dmy(x.graceTo)}` : x.left && x.rate ? `${ratePct(x.rate)}` : ''].filter(Boolean).join(' · ');
+    }
+    return [x.rate ? ratePct(x.rate) : '', x.pay ? `${num(x.pay)}${x.extra ? ` + ${num(x.extra)}` : ''} / ${L('мес', 'mo')}` : '', term(x), x.total > x.left ? `${L('выплачено', 'paid')} ${Math.round(((x.total - x.left) / x.total) * 100)}%` : ''].filter(Boolean).join(' · ');
+  };
+  const ico = (x) => (isCard(x) ? icons.card : FIN_ICONS[kind]).replace('<svg', '<svg class="ci"');
   app.innerHTML = `
     <section class="screen tabbed">
       <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>${KINDS[kind].name}</h1></button><button class="icon-btn sm" id="add-top" aria-label="${L('Добавить', 'Add')}">${icons.plus}</button></header>
@@ -1777,11 +1789,11 @@ export function renderLoans() {
           <div class="month-sub">${debt ? `${L('Я должен', 'I owe')} ${money(me)} · ${L('мне должны', 'owed to me')} ${money(them)}` : pay ? `${L('Платежи', 'Payments')}: ${money(pay)} / ${L('мес', 'mo')}` : L('Добавьте, чтобы видеть остаток и срок', 'Add one to see balance and term')}</div>
         </div>
         ${list.length ? `<div class="card">${list.map((x) => `
-          <button class="res dep-row" data-id="${x.id}"><span class="tr-ico">${FIN_ICONS[kind].replace('<svg', '<svg class="ci"')}</span>
+          <button class="res dep-row" data-id="${x.id}"><span class="tr-ico">${ico(x)}</span>
             <span class="tr-name">${esc(x.name)}<small>${sub(x)}</small></span>
             <span class="tr-right"><span class="tr-sum${debt && x.dir === 'them' ? ' plus' : ''}">${num(x.left)}</span></span>
           </button>`).join('')}</div>` : ''}
-        <button class="btn alt add-dep" id="add">${L('Добавить', 'Add')} ${KINDS[kind].one}</button>
+        <button class="btn alt add-dep" id="add">${kind === 'credit' ? L('Добавить кредит или карту', 'Add a loan or card') : `${L('Добавить', 'Add')} ${KINDS[kind].one}`}</button>
       </div>
       ${tabbar()}
     </section>`;
@@ -1800,16 +1812,19 @@ export function renderLoans() {
   });
 }
 
-const termText = (m) => (m >= 12 ? `${Math.floor(m / 12)} ${plural(Math.floor(m / 12), 'год', 'года', 'лет')}${m % 12 ? ` ${m % 12} ${L('мес', 'mo')}` : ''}` : `${m} ${L('мес', 'mo')}`);
+const loanBack = () => { haptic(); state.flow = null; state.loanId = null; render(); };
+const kopIn = (v) => Math.max(0, toKop(v || '0') || 0);
 
-// Ипотека или кредит: остаток, прогресс и калькулятор досрочного погашения
+// Ипотека или кредит: остаток, досрочные платежи и калькулятор «что если»
 export function renderLoan() {
   const x = loans().find((y) => y.id === state.loanId);
   if (!x) { state.flow = null; return render(); }
+  if (isCard(x)) return renderCard(x);
   const c = state.calc ||= { extra: '', lump: '', mode: 'term' };
-  const base = simulate(x);
+  const base = simulate(x, { extra: x.extra || 0 });
   const paid = x.total > x.left ? x.total - x.left : 0;
   const p = x.total ? Math.min(1, paid / x.total) : 0;
+  const hist = [...(x.hist || [])].reverse();
   app.innerHTML = `
     <section class="screen">
       <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>${esc(x.name)}</h1></button><button class="icon-btn sm" id="edit" aria-label="${L('Изменить', 'Edit')}">${icons.edit}</button></header>
@@ -1817,16 +1832,23 @@ export function renderLoan() {
         <div class="hero">
           <div class="hero-label">${L('Актуальный долг', 'Current balance')}</div>
           <div class="month-total">${money(x.left)}</div>
-          <div class="month-sub">${x.total ? `${L('из', 'of')} ${money(x.total)} · ${L('выплачено', 'paid')} ${Math.round(p * 100)}%` : L('Укажите сумму ипотеки, чтобы видеть прогресс', 'Add the original amount to see progress')}</div>
+          <div class="month-sub">${x.total ? `${L('из', 'of')} ${money(x.total)} · ${L('выплачено', 'paid')} ${Math.round(p * 100)}%` : L('Укажите сумму, чтобы видеть прогресс', 'Add the original amount to see progress')}</div>
           ${x.total ? `<span class="meter dep-meter loan-meter"><i style="width:${Math.max(2, p * 100)}%"></i></span>` : ''}
         </div>
         <div class="card loan-facts">
-          <div><small>${L('Ставка', 'Rate')}</small><b>${String(x.rate || 0).replace('.', ',')}%</b></div>
-          <div><small>${L('Платёж', 'Payment')}</small><b>${num(x.pay)}</b></div>
+          <div><small>${L('Ставка', 'Rate')}</small><b>${ratePct(x.rate)}</b></div>
+          <div><small>${L('Платёж', 'Payment')}</small><b>${num(x.pay)}${x.extra ? `<i class="plus"> + ${num(x.extra)}</i>` : ''}</b></div>
           <div><small>${L('Осталось', 'Left')}</small><b>${base ? termText(base.months) : '—'}</b></div>
           <div><small>${L('Проценты впереди', 'Interest ahead')}</small><b>${base ? num(base.interest) : '—'}</b></div>
         </div>
         ${base ? `<div class="section-label">${L('Досрочное погашение', 'Early repayment')}</div>
+        <div class="card early">
+          ${x.extra ? `<button class="early-row" id="e-monthly"><span>${L('Каждый месяц сверху', 'Every month on top')}<small>${L('срок сокращается, платёж прежний', 'shorter term, same payment')}</small></span><b class="plus">+${num(x.extra)}</b></button>` : ''}
+          ${hist.map((h, i) => `<div class="early-row"><span>${L('Разово', 'One-time')} · ${dmy(h.d)}<small>${h.m === 'pay' ? L('уменьшили платёж', 'payment lowered') : L('сократили срок', 'term shortened')}</small></span><b>−${num(h.a)}</b>${i === 0 ? `<button class="early-undo" id="e-undo" aria-label="${L('Отменить', 'Undo')}">${icons.trash}</button>` : ''}</div>`).join('')}
+          ${!x.extra && !hist.length ? `<p class="calc-hint early-empty">${L('Вносите деньги сверх платежа — разово или каждый месяц. Долг, срок и проценты пересчитаются.', 'Pay above the schedule — once or monthly. Balance, term and interest update.')}</p>` : ''}
+          <button class="btn" id="e-add">${icons.plus} ${L('Внести досрочно', 'Pay early')}</button>
+        </div>
+        <div class="section-label">${L('Что если', 'What if')}</div>
         <div class="card calc">
           <div class="seg kind full" id="c-mode"><button class="${c.mode === 'term' ? 'on' : ''}" data-m="term">${L('Сократить срок', 'Shorter term')}</button><button class="${c.mode === 'pay' ? 'on' : ''}" data-m="pay">${L('Уменьшить платёж', 'Lower payment')}</button></div>
           <div class="two">
@@ -1838,32 +1860,34 @@ export function renderLoan() {
       </div>
     </section>`;
   countUp(app.querySelector('.month-total'), x.left);
-  app.querySelector('#back').onclick = () => { haptic(); state.flow = null; state.loanId = null; render(); };
+  app.querySelector('#back').onclick = loanBack;
   app.querySelector('#edit').onclick = () => openLoan(x.kind, x);
   if (!base) return;
+  app.querySelector('#e-add').onclick = () => openEarly(x, 'once');
+  app.querySelector('#e-monthly')?.addEventListener('click', () => openEarly(x, 'monthly'));
+  app.querySelector('#e-undo')?.addEventListener('click', async () => {
+    const h = x.hist[x.hist.length - 1];
+    if (!(await ask(L(`Отменить платёж ${money(h.a)}?`, `Undo the ${money(h.a)} payment?`), L('Долг и платёж вернутся как были.', 'Balance and payment go back.')))) return;
+    putLoan({ ...x, left: x.left + h.a, pay: h.m === 'pay' && h.p ? h.p : x.pay, hist: x.hist.slice(0, -1) });
+    haptic(); render();
+  });
   const out = app.querySelector('#c-out');
   const calc = () => {
-    const extra = Math.max(0, toKop(c.extra || '0') || 0);
-    const lump = Math.min(x.left, Math.max(0, toKop(c.lump || '0') || 0));
-    if (!extra && !lump) { out.innerHTML = `<p class="calc-hint">${L('Введите сумму — покажу, насколько сократится срок или платёж и сколько вы сэкономите на процентах.', 'Enter an amount to see the new term or payment and the interest you save.')}</p>`; return; }
-    const r = simulate(x, { extra, lump, mode: c.mode });
+    const extra = kopIn(c.extra);
+    const lump = Math.min(x.left, kopIn(c.lump));
+    if (!extra && !lump) { out.innerHTML = `<p class="calc-hint">${L('Прикиньте без записи: покажу, насколько сократится срок или платёж и сколько сэкономите на процентах.', 'Try it without saving: see the new term or payment and the interest you save.')}</p>`; return; }
+    const r = simulate(x, { extra: (x.extra || 0) + extra, lump, mode: c.mode });
     if (!r) return;
     const save = base.interest - r.interest;
     const rows = [
       c.mode === 'term'
         ? [L('Новый срок', 'New term'), termText(r.months), `−${termText(Math.max(0, base.months - r.months))}`]
-        : [L('Новый платёж', 'New payment'), `${num(r.pay)}${extra ? ` + ${num(extra)}` : ''}`, `−${num(Math.max(0, x.pay - r.pay))} / ${L('мес', 'mo')}`],
+        : [L('Новый платёж', 'New payment'), `${num(r.pay)}${(x.extra || 0) + extra ? ` + ${num((x.extra || 0) + extra)}` : ''}`, `−${num(Math.max(0, x.pay - r.pay))} / ${L('мес', 'mo')}`],
       [L('Проценты', 'Interest'), num(r.interest), `${L('было', 'was')} ${num(base.interest)}`],
       [L('Срок', 'Term'), termText(r.months), `${L('было', 'was')} ${termText(base.months)}`],
     ];
     out.innerHTML = `<div class="calc-save"><small>${L('Экономия на процентах', 'Interest saved')}</small><b>${money(Math.max(0, save))}</b></div>
-      ${rows.slice(0, c.mode === 'term' ? 2 : 3).map(([a, b, d]) => `<div class="calc-row"><span>${a}</span><b>${b}</b><small>${d}</small></div>`).join('')}
-      ${lump ? `<button class="btn alt" id="c-apply">${L('Записать разовый платёж в долг', 'Apply one-time payment')}</button>` : ''}`;
-    out.querySelector('#c-apply')?.addEventListener('click', async () => {
-      if (!(await dialog({ title: L(`Уменьшить долг на ${money(lump)}?`, `Reduce the balance by ${money(lump)}?`), text: c.mode === 'pay' ? L(`Платёж станет ${money(r.pay)}.`, `Payment becomes ${money(r.pay)}.`) : L('Платёж останется прежним, срок сократится.', 'Payment stays, the term gets shorter.'), ok: L('Записать', 'Apply') }))) return;
-      putLoan({ ...x, left: x.left - lump, ...(c.mode === 'pay' ? { pay: r.pay } : {}) });
-      c.lump = ''; haptic(); toast(L('Долг обновлён', 'Balance updated')); render();
-    });
+      ${rows.slice(0, c.mode === 'term' ? 2 : 3).map(([a, b, d]) => `<div class="calc-row"><span>${a}</span><b>${b}</b><small>${d}</small></div>`).join('')}`;
   };
   app.querySelector('#c-mode').onclick = (e) => {
     const m = e.target.closest('[data-m]')?.dataset.m;
@@ -1877,75 +1901,235 @@ export function renderLoan() {
   calc();
 }
 
+// Записать досрочный платёж: разово (с выбором — срок или платёж) или каждый месяц сверху
+function openEarly(x, start) {
+  let how = start; let mode = 'term';
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+  const { panel, close } = bottomSheet(L('Досрочное погашение', 'Early repayment'), `
+    <div class="seg kind full" id="ea-how"><button data-h="once">${L('Разово', 'One-time')}</button><button data-h="monthly">${L('Каждый месяц', 'Every month')}</button></div>
+    <label class="lbl">${L(`Сумма сверх платежа, ${SYM}`, `Amount above the payment, ${SYM}`)}</label>
+    <input class="field" id="ea-sum" inputmode="decimal" placeholder="0" value="">
+    <div class="ea-once"><label class="lbl">${L('Дата', 'Date')}</label><input class="field" id="ea-date" type="date" value="${today}" max="${today}">
+    <div class="seg kind full" id="ea-mode"><button class="on" data-m="term">${L('Сократить срок', 'Shorter term')}</button><button data-m="pay">${L('Уменьшить платёж', 'Lower payment')}</button></div></div>
+    <p class="calc-hint" id="ea-hint"></p>
+    <button class="btn" id="ea-save">${L('Записать', 'Save')}</button>
+    ${x.extra ? `<button class="btn alt danger" id="ea-stop">${L('Убрать ежемесячный платёж', 'Remove monthly payment')}</button>` : ''}`);
+  const f = (q) => panel.querySelector(q);
+  const base = simulate(x, { extra: x.extra || 0 });
+  const preview = () => {
+    const a = kopIn(f('#ea-sum').value);
+    if (!a || !base) { f('#ea-hint').textContent = how === 'monthly' ? L('Будет прибавляться к платежу каждый месяц: срок короче, проценты меньше.', 'Added to every payment: shorter term, less interest.') : L('Банк обычно спрашивает, что уменьшить: срок выгоднее по процентам, платёж — легче каждый месяц.', 'Banks usually ask what to reduce: a shorter term saves more interest, a lower payment is easier monthly.'); return; }
+    const r = how === 'monthly' ? simulate(x, { extra: a }) : simulate(x, { extra: x.extra || 0, lump: Math.min(a, x.left), mode });
+    if (!r) return;
+    f('#ea-hint').textContent = `${how === 'once' && mode === 'pay' ? `${L('Новый платёж', 'New payment')} ${money(r.pay)} · ` : ''}${L('срок', 'term')} ${termText(r.months)} · ${L('экономия', 'saved')} ${money(Math.max(0, base.interest - r.interest))}`;
+  };
+  const sync = () => {
+    f('#ea-how').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.h === how));
+    f('.ea-once').hidden = how !== 'once';
+    if (how === 'monthly' && x.extra && !f('#ea-sum').value) f('#ea-sum').value = String(x.extra / 100).replace('.', ',');
+    preview();
+  };
+  f('#ea-how').onclick = (e) => { const h = e.target.closest('[data-h]')?.dataset.h; if (h && h !== how) { how = h; haptic(); sync(); } };
+  f('#ea-mode').onclick = (e) => { const m = e.target.closest('[data-m]')?.dataset.m; if (!m) return; mode = m; haptic(); f('#ea-mode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.m === m)); preview(); };
+  f('#ea-sum').oninput = preview;
+  f('#ea-save').onclick = () => {
+    const a = kopIn(f('#ea-sum').value);
+    if (!a) { f('#ea-sum').focus(); return; }
+    if (how === 'monthly') putLoan({ ...x, extra: a });
+    else {
+      const lump = Math.min(a, x.left);
+      const r = simulate(x, { extra: x.extra || 0, lump, mode });
+      const d = f('#ea-date').value;
+      putLoan({ ...x, left: x.left - lump, pay: mode === 'pay' && r ? r.pay : x.pay, hist: [...(x.hist || []), { d: d ? +new Date(`${d}T12:00`) : Date.now(), a: lump, m: mode, p: x.pay }] });
+    }
+    haptic(); toast(L('Записал', 'Saved')); close(); render();
+  };
+  f('#ea-stop')?.addEventListener('click', () => { putLoan({ ...x, extra: 0 }); haptic(); close(); render(); });
+  sync();
+  setTimeout(() => f('#ea-sum').focus(), 300);
+}
+
+// Кредитная карта: лимит, льготный период, минимальный платёж, план погашения
+function renderCard(x) {
+  const ci = cardInfo(x);
+  const c = state.calc ||= { pay: '' };
+  const tip = !x.left ? L('Долга нет — проценты не начисляются.', 'No balance — no interest.')
+    : ci.grace ? L(`Без процентов ещё ${ci.days} ${plural(ci.days, 'день', 'дня', 'дней')} — до ${dmy(x.graceTo)}. Внесите ${money(x.left)} до этой даты, и проценты не начислят.`, `Interest-free for ${ci.days} more days — until ${dmy(x.graceTo)}. Pay ${money(x.left)} by then to avoid interest.`)
+      : x.graceTo ? L(`Льготный период закончился ${dmy(x.graceTo)}. Если долг не погашен полностью, банк обычно начисляет проценты за весь период с даты покупок — сейчас ≈ ${money(ci.interest)} в месяц.`, `The grace period ended ${dmy(x.graceTo)}. If the balance wasn’t paid in full, banks usually charge interest back to the purchase date — now ≈ ${money(ci.interest)} a month.`)
+        : L('Укажите, до какой даты действует льготный период — покажу, сколько дней осталось и сколько внести, чтобы не платить проценты.', 'Add the grace period end date to see days left and how much to pay to avoid interest.');
+  app.innerHTML = `
+    <section class="screen">
+      <header class="appbar"><button class="back-title" id="back">${icons.back}<h1>${esc(x.name)}</h1></button><button class="icon-btn sm" id="edit" aria-label="${L('Изменить', 'Edit')}">${icons.edit}</button></header>
+      <div class="scroll">
+        <div class="hero">
+          <div class="hero-label">${L('Долг по карте', 'Card balance')}</div>
+          <div class="month-total">${money(x.left)}</div>
+          <div class="month-sub">${x.limit ? `${L('Лимит', 'Limit')} ${money(x.limit)} · ${L('доступно', 'available')} ${money(ci.avail)}` : L('Укажите лимит, чтобы видеть доступную сумму', 'Add the limit to see what’s available')}</div>
+          ${x.limit ? `<span class="meter dep-meter loan-meter${ci.util > 0.3 ? ' warn' : ''}"><i style="width:${Math.max(2, ci.util * 100)}%"></i></span>` : ''}
+        </div>
+        <div class="card card-grace${ci.grace && x.left ? ' ok' : !ci.grace && x.graceTo && x.left ? ' late' : ''}">${icons.clock}<p>${tip}</p></div>
+        <div class="card loan-facts">
+          <div><small>${L('Мин. платёж', 'Min. payment')}</small><b>${x.left ? `≈ ${num(ci.min)}` : '—'}</b></div>
+          <div><small>${L('Ставка вне льготы', 'Rate after grace')}</small><b>${ratePct(x.rate)}</b></div>
+          <div><small>${L('Проценты в месяц', 'Interest a month')}</small><b>${ci.grace || !x.left ? '0' : num(ci.interest)}</b></div>
+          <div><small>${L('Обслуживание', 'Fee')}</small><b>${x.fee ? `${num(x.fee)} / ${L('мес', 'mo')}` : L('бесплатно', 'free')}</b></div>
+        </div>
+        ${ci.util > 0.3 ? `<div class="imp-note dep-note">${L(`Использовано ${Math.round(ci.util * 100)}% лимита. Ниже 30% — лучше для кредитной истории и спокойнее при форс-мажоре.`, `${Math.round(ci.util * 100)}% of the limit used. Under 30% is better for your credit score.`)}</div>` : ''}
+        <div class="two-btn"><button class="btn alt" id="k-pay">${L('Внёс платёж', 'Paid')}</button><button class="btn alt" id="k-spend">${L('Покупка по карте', 'Card purchase')}</button></div>
+        ${x.left ? `<div class="section-label">${L('План погашения', 'Payoff plan')}</div>
+        <div class="card calc">
+          <label><span class="lbl">${L(`Буду вносить в месяц, ${SYM}`, `I’ll pay a month, ${SYM}`)}</span><input class="field" id="k-plan" inputmode="decimal" placeholder="${String(Math.round(ci.min / 100))}" value="${esc(c.pay)}"></label>
+          <div id="k-out"></div>
+        </div>` : ''}
+        <p class="calc-hint card-note">${L('Как устроены кредитки: льготный период (в РФ обычно 50–120 дней, бывает до 365; за рубежом 21–25 дней после выписки) действует, только если вернуть всю сумму до даты. Минимальный платёж — 3–8% долга в РФ, около 1% за рубежом, плюс проценты; если платить только его, долг тянется годами. Снятие наличных и переводы с кредитки часто сразу без льготы и с комиссией — смотрите условия в приложении банка.', 'How cards work: the grace period (often 21–25 days after the statement abroad, 50–120 days in Russia) applies only if you repay in full by the date. The minimum payment is about 1% abroad and 3–8% in Russia, plus interest; paying only that drags the debt on for years. Cash withdrawals and transfers usually have no grace and a fee — check your bank’s terms.')}</p>
+      </div>
+    </section>`;
+  countUp(app.querySelector('.month-total'), x.left);
+  app.querySelector('#back').onclick = loanBack;
+  app.querySelector('#edit').onclick = () => openLoan(x.kind, x);
+  const change = async (sign) => {
+    const v = await askText(sign < 0 ? L('Сколько внесли на карту?', 'How much did you pay?') : L('Сумма покупки', 'Purchase amount'), { mode: 'decimal', placeholder: L(`Сумма, ${SYM}`, `Amount, ${SYM}`) });
+    const k = kopIn(v);
+    if (v === null || !k) return;
+    const left = Math.max(0, x.left + sign * k);
+    putLoan({ ...x, left });
+    haptic();
+    toast(sign < 0 && !left && ci.grace ? L('Долг погашен в льготный период — без процентов', 'Paid off within the grace period — no interest') : L('Долг обновлён', 'Balance updated'));
+    render();
+  };
+  app.querySelector('#k-pay').onclick = () => change(-1);
+  app.querySelector('#k-spend').onclick = () => change(1);
+  const out = app.querySelector('#k-out');
+  if (!out) return;
+  const calc = () => {
+    const p = kopIn(c.pay) || ci.min;
+    const r = cardPayoff(x, p); const rm = cardPayoff(x, ci.min);
+    if (!r) { out.innerHTML = `<p class="calc-hint">${L('Этого не хватит даже на проценты и обслуживание — долг будет расти.', 'Not enough to cover interest and fees — the balance will grow.')}</p>`; return; }
+    out.innerHTML = `<div class="calc-row"><span>${L('Погасите за', 'Paid off in')}</span><b>${termText(r.months)}</b><small>${L('при', 'at')} ${num(p)} / ${L('мес', 'mo')}</small></div>
+      <div class="calc-row"><span>${L('Переплата', 'Total interest & fees')}</span><b>${num(r.cost)}</b><small>${L('проценты и обслуживание', 'interest and fees')}</small></div>
+      ${rm && p > ci.min ? `<div class="calc-row"><span>${L('Только минимальным', 'Minimum only')}</span><b>${termText(rm.months)}</b><small>${L('переплата', 'cost')} ${num(rm.cost)}</small></div>` : ''}
+      ${ci.grace ? `<p class="calc-hint">${L(`Выгоднее всего — внести ${money(x.left)} до ${dmy(x.graceTo)}: тогда переплаты не будет совсем.`, `Best option: pay ${money(x.left)} by ${dmy(x.graceTo)} — no interest at all.`)}</p>` : ''}`;
+  };
+  app.querySelector('#k-plan').oninput = (e) => { c.pay = e.target.value; calc(); };
+  calc();
+}
+
 function openLoan(kind, x) {
   const debt = kind === 'debt';
   let dir = x?.dir || 'me';
+  let sub = x?.sub === 'card' ? 'card' : 'loan';
   const v = (k) => (k ? String(k / 100).replace('.', ',') : '');
-  const dateVal = x?.due ? new Date(x.due - new Date(x.due).getTimezoneOffset() * 6e4).toISOString().slice(0, 10) : '';
-  const { panel, close } = bottomSheet(x ? x.name : `${L('Добавить', 'Add')} ${KINDS[kind].one}`, `
+  const dayVal = (ts) => (ts ? new Date(ts - new Date(ts).getTimezoneOffset() * 6e4).toISOString().slice(0, 10) : '');
+  const yearsLeft = x && !debt && x.sub !== 'card' && monthsLeft(x) && monthsLeft(x) !== Infinity ? String(Math.round((monthsLeft(x) / 12) * 10) / 10).replace('.', ',') : '';
+  const title = x ? x.name : kind === 'credit' ? L('Добавить кредит', 'Add a loan') : `${L('Добавить', 'Add')} ${KINDS[kind].one}`;
+  const { panel, close } = bottomSheet(title, `
     ${debt ? `<div class="seg kind full" id="ln-dir"><button class="${dir === 'me' ? 'on' : ''}" data-d="me">${L('Я должен', 'I owe')}</button><button class="${dir === 'them' ? 'on' : ''}" data-d="them">${L('Мне должны', 'Owed to me')}</button></div>` : ''}
-    <label class="lbl">${debt ? L('Кто', 'Who') : L('Название', 'Name')}</label>
-    <input class="field" id="ln-name" maxlength="60" value="${esc(x?.name || '')}" placeholder="${debt ? L('Например, Саша', 'e.g. Alex') : kind === 'mortgage' ? L('Например, Сбербанк', 'e.g. Bank') : L('Например, кредитка', 'e.g. Credit card')}">
-    ${debt ? '' : `<label class="lbl">${kind === 'mortgage' ? L(`Сумма ипотеки, ${SYM}`, `Mortgage amount, ${SYM}`) : L(`Сумма кредита, ${SYM}`, `Loan amount, ${SYM}`)}</label>
-    <input class="field" id="ln-total" inputmode="decimal" value="${v(x?.total)}" placeholder="0">`}
-    <label class="lbl">${debt ? L(`Сумма, ${SYM}`, `Amount, ${SYM}`) : L(`Актуальный долг, ${SYM}`, `Current balance, ${SYM}`)}</label>
-    <input class="field" id="ln-left" inputmode="decimal" value="${v(x?.left)}" placeholder="0">
-    ${debt ? `<label class="lbl">${L('Вернуть до (необязательно)', 'Due date (optional)')}</label><input class="field" id="ln-due" type="date" value="${dateVal}">`
-      : `<div class="two"><div><label class="lbl">${L('Ставка, % годовых', 'Rate, % a year')}</label><input class="field" id="ln-rate" inputmode="decimal" value="${x?.rate ? String(x.rate).replace('.', ',') : ''}" placeholder="0"></div>
-      <div><label class="lbl">${L('Осталось лет', 'Years left')}</label><input class="field" id="ln-term" inputmode="decimal" value="${x && monthsLeft(x) && monthsLeft(x) !== Infinity ? String(Math.round((monthsLeft(x) / 12) * 10) / 10).replace('.', ',') : ''}" placeholder="${kind === 'mortgage' ? 20 : 5}"></div></div>
-      <label class="lbl">${L(`Обязательный платёж в месяц, ${SYM}`, `Required monthly payment, ${SYM}`)}</label><input class="field" id="ln-pay" inputmode="decimal" value="${v(x?.pay)}" placeholder="0">
-      <p class="calc-hint" id="ln-hint">${L('Считается сам по долгу, ставке и сроку. Можно вписать свой — тогда посчитаю срок.', 'Calculated from balance, rate and term. Type your own and I’ll work out the term.')}</p>`}
+    ${kind === 'credit' ? `<div class="seg kind full" id="ln-sub"><button class="${sub === 'loan' ? 'on' : ''}" data-s="loan">${L('Кредит', 'Loan')}</button><button class="${sub === 'card' ? 'on' : ''}" data-s="card">${L('Кредитная карта', 'Credit card')}</button></div>` : ''}
+    <label class="lbl" id="ln-name-l">${debt ? (dir === 'me' ? L('Кому', 'To whom') : L('Кто', 'Who')) : L('Название', 'Name')}</label>
+    <input class="field" id="ln-name" maxlength="60" value="${esc(x?.name || '')}" placeholder="${debt ? L('Например, Саша', 'e.g. Alex') : kind === 'mortgage' ? L('Например, Сбербанк', 'e.g. Bank') : L('Например, Т-Банк', 'e.g. Bank')}">
+    ${debt ? `<label class="lbl">${L(`Сумма, ${SYM}`, `Amount, ${SYM}`)}</label><input class="field" id="ln-left" inputmode="decimal" value="${v(x?.left)}" placeholder="0">
+      <label class="lbl">${L('Вернуть до (необязательно)', 'Due date (optional)')}</label><input class="field" id="ln-due" type="date" value="${dayVal(x?.due)}">` : `
+    <div class="ln-loan"${sub === 'card' ? ' hidden' : ''}>
+      <label class="lbl">${kind === 'mortgage' ? L(`Сумма ипотеки, ${SYM}`, `Mortgage amount, ${SYM}`) : L(`Сумма кредита, ${SYM}`, `Loan amount, ${SYM}`)}</label>
+      <input class="field" id="ln-total" inputmode="decimal" value="${v(x?.total)}" placeholder="0">
+      <label class="lbl">${L(`Актуальный долг, ${SYM}`, `Current balance, ${SYM}`)}</label>
+      <input class="field" id="ln-left" inputmode="decimal" value="${x?.sub === 'card' ? '' : v(x?.left)}" placeholder="${L('как сумма', 'same as amount')}">
+      <div class="two"><div><label class="lbl">${L('Ставка, % годовых', 'Rate, % a year')}</label><input class="field" id="ln-rate" inputmode="decimal" value="${x?.rate && x.sub !== 'card' ? String(x.rate).replace('.', ',') : ''}" placeholder="0"></div>
+      <div><label class="lbl">${L('Осталось лет', 'Years left')}</label><input class="field" id="ln-term" inputmode="decimal" value="${yearsLeft}" placeholder="${kind === 'mortgage' ? 20 : 5}"></div></div>
+      <label class="lbl">${L(`Обязательный платёж в месяц, ${SYM}`, `Required monthly payment, ${SYM}`)}</label><input class="field" id="ln-pay" inputmode="decimal" value="${x?.sub === 'card' ? '' : v(x?.pay)}" placeholder="0">
+      <p class="calc-hint" id="ln-hint">${L('Считается сам по долгу, ставке и сроку. Впишите свой — посчитаю срок.', 'Calculated from balance, rate and term. Type your own and I’ll work out the term.')}</p>
+    </div>
+    ${kind === 'credit' ? `<div class="ln-card"${sub === 'card' ? '' : ' hidden'}>
+      <div class="two"><div><label class="lbl">${L(`Кредитный лимит, ${SYM}`, `Credit limit, ${SYM}`)}</label><input class="field" id="cd-limit" inputmode="decimal" value="${v(x?.limit)}" placeholder="0"></div>
+      <div><label class="lbl">${L(`Долг сейчас, ${SYM}`, `Balance now, ${SYM}`)}</label><input class="field" id="cd-left" inputmode="decimal" value="${x?.sub === 'card' ? v(x?.left) : ''}" placeholder="0"></div></div>
+      <label class="lbl">${L('Без процентов до (льготный период)', 'Interest-free until (grace period)')}</label><input class="field" id="cd-grace" type="date" value="${dayVal(x?.graceTo)}">
+      <div class="day-chips" id="cd-days">${[55, 100, 120, 200].map((d) => `<button class="dchip" data-days="${d}">+${d} ${L('дн', 'd')}</button>`).join('')}</div>
+      <div class="two"><div><label class="lbl">${L('Ставка вне льготы, %', 'Rate after grace, %')}</label><input class="field" id="cd-rate" inputmode="decimal" value="${x?.sub === 'card' && x.rate ? String(x.rate).replace('.', ',') : ''}" placeholder="40"></div>
+      <div><label class="lbl">${L('Мин. платёж, % долга', 'Min. payment, % of balance')}</label><input class="field" id="cd-min" inputmode="decimal" value="${x?.minPct ? String(x.minPct).replace('.', ',') : ''}" placeholder="3"></div></div>
+      <label class="lbl">${L(`Обслуживание в месяц, ${SYM}`, `Monthly fee, ${SYM}`)}</label><input class="field" id="cd-fee" inputmode="decimal" value="${v(x?.fee)}" placeholder="0">
+      <p class="calc-hint">${L('Всё есть в приложении банка: «Условия» или выписка по карте. «+55 дн» — посчитать дату от сегодня.', 'Find these in your bank app: card terms or statement. “+55 d” counts the date from today.')}</p>
+    </div>` : ''}`}
     <button class="btn" id="ln-save">${L('Сохранить', 'Save')}</button>
     ${x ? `<button class="btn alt danger" id="ln-del">${L('Удалить', 'Delete')}</button>` : ''}`);
-  // Аннуитетный платёж по долгу, ставке и сроку; свой платёж — пересчёт срока
+  const f = (id) => panel.querySelector(id);
+  const n = (id) => parseFloat((f(id)?.value || '').replace(/\s/g, '').replace(',', '.')) || 0;
+  // Аннуитетный платёж: пересчитывается при любом изменении суммы, долга, ставки или срока;
+  // свой платёж — пересчёт срока, дальше платёж снова считается от этого срока
   if (!debt) {
-    const f = (id) => panel.querySelector(id);
-    const n = (id) => parseFloat((f(id).value || '').replace(/\s/g, '').replace(',', '.')) || 0;
     const fmt = (k) => String(Math.round(k) / 100).replace('.', ',');
-    // срок не указан — берём типичный (ипотека 20 лет, кредит 5), он виден подсказкой в поле
-    let manual = !!x?.pay;
-    const fromTerm = (force) => {
-      if (manual && force !== true) return;
-      const left = toKop(f('#ln-left').value || '0') || 0; const r = n('#ln-rate') / 1200; const m = Math.round((n('#ln-term') || Number(f('#ln-term').placeholder)) * 12);
-      if (!(left > 0) || !(m > 0)) return;
+    const debtNow = () => kopIn(f('#ln-left').value) || kopIn(f('#ln-total').value);
+    const fromTerm = () => {
+      const left = debtNow(); const r = n('#ln-rate') / 1200; const m = Math.round((n('#ln-term') || Number(f('#ln-term').placeholder)) * 12);
+      if (!(left > 0) || !(m > 0)) { f('#ln-pay').value = ''; return; }
       f('#ln-pay').value = fmt(r ? (left * r) / (1 - (1 + r) ** -m) : left / m);
+      f('#ln-hint').textContent = L('Считается сам по долгу, ставке и сроку. Впишите свой — посчитаю срок.', 'Calculated from balance, rate and term. Type your own and I’ll work out the term.');
     };
     const fromPay = () => {
-      manual = !!f('#ln-pay').value.trim();
-      if (!manual) return fromTerm(true);
-      const m = monthsLeft({ left: toKop(f('#ln-left').value || '0') || 0, rate: n('#ln-rate'), pay: toKop(f('#ln-pay').value || '0') || 0 });
+      if (!f('#ln-pay').value.trim()) return fromTerm();
+      const m = monthsLeft({ left: debtNow(), rate: n('#ln-rate'), pay: kopIn(f('#ln-pay').value) });
       f('#ln-term').value = m && m !== Infinity ? String(Math.round((m / 12) * 10) / 10).replace('.', ',') : '';
       f('#ln-hint').textContent = m === Infinity ? L('Платёж меньше процентов — долг не уменьшится.', 'Payment is below interest — the balance won’t go down.') : '';
     };
-    ['#ln-left', '#ln-rate'].forEach((id) => f(id).addEventListener('input', fromTerm));
-    f('#ln-term').addEventListener('input', () => { manual = false; fromTerm(true); });
-    if (!x?.pay) fromTerm(true);
+    // новая запись: долг повторяет сумму, пока его не поменяли руками
+    let lastTotal = f('#ln-total').value;
+    f('#ln-total').addEventListener('input', () => {
+      if (!f('#ln-left').value || f('#ln-left').value === lastTotal) f('#ln-left').value = f('#ln-total').value;
+      lastTotal = f('#ln-total').value;
+      fromTerm();
+    });
+    ['#ln-left', '#ln-rate', '#ln-term'].forEach((id) => f(id).addEventListener('input', fromTerm));
     f('#ln-pay').addEventListener('input', fromPay);
+    if (!x?.pay || x.sub === 'card') fromTerm();
+    f('#cd-days')?.addEventListener('click', (e) => {
+      const d = Number(e.target.closest('[data-days]')?.dataset.days);
+      if (!d) return;
+      haptic(); f('#cd-grace').value = dayVal(Date.now() + d * 864e5);
+    });
   }
-  panel.querySelector('#ln-dir')?.addEventListener('click', (e) => {
+  f('#ln-sub')?.addEventListener('click', (e) => {
+    const s = e.target.closest('[data-s]')?.dataset.s;
+    if (!s || s === sub) return;
+    sub = s; haptic();
+    f('#ln-sub').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.s === s));
+    f('.ln-loan').hidden = s === 'card'; f('.ln-card').hidden = s !== 'card';
+    panel.querySelector('.bs-head h3').textContent = x ? x.name : s === 'card' ? L('Добавить кредитную карту', 'Add a credit card') : L('Добавить кредит', 'Add a loan');
+  });
+  f('#ln-dir')?.addEventListener('click', (e) => {
     const d = e.target.closest('[data-d]')?.dataset.d;
     if (!d) return;
     dir = d; haptic();
-    panel.querySelectorAll('#ln-dir button').forEach((b) => b.classList.toggle('on', b.dataset.d === d));
+    f('#ln-dir').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.d === d));
+    f('#ln-name-l').textContent = d === 'me' ? L('Кому', 'To whom') : L('Кто', 'Who');
   });
-  panel.querySelector('#ln-save').onclick = () => {
-    const left = toKop(panel.querySelector('#ln-left').value || '0');
-    if (!(left > 0)) { panel.querySelector('#ln-left').focus(); return; }
-    const due = panel.querySelector('#ln-due')?.value;
-    putLoan({
-      id: x?.id || '', kind, name: panel.querySelector('#ln-name').value.trim().slice(0, 60) || KINDS[kind].name, left,
-      rate: debt ? 0 : Math.min(100, Math.max(0, parseFloat((panel.querySelector('#ln-rate').value || '0').replace(',', '.')) || 0)),
-      pay: debt ? 0 : Math.max(0, toKop(panel.querySelector('#ln-pay').value || '0') || 0),
-      total: debt ? 0 : Math.max(0, toKop(panel.querySelector('#ln-total').value || '0') || 0),
-      dir: debt ? dir : 'me', due: due ? +new Date(`${due}T12:00`) : 0,
-    });
+  f('#ln-save').onclick = () => {
+    const card = !debt && sub === 'card';
+    const keep = { extra: x?.extra || 0, hist: x?.hist || [] };
+    const name = f('#ln-name').value.trim().slice(0, 60);
+    if (card) {
+      const limit = kopIn(f('#cd-limit').value); const left = kopIn(f('#cd-left').value);
+      if (!limit && !left) { f('#cd-limit').focus(); return; }
+      const g = f('#cd-grace').value;
+      putLoan({ id: x?.id || '', kind, sub: 'card', name: name || L('Кредитная карта', 'Credit card'), left, limit, total: 0, pay: 0, extra: 0, hist: [],
+        rate: Math.min(100, n('#cd-rate')), minPct: Math.min(100, n('#cd-min')), fee: kopIn(f('#cd-fee').value), graceTo: g ? +new Date(`${g}T23:00`) : 0, dir: 'me', due: 0 });
+    } else {
+      const left = debt ? kopIn(f('#ln-left').value) : kopIn(f('#ln-left').value) || kopIn(f('#ln-total').value);
+      if (!(left > 0)) { f(debt || !f('#ln-total').value ? '#ln-left' : '#ln-total').focus(); return; }
+      const due = f('#ln-due')?.value;
+      putLoan({
+        id: x?.id || '', kind, sub: 'loan', name: name || KINDS[kind].name, left,
+        rate: debt ? 0 : Math.min(100, n('#ln-rate')),
+        pay: debt ? 0 : kopIn(f('#ln-pay').value),
+        total: debt ? 0 : kopIn(f('#ln-total').value),
+        dir: debt ? dir : 'me', due: due ? +new Date(`${due}T12:00`) : 0, ...(debt ? {} : keep),
+      });
+    }
     haptic(); close(); render();
   };
-  panel.querySelector('#ln-del')?.addEventListener('click', async () => {
+  f('#ln-del')?.addEventListener('click', async () => {
     if (!(await ask(L('Удалить запись?', 'Delete this entry?'), ''))) return;
     removeLoan(x.id); close(); if (state.flow === 'loan') { state.flow = null; state.loanId = null; } render();
   });
-  if (!x) setTimeout(() => panel.querySelector('#ln-left').focus(), 300);
+  if (!x) setTimeout(() => f(debt ? '#ln-left' : kind === 'credit' ? '#ln-name' : '#ln-total').focus(), 300);
 }
 
 /* ---------- инструкция по установке (раскрывающиеся блоки в профиле) ---------- */

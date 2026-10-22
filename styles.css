@@ -978,3 +978,26 @@ html[data-lang="en"] .amount .cur { order: -1; }
 .guide-all[open] > summary { border-bottom: 1px solid var(--border); }
 .guide-all[open] > summary > svg { transform: rotate(180deg); }
 .guide-all { margin-bottom: 12px; }
+/* досрочные платежи и кредитные карты */
+.loan-facts b i.plus { font-style: normal; font-size: 13px; }
+.early { padding: 6px 14px 14px; }
+.early-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 0; border-bottom: 1px solid var(--border); text-align: left; color: inherit; }
+.early-row > span { flex: 1; min-width: 0; font-size: 14px; }
+.early-row small { display: block; font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.early-row b { font: 500 14px var(--mono); }
+.early-undo { width: 30px; height: 30px; display: grid; place-items: center; color: var(--text-3); border-radius: 8px; }
+.early-undo svg { width: 16px; height: 16px; }
+.early-empty { margin: 10px 0 4px; }
+.early .btn { width: 100%; margin-top: 12px; gap: 6px; }
+.early .btn svg { width: 18px; height: 18px; }
+.loan-meter.warn i { background: var(--neg, #F2A3A3); }
+.card-grace { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; line-height: 1.45; color: var(--text-2); }
+.card-grace svg { flex: none; width: 18px; height: 18px; margin-top: 1px; color: var(--text-3); }
+.card-grace p { margin: 0; }
+.card-grace.ok svg { color: var(--pos); }
+.card-grace.late svg { color: var(--neg, #F2A3A3); }
+.two-btn { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 4px; }
+.card-note { margin: 16px 4px 8px; font-size: 12px; }
+.day-chips { display: flex; gap: 6px; margin: 8px 0 2px; flex-wrap: wrap; }
+.dchip { height: 30px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font: 500 12px var(--mono); }
+.bs [hidden] { display: none !important; }

@@ -11,7 +11,7 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, moneyLeft
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '3.4';
+const BUILD_WEB = '3.5';
 const APP = 'https://kesh-money.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'support', 'settings'];
@@ -484,7 +484,7 @@ function installPage() {
       L('<b>Главная</b>: расходы за месяц, сегодня, доходы, сколько осталось.', '<b>Home</b>: monthly spending, today, income, what’s left.'),
       L('<b>Аналитика</b>: по дням, неделям, году и категориям.', '<b>Analytics</b>: by day, week, year and category.'),
       L('<b>Бюджет</b>: счета, лимиты по категориям, «осталось денег». Счета можно выключить.', '<b>Budget</b>: accounts, category limits, money left. Accounts can be turned off.'),
-      L('<b>Финансы</b>: блоки «Бюджет и счета», «Вклады», «Ипотека», «Кредиты», «Долги» — включаются и скрываются кнопкой ✎. У ипотеки и кредита — калькулятор досрочного погашения.', '<b>Finance</b>: Budget & accounts, Savings, Mortgage, Loans, Debts blocks — show or hide them with ✎. Mortgage and loans have an early-repayment calculator.'),
+      L('<b>Финансы</b>: блоки «Бюджет и счета», «Вклады», «Ипотека», «Кредиты», «Долги» — включаются и скрываются кнопкой ✎. У ипотеки и кредита — досрочные платежи разово и каждый месяц, у кредитной карты — лимит, льготный период, минимальный платёж и план погашения.', '<b>Finance</b>: Budget & accounts, Savings, Mortgage, Loans, Debts blocks — show or hide them with ✎. Mortgages and loans track early payments (one-time or monthly); credit cards show limit, grace period, minimum payment and a payoff plan.'),
       L('<b>Выписки банков</b> и <b>копия данных</b>; на компьютере — Excel, CSV, JSON.', '<b>Bank statements</b> and <b>backups</b>; Excel, CSV, JSON on a computer.')])}
       ${step(L('Виджет на iPhone', 'iPhone widget'), '', L('Только в приложении из файла <code>Kesh.ipa</code>.', 'Only in the app from <code>Kesh.ipa</code>.'), [
         L('Долгое нажатие на пустое место экрана «Домой» → <b>Изменить</b> → <b>Добавить виджет</b>.', 'Long-press an empty spot on the Home Screen → <b>Edit</b> → <b>Add Widget</b>.'),
