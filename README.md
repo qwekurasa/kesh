@@ -1,41 +1,39 @@
-# Кэш — трекер трат
+# Kesh — expense tracker
 
-Простой учёт расходов и доходов без регистрации и облака. Данные хранятся только на устройстве.
-
-**Kesh** — offline expense tracker & budget app (PWA, iOS, Android). No sign-up, no cloud.
+A simple, private expense and budget tracker. No sign-up, no cloud — your data stays on your device.
 
 → **https://kesh-money.vercel.app/**
 
-## Что умеет
+## Features
 
-- расходы и доходы по категориям, аналитика за любой период
-- бюджет, счета и лимиты
-- вклады, ипотека, кредиты, кредитные карты, долги
-- импорт выписки Т-Банка (PDF, CSV), экспорт в Excel, резервная копия
-- офлайн, русский и английский, 10 валют, виджет для iPhone
+- expenses and income by category, analytics for any period
+- budget, accounts and category limits
+- savings, mortgage, loans, credit cards and debts
+- bank statement import (PDF, CSV), Excel export, backups
+- works offline, English and Russian, 10 currencies, iPhone widget
 
-## Установка
+## Install
 
-- **Любой телефон:** открыть ссылку → «На экран „Домой“» (Safari) или «Установить приложение» (Chrome)
+- **Any phone:** open the link → Add to Home Screen (Safari) or Install app (Chrome)
 - **Android:** [Kesh.apk](https://kesh-money.vercel.app/dl/Kesh.apk)
-- **iPhone с виджетом:** [Kesh.ipa](https://kesh-money.vercel.app/dl/Kesh.ipa) через AltStore или Sideloadly; подробная инструкция — в приложении: Профиль → «Установка на другие устройства»
-- **Компьютер:** та же ссылка — отчёты, Excel, перенос данных с телефона
+- **iPhone with widget:** [Kesh.ipa](https://kesh-money.vercel.app/dl/Kesh.ipa) via AltStore or Sideloadly; step-by-step guide in the app: Profile → Install on other devices
+- **Computer:** same link — reports, Excel, data transfer from your phone
 
-## Запуск
+## Run locally
 
 ```bash
 git clone https://github.com/qwekurasa/kesh && cd kesh
 python3 -m http.server 8080
 ```
 
-Сборка не нужна. `ios/` — проект Xcode, `android/` — Android.
+No build step. `ios/` — Xcode project, `android/` — Android app.
 
-## Поддержать
+## Support
 
 - Solana: `64kwY5adPeQVfzvsyvEpke5wsJuVEPXAY3bm6VuFBZf`
 - Ethereum: `0xad4a06e063d0e83e783f9fb17efc6524a83a40f2`
 - USDT TRC20: `TERWLLYABDAvMQTKPkpXwdKpU4AS5k8ff3`
 
-## Лицензия
+## License
 
-Все права защищены. Сторонние компоненты: PDF.js (Apache-2.0), Air Datepicker (MIT), шрифты Onest, Outfit, JetBrains Mono (OFL), иконки Phosphor (MIT).
+All rights reserved. Third-party: PDF.js (Apache-2.0), Air Datepicker (MIT), Onest, Outfit and JetBrains Mono fonts (OFL), Phosphor icons (MIT).
