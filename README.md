@@ -2,7 +2,7 @@
 
 A simple, private expense and budget tracker. No sign-up, no cloud — your data stays on your device.
 
-→ **https://kesh-money.vercel.app/**
+→ **https://keshi-ik.vercel.app/**
 
 ## Features
 
@@ -15,8 +15,8 @@ A simple, private expense and budget tracker. No sign-up, no cloud — your data
 ## Install
 
 - **Any phone:** open the link → Add to Home Screen (Safari) or Install app (Chrome)
-- **Android:** [Kesh.apk](https://kesh-money.vercel.app/dl/Kesh.apk)
-- **iPhone with widget:** [Kesh.ipa](https://kesh-money.vercel.app/dl/Kesh.ipa) via AltStore or Sideloadly; step-by-step guide in the app: Profile → Install on other devices
+- **Android:** [Kesh.apk](https://keshi-ik.vercel.app/dl/Kesh.apk)
+- **iPhone with widget:** [Kesh.ipa](https://keshi-ik.vercel.app/dl/Kesh.ipa) via AltStore or Sideloadly; step-by-step guide in the app: Profile → Install on other devices
 - **Computer:** same link — reports, Excel, data transfer from your phone
 
 ## Run locally

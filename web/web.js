@@ -11,8 +11,8 @@ import { accounts, addAccount, updateAccount, removeAccount, balances, moneyLeft
 import { writeXlsx } from '../xlsx.js';
 
 const root = document.getElementById('root');
-const BUILD_WEB = '3.5';
-const APP = 'https://kesh-money.vercel.app/';
+const BUILD_WEB = '3.6';
+const APP = 'https://keshi-ik.vercel.app/';
 const DL = `${APP}dl/`;
 const PAGES = ['data', 'overview', 'ops', 'budget', 'deposits', 'cats', 'install', 'support', 'settings'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -449,7 +449,7 @@ function installPage() {
     iphone: [
       dlCard('ios', I.apple, 'Kesh.ipa', L('Кэш для iPhone', 'Kesh for iPhone'), L('Файл приложения', 'App file'), L('последняя версия · с виджетом · ставится через AltStore', 'latest · with widget · install with AltStore')),
       `<div class="inst">${step(L('Как приложение с сайта', 'Web app from Safari'), easy, L('Без компьютера. Работает офлайн, обновляется само.', 'No computer. Works offline, updates itself.'), [
-        L('Откройте <code>kesh-money.vercel.app</code> в <b>Safari</b>.', 'Open <code>kesh-money.vercel.app</code> in <b>Safari</b>.'),
+        L('Откройте <code>keshi-ik.vercel.app</code> в <b>Safari</b>.', 'Open <code>keshi-ik.vercel.app</code> in <b>Safari</b>.'),
         L('<b>Поделиться</b> → <b>На экран «Домой»</b>.', '<b>Share</b> → <b>Add to Home Screen</b>.'),
         L('Запускайте «Кэш» с экрана «Домой».', 'Launch Kesh from the Home Screen.')])}
       ${step(L('Файл через AltStore (Windows)', 'File via AltStore (Windows)'), hard, L('Полноценное приложение с виджетом. Нужен компьютер и Apple ID.', 'Full app with the widget. Needs a computer and an Apple ID.'), [
@@ -471,11 +471,11 @@ function installPage() {
         L('Откройте файл и разрешите установку из этого источника.', 'Open it and allow installs from this source.'),
         L('Нажмите <b>Установить</b>.', 'Tap <b>Install</b>.')])}
       ${step(L('Как приложение с сайта', 'Web app from Chrome'), easy, L('Работает офлайн, обновляется само.', 'Works offline, updates itself.'), [
-        L('Откройте <code>kesh-money.vercel.app</code> в <b>Chrome</b>.', 'Open <code>kesh-money.vercel.app</code> in <b>Chrome</b>.'),
+        L('Откройте <code>keshi-ik.vercel.app</code> в <b>Chrome</b>.', 'Open <code>keshi-ik.vercel.app</code> in <b>Chrome</b>.'),
         L('Меню <b>⋮</b> → <b>Установить приложение</b>.', 'Menu <b>⋮</b> → <b>Install app</b>.')])}</div>`,
     ],
     pc: [`<div class="inst">${step(L('Этот сайт', 'This site'), easy, L('Экспорт, аналитика и все функции приложения на большом экране.', 'Export, analytics and every app feature on a big screen.'), [
-      L('Откройте <code>kesh-money.vercel.app</code> на компьютере.', 'Open <code>kesh-money.vercel.app</code> on a computer.'),
+      L('Откройте <code>keshi-ik.vercel.app</code> на компьютере.', 'Open <code>keshi-ik.vercel.app</code> on a computer.'),
       L('Перенесите копию с телефона во вкладке «Экспорт и импорт».', 'Bring your phone backup in “Export & import”.')])}
       ${step(L('Как отдельное приложение', 'As a separate app'), easy, L('Chrome или Edge.', 'Chrome or Edge.'), [
         L('Значок установки в адресной строке → <b>Установить</b>.', 'Install icon in the address bar → <b>Install</b>.')])}</div>`],
