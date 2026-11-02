@@ -13,7 +13,7 @@ import { KINDS, loans, putLoan, removeLoan, monthsLeft, simulate, cardInfo, card
 import { TYPES, accounts, balances, moneyLeft, addAccount, updateAccount, removeAccount, accountsOff, setAccountsOff } from './accounts.js';
 import { L, LANG, setLang, plural as pl, CURRENCIES, CURRENCY, curSymbol, setCurrency } from './i18n.js';
 
-export const BUILD = 'v64';
+export const BUILD = 'v65';
 
 
 const MONTHS = L(['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
@@ -296,24 +296,28 @@ const plural = (n, one, few, many) => pl(n, [one, few, many], PL_EN[one] || [one
 /* ---------- charts ---------- */
 const PERIODS = [['week', L('Нед', 'Wk')], ['month', L('Мес', 'Mo')], ['year', L('Год', 'Yr')]];
 
-function periodRange(period) {
+// off — сдвиг назад от текущего периода: 0 — сейчас, -1 — прошлый и т. д.
+function periodRange(period, off = 0) {
   const now = new Date();
   if (period === 'day') {
-    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return { from, to: new Date(+from + 864e5), label: `${from.getDate()} ${MONTHS_SHORT[from.getMonth()]}`, bars: 24, step: 'hour' };
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() + off);
+    return { from, to: new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1), label: `${from.getDate()} ${MONTHS_SHORT[from.getMonth()]}`, bars: 24, step: 'hour' };
   }
   if (period === 'week') {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    return { from: d, to: new Date(+d + 7 * 864e5), label: L('Эта неделя', 'This week'), bars: 7, step: 'day' };
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + off * 7);
+    const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 6);
+    const label = !off ? L('Эта неделя', 'This week') : off === -1 ? L('Прошлая неделя', 'Last week')
+      : `${d.getDate()}${d.getMonth() !== end.getMonth() ? ` ${MONTHS_SHORT[d.getMonth()]}` : ''} – ${end.getDate()} ${MONTHS_SHORT[end.getMonth()]}${end.getFullYear() !== now.getFullYear() ? ` ${end.getFullYear()}` : ''}`;
+    return { from: d, to: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7), label, bars: 7, step: 'day' };
   }
   if (period === 'year') {
-    const from = new Date(now.getFullYear(), 0, 1);
-    return { from, to: new Date(now.getFullYear() + 1, 0, 1), label: String(now.getFullYear()), bars: 12, step: 'month' };
+    const from = new Date(now.getFullYear() + off, 0, 1);
+    return { from, to: new Date(from.getFullYear() + 1, 0, 1), label: String(from.getFullYear()), bars: 12, step: 'month' };
   }
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  return { from, to, label: MONTHS[now.getMonth()], bars: new Date(+to - 1).getDate(), step: 'day' };
+  const from = new Date(now.getFullYear(), now.getMonth() + off, 1);
+  const to = new Date(from.getFullYear(), from.getMonth() + 1, 1);
+  return { from, to, label: `${MONTHS[from.getMonth()]}${from.getFullYear() !== now.getFullYear() ? ` ${from.getFullYear()}` : ''}`, bars: new Date(+to - 1).getDate(), step: 'day' };
 }
 
 // Прошлый период обрезается до того же количества времени, что уже прошло в текущем,
@@ -347,9 +351,11 @@ function barLabel(i, r) {
 export async function renderCharts() {
   const live = ticket();
   if (!PERIODS.some(([id]) => id === state.period)) state.period = 'month';
-  const r = periodRange(state.period);
+  const off = Math.min(0, state.pOff || 0);
+  const r = periodRange(state.period, off);
   const elapsed = Math.min(Date.now(), +r.to) - +r.from;
   const prev = prevRange(r, elapsed);
+  if (off && r.bars === 7 && r.step === 'day') prev.label = periodRange('week', off - 1).label;
   const [now, before] = await Promise.all([
     store.expensesBetween(r.from.getTime(), r.to.getTime() - 1),
     store.expensesBetween(prev.from.getTime(), prev.to.getTime() - 1),
@@ -373,7 +379,7 @@ export async function renderCharts() {
   const nowBucket = Date.now() < +r.to ? bucketOf(Date.now(), r) : -1;
   const prevOut = sum(spent(before));
   const prevIn = sum(before.filter(isIncome));
-  const short = (lbl) => lbl.slice(0, 3).toUpperCase();
+  const short = (lbl) => (/^\d{4}$/.test(lbl) ? lbl : /^\d/.test(lbl) ? lbl.split(' – ')[0] : lbl.slice(0, 3).toUpperCase());
 
   const cats = byCategory(items);
   const prevCats = Object.fromEntries(byCategory(prevItems));
@@ -398,6 +404,11 @@ export async function renderCharts() {
         <div class="seg">${PERIODS.map(([id, name]) =>
           `<button class="${state.period === id ? 'on' : ''}" data-p="${id}">${name}</button>`).join('')}</div>
       </header>
+      <div class="period-nav">
+        <button class="icon-btn sm" id="p-prev" aria-label="${L('Раньше', 'Earlier')}">${icons.back}</button>
+        <b>${r.label}</b>
+        <button class="icon-btn sm" id="p-next" aria-label="${L('Позже', 'Later')}"${off ? '' : ' disabled'}>${icons.right}</button>
+      </div>
       <div class="scroll">
         <div class="flow-card">
           <button class="flow${inc ? '' : ' on'}" data-k="out"><small>${L('Расходы', 'Expenses')}</small><b>${money(outSum)}</b>${deltaChip(outSum, prevOut)}</button>
@@ -475,9 +486,13 @@ export async function renderCharts() {
     const b = e.target.closest('[data-p]');
     if (!b) return;
     state.period = b.dataset.p;
+    state.pOff = 0;
     haptic();
     render();
   };
+  const shift = (d) => { const n = Math.min(0, off + d); if (n === off) return; state.pOff = n; haptic(); render(); };
+  app.querySelector('#p-prev').onclick = () => shift(-1);
+  app.querySelector('#p-next').onclick = () => shift(1);
 }
 
 const WAFFLE = ['#EDEDEF', '#B4B4BB', '#85858D', '#606068', '#45454B', '#2E2E33'];
@@ -581,7 +596,7 @@ function tips(items, cats, prevCats, total, prevTotal, r, days) {
     if (free > 0) out.push(['🧘', L(`<b>${free}</b> ${plural(free, 'день', 'дня', 'дней')} без единой траты из ${days}. Так держать.`, `<b>${free}</b> of ${days} days with no spending at all. Keep it up.`)]);
   }
 
-  if (state.period === 'month') {
+  if (state.period === 'month' && !state.pOff) {
     const inMonth = new Date(r.to - 1).getDate();
     const forecast = Math.round((total / days) * inMonth / 100) * 100;
     out.push(['🔮', L(`При таком темпе за месяц выйдет около <b>${money(forecast)}</b>${prevTotal ? `, за те же ${days} ${plural(days, 'день', 'дня', 'дней')} прошлого месяца было ${money(prevTotal)}` : ''}.`, `At this pace the month will come to about <b>${money(forecast)}</b>${prevTotal ? `; the same ${days} days last month were ${money(prevTotal)}` : ''}.`)]);
@@ -594,7 +609,7 @@ function tips(items, cats, prevCats, total, prevTotal, r, days) {
 export async function renderCategoryDetail() {
   const live = ticket();
   const id = state.catId;
-  const r = periodRange(state.period);
+  const r = periodRange(state.period, Math.min(0, state.pOff || 0));
   const all = await store.expensesBetween(r.from.getTime(), r.to.getTime() - 1);
   const items = all.filter((i) => i.category === id).sort((a, b) => b.ts - a.ts);
   const total = sum(items);

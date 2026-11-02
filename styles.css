@@ -1001,3 +1001,7 @@ html[data-lang="en"] .amount .cur { order: -1; }
 .day-chips { display: flex; gap: 6px; margin: 8px 0 2px; flex-wrap: wrap; }
 .dchip { height: 30px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font: 500 12px var(--mono); }
 .bs [hidden] { display: none !important; }
+/* аналитика: переключение периода */
+.period-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 16px 10px; }
+.period-nav b { font: 500 14px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.period-nav .icon-btn:disabled { opacity: .3; }
